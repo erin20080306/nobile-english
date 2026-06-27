@@ -12,6 +12,7 @@ import { LevelBadge, Toggle } from "@/components/ui";
 
 const levels: EnglishLevel[] = ["Beginner", "Elementary", "Intermediate", "Upper-Intermediate", "Advanced"];
 const examples = [
+  "我要練習餐廳點餐完整流程",
   "我要練習到外商公司面試行政助理",
   "我要練習在咖啡廳點餐",
   "我要練習向國外客戶確認資料",
@@ -50,13 +51,31 @@ export default function CustomScenePage() {
     const s = created.scene;
     return (
       <div className="min-h-[100dvh] pb-10">
-        <AppHeader title="專屬練習卡" subtitle="已為你產生完整內容" back={true} />
+        <AppHeader title="自訂場景練習" subtitle="已為你產生階段式情境" back={true} />
         <div className="px-5 space-y-4">
           <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="card bg-gradient-to-br from-peach to-lilac">
             <div className="flex items-center gap-2"><Wand2 className="text-peachDeep" /><p className="font-extrabold text-ink">{s.name}</p></div>
             <p className="text-sm text-ink mt-1">{s.intro}</p>
             <div className="mt-2"><LevelBadge level={s.difficulty} /></div>
           </motion.div>
+
+          {created.stages && created.stages.length > 0 && (
+            <Section title={`自動階段（${created.stages.length}）`}>
+              <div className="space-y-2">
+                {created.stages.map((stage, index) => (
+                  <div key={stage.title} className="rounded-3xl bg-cream p-3">
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-peachDeep px-2 py-1 text-[11px] font-extrabold text-white">STEP {index + 1}</span>
+                      <p className="font-extrabold text-ink">{stage.title}</p>
+                    </div>
+                    <p className="mt-1 text-sm font-semibold text-lilacDeep">{stage.enTitle}</p>
+                    <p className="mt-1 text-sm text-inkSoft">{stage.learnerGoal}</p>
+                    <p className="mt-2 rounded-2xl bg-white/70 px-3 py-2 text-sm font-semibold text-ink">{stage.sampleUser}</p>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
 
           <Section title="學習目標">
             <ul className="list-disc list-inside text-ink text-sm">{s.goals.map((g) => <li key={g}>{g}</li>)}</ul>
@@ -99,7 +118,7 @@ export default function CustomScenePage() {
 
   return (
     <div className="min-h-[100dvh] pb-10">
-      <AppHeader title="建立我的場景" subtitle="輸入需求，自動產生練習" back={true} />
+      <AppHeader title="自訂場景練習" subtitle="輸入主題，自動產生階段式情境" back={true} />
       <div className="px-5 space-y-4">
         <div className="card bg-gradient-to-br from-lilac to-sky">
           <p className="text-sm text-ink">試試這些例子：</p>

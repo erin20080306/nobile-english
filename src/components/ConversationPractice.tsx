@@ -47,12 +47,14 @@ export default function ConversationPractice({
   showZh,
   pronunciationOn = true,
   finishLabel = "結束對話並看成果",
+  onUserTurn,
   onFinish,
 }: {
   scene: Scene;
   showZh: boolean;
   pronunciationOn?: boolean;
   finishLabel?: string;
+  onUserTurn?: (text: string) => boolean | void;
   onFinish: (result: DialogueResult, userTurns: string[], feedbacks: TutorFeedback[]) => void;
 }) {
   const firstTutor =
@@ -174,16 +176,21 @@ export default function ConversationPractice({
     setInput("");
 
     setMsgs((m) => [...m, { role: "user", en: trimmed, zh: "" }]);
+    const history = [...historyRef.current];
+    historyRef.current.push(trimmed);
+    userTurnsRef.current = [...userTurnsRef.current, trimmed];
+
+    if (onUserTurn?.(trimmed)) {
+      setBusy(false);
+      return;
+    }
+
     let learnerSpeechDone = Promise.resolve();
     if (autoSpeak) {
       learnerSpeechDone = queueSpeak(trimmed, false, {
         ttsInstructions: "Repeat the learner's English sentence clearly and naturally for listening practice. Use strong clear volume.",
       });
     }
-
-    const history = [...historyRef.current];
-    historyRef.current.push(trimmed);
-    userTurnsRef.current = [...userTurnsRef.current, trimmed];
 
     const fb = await aiTutorService.feedback(scene, trimmed, turn + 1, history, persona);
     feedbacksRef.current = [...feedbacksRef.current, fb];

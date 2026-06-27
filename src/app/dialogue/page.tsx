@@ -2,8 +2,8 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Home, RotateCcw } from "lucide-react";
-import type { Scene, TutorFeedback, DialogueResult, DialogueTranscriptLine } from "@/types";
+import { Home, Play, RotateCcw, Wand2 } from "lucide-react";
+import type { CustomScene, EnglishLevel, Scene, TutorFeedback, DialogueResult, DialogueTranscriptLine } from "@/types";
 import { sceneService } from "@/services/sceneService";
 import { learningService } from "@/services/learningService";
 import { authService } from "@/services/authService";
@@ -103,10 +103,19 @@ function ScenerPicker({
           </div>
         )}
 
-        <button onClick={onFreeMode} className="w-full card !p-4 text-left active:scale-95 transition mb-4 bg-gradient-to-r from-peach to-peachDeep text-white">
-          <p className="font-bold">自由對話</p>
-          <p className="text-xs opacity-90">無特定情境，支援語音或手動輸入練習</p>
-        </button>
+        <div className="grid grid-cols-1 gap-3 mb-4">
+          <button onClick={onFreeMode} className="w-full card !p-4 text-left active:scale-95 transition bg-gradient-to-r from-peach to-peachDeep text-white">
+            <p className="font-bold">自由對話</p>
+            <p className="text-xs opacity-90">可自由聊天，也可直接請 AI 建立練習主題</p>
+          </button>
+          <button onClick={() => router.push("/custom-scene")} className="w-full card !p-4 text-left active:scale-95 transition bg-white">
+            <div className="flex items-center gap-2">
+              <Wand2 size={18} className="text-lilacDeep" />
+              <p className="font-bold text-ink">自訂場景練習</p>
+            </div>
+            <p className="text-xs text-inkSoft mt-1">輸入主題，自動產生階段式真人情境對話</p>
+          </button>
+        </div>
         {themes.map((t) => {
           const scenes = sceneService.getScenesByTheme(t.id).slice(0, 4);
           return (
@@ -242,8 +251,35 @@ function FreeChat({ onExit }: { onExit: () => void }) {
   }, []);
   const showZh = settings ? settings.dialogueChinese : true;
   const pron = settings ? settings.pronunciationOn : true;
+  const [createdScene, setCreatedScene] = useState<CustomScene | null>(null);
 
   const freeScene = buildFreeScene();
+
+  function createScenarioFromText(latest: string) {
+    const explicitCreate = /建立|產生|自訂|新增|做一個|create|make|generate/i.test(latest) &&
+      /主題|場景|情境|練習|scenario|scene|topic|practice/i.test(latest);
+    const practiceRequest = /我想(練習|練)|幫我(練習|練)/.test(latest) &&
+      /餐廳|點餐|面試|機場|飯店|購物|問路|電話|restaurant|order|interview|airport|hotel|shopping|direction/i.test(latest);
+    if (!explicitCreate && !practiceRequest) return false;
+    const topic = latest
+      .replace(/可以|幫我|請|建立|產生|一個|的|場景|情境|主題|練習|嗎|？|\?|create|make|scenario|scene|topic/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const situation = topic || latest;
+    const level: EnglishLevel = "Elementary";
+    const custom = sceneService.createCustomScene({
+      situation,
+      role: "customer",
+      place: /餐廳|點餐|restaurant|order/i.test(latest) ? "restaurant" : "real-life setting",
+      difficulty: level,
+      topic: situation,
+      pattern: "",
+      showChinese: showZh,
+      rounds: 6,
+    });
+    setCreatedScene(custom);
+    return true;
+  }
 
   function handleFinish(result: DialogueResult, userTurns: string[], feedbacks: TutorFeedback[]) {
     const transcript = buildTranscript(userTurns, feedbacks);
@@ -282,6 +318,67 @@ function FreeChat({ onExit }: { onExit: () => void }) {
     router.push("/results");
   }
 
+  if (createdScene) {
+    const scene = createdScene.scene;
+    return (
+      <div className="min-h-[100dvh] flex flex-col">
+        <AppHeader
+          title="自訂場景練習"
+          subtitle="已從自由對話建立階段式主題"
+          right={
+            <button onClick={onExit} className="chip bg-white text-inkSoft shadow-softer flex items-center gap-1">
+              <RotateCcw size={14} /> 回選單
+            </button>
+          }
+        />
+        <div className="px-5 pb-8 space-y-4">
+          <div className="card bg-gradient-to-br from-peach to-lilac">
+            <div className="flex items-center gap-2">
+              <Wand2 className="text-peachDeep" />
+              <p className="text-xl font-extrabold text-ink">{scene.name}</p>
+            </div>
+            <p className="mt-2 text-sm leading-relaxed text-ink">{scene.intro}</p>
+          </div>
+
+          {createdScene.stages && createdScene.stages.length > 0 && (
+            <div className="card">
+              <p className="font-extrabold text-ink mb-3">自動階段</p>
+              <div className="space-y-2">
+                {createdScene.stages.map((stage, index) => (
+                  <div key={stage.title} className="rounded-3xl bg-cream p-3">
+                    <p className="text-sm font-extrabold text-peachDeep">STEP {index + 1}</p>
+                    <p className="font-bold text-ink">{stage.title}</p>
+                    <p className="text-sm text-inkSoft">{stage.learnerGoal}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="card">
+            <p className="font-extrabold text-ink mb-2">會用到的句型</p>
+            <div className="space-y-2">
+              {scene.keyPatterns.map((p) => (
+                <div key={p.en} className="rounded-2xl bg-white/70 px-3 py-2">
+                  <p className="font-semibold text-ink">{p.en}</p>
+                  <p className="text-sm text-inkSoft">{p.zh}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <button
+            className="btn-primary w-full flex items-center justify-center gap-2"
+            onClick={() => router.push(`/dialogue?scene=${scene.id}`)}
+          >
+            <Play size={18} /> 開始自訂場景練習
+          </button>
+          <button className="btn-secondary w-full" onClick={() => setCreatedScene(null)}>繼續自由對話</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-[100dvh] flex flex-col">
       <AppHeader
@@ -298,6 +395,7 @@ function FreeChat({ onExit }: { onExit: () => void }) {
         showZh={showZh}
         pronunciationOn={pron}
         finishLabel="結束對話並看成果"
+        onUserTurn={createScenarioFromText}
         onFinish={handleFinish}
       />
     </div>

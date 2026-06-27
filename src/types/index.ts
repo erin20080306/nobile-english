@@ -228,6 +228,14 @@ export interface Stats {
   completedScenes: number;
 }
 
+export interface CustomSceneStage {
+  title: string;
+  enTitle: string;
+  tutorPrompt: string;
+  learnerGoal: string;
+  sampleUser: string;
+}
+
 export interface CustomScene {
   id: string;
   situation: string;
@@ -238,6 +246,7 @@ export interface CustomScene {
   pattern: string;
   showChinese: boolean;
   rounds: number;
+  stages?: CustomSceneStage[];
   scene: Scene;
   createdAt: string;
 }

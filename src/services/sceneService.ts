@@ -1,4 +1,4 @@
-import type { Scene, SceneTheme, CustomScene, EnglishLevel } from "@/types";
+import type { Scene, SceneTheme, CustomScene, CustomSceneStage, EnglishLevel } from "@/types";
 import { scenes, themes } from "@/data/scenes";
 import { vocabulary } from "@/data/vocabulary";
 import { storageService, KEYS } from "./storageService";
@@ -55,23 +55,24 @@ export const sceneService = {
     rounds: number;
   }): CustomScene {
     const id = "custom-" + Math.random().toString(36).slice(2, 8);
-    const name = input.situation || `${input.place} ${input.role} 練習`;
+    const smart = inferScenarioPlan(input.situation, input.place, input.role);
+    const name = smart.name || input.situation || `${input.place} ${input.role} 練習`;
     // Pick 10 key words contextually from vocabulary.
-    const keyWords = pickWords(input.topic + " " + input.situation, 10);
-    const patterns = buildPatterns(input);
-    const dialogue = buildCustomDialogue(input, name);
+    const keyWords = smart.keyWords.length ? smart.keyWords : pickWords(input.topic + " " + input.situation, 10);
+    const patterns = smart.patterns.length ? smart.patterns : buildPatterns(input);
+    const dialogue = buildCustomDialogue(input, name, smart.stages);
     const scene: Scene = {
       id,
       themeId: "custom",
       name,
-      enName: "My Custom Scene",
-      intro: `情境：在${input.place}，你的角色是「${input.role}」。${input.situation}`,
+      enName: smart.enName || "My Custom Scene",
+      intro: smart.intro || `情境：在${input.place}，你的角色是「${input.role}」。${input.situation}`,
       difficulty: input.difficulty,
       minutes: 10,
       goals: [
         `完成「${name}」角色扮演`,
-        `練習句型：${input.pattern || "實用表達"}`,
-        "提升口說自然度與自信",
+        smart.stages.length ? `依序完成 ${smart.stages.map((s) => s.title).join("、")}` : `練習句型：${input.pattern || "實用表達"}`,
+        "練習真人場景中的接話、提問與確認",
       ],
       keyWords,
       keyPatterns: patterns,
@@ -95,6 +96,7 @@ export const sceneService = {
       pattern: input.pattern,
       showChinese: input.showChinese,
       rounds: input.rounds,
+      stages: smart.stages,
       scene,
       createdAt: new Date().toISOString(),
     };
@@ -104,6 +106,116 @@ export const sceneService = {
     return custom;
   },
 };
+
+function inferScenarioPlan(situation: string, place = "", role = ""): {
+  name: string;
+  enName: string;
+  intro: string;
+  keyWords: string[];
+  patterns: { en: string; zh: string }[];
+  stages: CustomSceneStage[];
+} {
+  const text = `${situation} ${place} ${role}`.toLowerCase();
+  const hasRestaurant = /餐廳|吃飯|點餐|訂位|reservation|restaurant|order food|dining|menu/.test(text);
+  if (hasRestaurant) {
+    const stages: CustomSceneStage[] = [
+      {
+        title: "接待與預約",
+        enTitle: "Greeting and reservation",
+        tutorPrompt: "Good evening. Welcome in. Do you have a reservation?",
+        learnerGoal: "說明是否有預約，或請對方安排座位。",
+        sampleUser: "Hi, we don't have a reservation. Do you have a table for two?",
+      },
+      {
+        title: "座位需求",
+        enTitle: "Seating preference",
+        tutorPrompt: "Sure. Would you prefer a table by the window or somewhere quieter?",
+        learnerGoal: "表達想坐哪裡、幾位、是否有特殊需求。",
+        sampleUser: "A quiet table would be great, thank you.",
+      },
+      {
+        title: "看菜單與推薦",
+        enTitle: "Menu and recommendations",
+        tutorPrompt: "Here are the menus. Would you like any recommendations?",
+        learnerGoal: "詢問推薦、特色菜、食材或過敏資訊。",
+        sampleUser: "What do you recommend for something light?",
+      },
+      {
+        title: "正式點餐",
+        enTitle: "Ordering food",
+        tutorPrompt: "Are you ready to order, or do you need a few more minutes?",
+        learnerGoal: "用自然句型點主餐、飲料或套餐。",
+        sampleUser: "I'm ready. I'd like the grilled chicken and an iced tea, please.",
+      },
+      {
+        title: "加點與客製",
+        enTitle: "Extras and changes",
+        tutorPrompt: "Would you like anything else with that? Any changes to the order?",
+        learnerGoal: "練習加點、不要某食材、調整口味或確認份量。",
+        sampleUser: "Could I have the dressing on the side, please?",
+      },
+      {
+        title: "結帳與收據",
+        enTitle: "Payment and receipt",
+        tutorPrompt: "How was everything? Would you like the bill now?",
+        learnerGoal: "要求帳單、付款方式、收據與道謝。",
+        sampleUser: "Everything was great. Could we have the bill, please?",
+      },
+    ];
+    return {
+      name: "餐廳點餐",
+      enName: "Restaurant Ordering",
+      intro: "在餐廳從入座、詢問推薦、點餐、客製需求到結帳的完整真人情境練習。",
+      keyWords: ["reservation", "table", "menu", "recommend", "order", "starter", "main course", "drink", "allergy", "bill"],
+      patterns: [
+        { en: "Do you have a table for two?", zh: "有兩人座位嗎？" },
+        { en: "What do you recommend?", zh: "你推薦什麼？" },
+        { en: "I'd like the ___, please.", zh: "我想點 ___，謝謝。" },
+        { en: "Could I have ___ on the side?", zh: "可以把 ___ 放旁邊嗎？" },
+        { en: "Could we have the bill, please?", zh: "可以給我們帳單嗎？" },
+      ],
+      stages,
+    };
+  }
+
+  return {
+    name: situation,
+    enName: "Custom Scenario",
+    intro: "",
+    keyWords: [],
+    patterns: [],
+    stages: [
+      {
+        title: "開場說明",
+        enTitle: "Opening",
+        tutorPrompt: `Hi. Let's practice this situation: ${situation || "your custom topic"}. What would you like to do first?`,
+        learnerGoal: "用一句話說明自己的需求。",
+        sampleUser: "Hi, I'd like to explain what I need.",
+      },
+      {
+        title: "確認細節",
+        enTitle: "Clarifying details",
+        tutorPrompt: "Got it. Could you tell me a little more about the details?",
+        learnerGoal: "補充時間、地點、數量或原因。",
+        sampleUser: "Sure. The main detail is that I need clear help.",
+      },
+      {
+        title: "提出問題",
+        enTitle: "Asking a follow-up",
+        tutorPrompt: "That makes sense. What would you like to ask next?",
+        learnerGoal: "提出一個後續問題。",
+        sampleUser: "Could you explain the next step?",
+      },
+      {
+        title: "確認結果",
+        enTitle: "Confirming",
+        tutorPrompt: "Let's confirm the plan together.",
+        learnerGoal: "確認資訊並禮貌收尾。",
+        sampleUser: "That sounds good. Thank you for your help.",
+      },
+    ],
+  };
+}
 
 function pickWords(seed: string, n: number) {
   const lower = seed.toLowerCase();
@@ -133,23 +245,18 @@ function buildPatterns(input: { pattern: string; place: string }) {
 }
 
 function buildCustomDialogue(
-  input: { role: string; place: string; situation: string },
-  name: string
+  _input: { role: string; place: string; situation: string },
+  name: string,
+  stages: CustomSceneStage[] = []
 ) {
-  return [
-    { speaker: "tutor" as const, en: `Welcome! Let's role-play: ${name}.`, zh: `歡迎！我們來角色扮演：${name}。` },
-    { speaker: "tutor" as const, en: `So, you're at the ${input.place}. How can I help you today?`, zh: `所以你在${input.place}，今天有什麼需要協助的嗎？` },
-    { speaker: "user" as const, en: "Hi, I'd like to start, please.", zh: "嗨，我想開始，謝謝。" },
-    { speaker: "tutor" as const, en: "Great. Tell me what you need.", zh: "太好了，告訴我你需要什麼。" },
-    { speaker: "user" as const, en: "Let me explain my situation.", zh: "讓我說明一下我的狀況。" },
-    { speaker: "tutor" as const, en: "Sure, take your time. What is the most important point?", zh: "當然，慢慢來。最重要的重點是什麼？" },
-    { speaker: "user" as const, en: "The most important point is that I need clear help.", zh: "最重要的是我需要清楚的協助。" },
-    { speaker: "tutor" as const, en: "I understand. What would you like to do next?", zh: "我了解。你接下來想怎麼做？" },
-    { speaker: "user" as const, en: "I'd like to ask a follow-up question.", zh: "我想再問一個後續問題。" },
-    { speaker: "tutor" as const, en: "Of course. Please ask your question.", zh: "當然，請問你的問題。" },
-    { speaker: "user" as const, en: "Could you explain the next step?", zh: "你可以說明下一步嗎？" },
-    { speaker: "tutor" as const, en: "Yes. First, we confirm the details together.", zh: "可以。首先，我們一起確認細節。" },
-    { speaker: "user" as const, en: "That sounds good. Thank you for your help.", zh: "聽起來很好。謝謝你的幫忙。" },
-    { speaker: "tutor" as const, en: "You're welcome. You completed this practice round.", zh: "不客氣，你完成這輪練習了。" },
+  const lines: Scene["dialogue"] = [
+    { speaker: "tutor" as const, en: `Welcome. Let's role-play: ${name}.`, zh: `歡迎，我們來角色扮演：${name}。` },
   ];
+
+  stages.forEach((stage) => {
+    lines.push({ speaker: "tutor" as const, en: stage.tutorPrompt, zh: stage.learnerGoal });
+    lines.push({ speaker: "user" as const, en: stage.sampleUser, zh: stage.learnerGoal });
+  });
+
+  return lines;
 }

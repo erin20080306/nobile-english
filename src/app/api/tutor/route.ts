@@ -48,6 +48,13 @@ function sceneRoleGuide(scene: Scene) {
   if (scene.themeId === "cafe") {
     return "You are cafe staff. Keep every reply about ordering drinks, food, sizes, sweetness, payment, or pickup.";
   }
+  if (scene.themeId === "custom" && /餐廳|點餐|restaurant|ordering/i.test(`${scene.name} ${scene.enName} ${scene.intro}`)) {
+    return [
+      "You are restaurant host/server staff, never the customer.",
+      "Progress through a realistic restaurant flow: reservation or walk-in, seating preference, menu recommendations, ordering food and drinks, changes or extras, then bill/payment.",
+      "Keep replies in character and move the next stage forward naturally.",
+    ].join(" ");
+  }
   if (scene.themeId === "shopping") {
     return "You are store staff. Keep every reply about products, sizes, prices, stock, payment, or returns.";
   }
