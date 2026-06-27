@@ -6,6 +6,10 @@ export const metadata: Metadata = {
   description: "手機優先的英文學習 App：場景對話、同尾字、英英字典、TOEIC/IELTS/TOEFL 測驗。",
   manifest: "/manifest.json",
   appleWebApp: { capable: true, statusBarStyle: "default", title: "Mobile English" },
+  icons: {
+    apple: "/assets/icon.png",
+    icon: "/assets/icon.png",
+  },
 };
 
 export const viewport: Viewport = {
