@@ -252,6 +252,12 @@ export interface TutorFeedback {
   encouragement: string;
 }
 
+export interface DialogueSuggestion {
+  area: string;
+  tip: string;
+  example?: string;
+}
+
 export interface DialogueResult {
   total: number;
   vocab: number;
@@ -260,5 +266,7 @@ export interface DialogueResult {
   taskCompletion: number;
   reviewSentences: string[];
   newWords: string[];
+  conversationWords: string[];
+  suggestions: DialogueSuggestion[];
   nextSceneId?: string;
 }

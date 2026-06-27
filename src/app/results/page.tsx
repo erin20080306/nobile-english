@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Flame, Award, ArrowRight, Home } from "lucide-react";
+import { Flame, Award, ArrowRight, Home, TrendingUp, BookOpen, MessageSquare } from "lucide-react";
+import type { DialogueSuggestion } from "@/types";
 import { storageService, KEYS } from "@/services/storageService";
 import { learningService } from "@/services/learningService";
 import { rewardImageForScore } from "@/data/rewardImages";
@@ -18,6 +19,8 @@ interface LastResult {
   breakdown: { label: string; value: number }[];
   newWords: string[];
   reviewSentences: string[];
+  conversationWords?: string[];
+  suggestions?: DialogueSuggestion[];
   nextHref: string;
 }
 
@@ -94,19 +97,58 @@ export default function ResultsPage() {
         </div>
       </div>
 
+      {data.conversationWords && data.conversationWords.length > 0 && (
+        <div className="card mt-3">
+          <div className="flex items-center gap-2 mb-2">
+            <MessageSquare size={16} className="text-lilacDeep" />
+            <p className="font-bold text-ink">本次對話使用的單字</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {data.conversationWords.map((w) => (
+              <span key={w} className="chip bg-lilac/60 text-lilacDeep font-semibold">{w}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {data.newWords?.length > 0 && (
         <div className="card mt-3">
-          <p className="font-bold text-ink">新增單字（{data.newWords.length}）</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {data.newWords.map((w) => <span key={w} className="chip bg-lilac text-lilacDeep">{w}</span>)}
+          <div className="flex items-center gap-2 mb-2">
+            <BookOpen size={16} className="text-mintDeep" />
+            <p className="font-bold text-ink">場景關鍵單字</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {data.newWords.map((w) => <span key={w} className="chip bg-mint text-mintDeep">{w}</span>)}
+          </div>
+        </div>
+      )}
+
+      {data.suggestions && data.suggestions.length > 0 && (
+        <div className="card mt-3">
+          <div className="flex items-center gap-2 mb-3">
+            <TrendingUp size={16} className="text-peachDeep" />
+            <p className="font-bold text-ink">個人化練習建議</p>
+          </div>
+          <div className="space-y-3">
+            {data.suggestions.map((s, i) => (
+              <div key={i} className="rounded-2xl bg-peach/30 p-3">
+                <span className="chip bg-peachDeep text-white text-xs mb-1">{s.area}</span>
+                <p className="text-sm text-ink mt-1">{s.tip}</p>
+                {s.example && (
+                  <p className="text-xs text-inkSoft mt-1 bg-white/60 rounded-xl px-2 py-1">
+                    ✨ {s.example}
+                  </p>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}
 
       {data.reviewSentences?.length > 0 && (
         <div className="card mt-3">
-          <p className="font-bold text-ink">建議複習句子</p>
-          <ul className="mt-2 space-y-1 text-sm text-ink list-disc list-inside">
+          <p className="font-bold text-ink mb-2">建議複習句型</p>
+          <ul className="space-y-1 text-sm text-ink list-disc list-inside">
             {data.reviewSentences.map((s) => <li key={s}>{s}</li>)}
           </ul>
         </div>

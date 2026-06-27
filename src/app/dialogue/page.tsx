@@ -164,13 +164,15 @@ function Chat({ scene, onExit }: { scene: Scene; onExit: () => void }) {
       title: scene.name + "（對話）",
       total: result.total,
       breakdown: [
-        { label: "單字", value: result.vocab },
+        { label: "單字量", value: result.vocab },
         { label: "文法", value: result.grammar },
         { label: "流暢度", value: result.fluency },
         { label: "任務完成", value: result.taskCompletion },
       ],
       newWords: result.newWords,
       reviewSentences: result.reviewSentences,
+      conversationWords: result.conversationWords,
+      suggestions: result.suggestions,
       nextHref: "/dialogue",
     });
     router.push("/results");
@@ -231,13 +233,15 @@ function FreeChat({ onExit }: { onExit: () => void }) {
       title: "自由對話",
       total: result.total,
       breakdown: [
-        { label: "單字", value: result.vocab },
+        { label: "單字量", value: result.vocab },
         { label: "文法", value: result.grammar },
         { label: "流暢度", value: result.fluency },
         { label: "任務完成", value: result.taskCompletion },
       ],
       newWords: result.newWords,
       reviewSentences: result.reviewSentences,
+      conversationWords: result.conversationWords,
+      suggestions: result.suggestions,
       nextHref: "/dialogue",
     });
     router.push("/results");
