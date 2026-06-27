@@ -3,21 +3,26 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Volume2, Star, X, BookmarkPlus } from "lucide-react";
+import type { LearningLanguageCode } from "@/types";
+import { voiceForLanguage } from "@/data/learningLanguages";
 import { dictionaryService } from "@/services/dictionaryService";
 import { vocabularyService } from "@/services/vocabularyService";
 import { speechService } from "@/services/speechService";
+import { learningService } from "@/services/learningService";
 
 export default function WordSheet({
   word,
+  language = "en",
   onClose,
 }: {
   word: string | null;
+  language?: LearningLanguageCode;
   onClose: () => void;
 }) {
   const [saved, setSaved] = useState(false);
   const [toast, setToast] = useState("");
 
-  const result = word ? dictionaryService.lookup(word) : { entry: null, fromFallback: false };
+  const result = word ? dictionaryService.lookup(word, language) : { entry: null, fromFallback: false };
   const entry = result.entry;
 
   useEffect(() => {
@@ -26,7 +31,10 @@ export default function WordSheet({
 
   function speak() {
     if (!entry) return;
-    const r = speechService.speak(entry.word);
+    const r = speechService.speak(entry.word, {
+      ...voiceForLanguage(language, learningService.getSpeechRate(language)),
+      onError: (message) => setToast(message),
+    });
     if (!r.ok) setToast(r.message || "無法播放發音");
   }
 

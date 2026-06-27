@@ -79,7 +79,10 @@ export default function ScenePracticePage() {
       alert("發音功能已關閉，可至設定開啟。");
       return;
     }
-    const r = speechService.speak(text, { ...voiceForLanguage(targetLanguage), onError: (message) => alert(message) });
+    const r = speechService.speak(text, {
+      ...voiceForLanguage(targetLanguage, learningService.getSpeechRate(targetLanguage)),
+      onError: (message) => alert(message),
+    });
     if (!r.ok) alert(r.message);
   }
 
@@ -198,7 +201,7 @@ export default function ScenePracticePage() {
                 <button onClick={() => speak(p.en)} className="mt-0.5 text-lilacDeep"><Volume2 size={18} /></button>
                 <div>
                   <p className="text-ink font-semibold">
-                    <ClickableText text={p.en} onWord={setActiveWord} />
+                    <ClickableText text={p.en} onWord={setActiveWord} language={targetLanguage} />
                   </p>
                   {showZh && <p className="text-sm text-inkSoft">{p.zh}</p>}
                 </div>
@@ -217,7 +220,7 @@ export default function ScenePracticePage() {
                 <div key={i} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
                   <div className={`max-w-[85%] rounded-3xl p-3 ${isUser ? "bg-lilacDeep text-white" : "bg-cream text-ink"}`}>
                     <div className="flex items-start gap-2">
-                      <ClickableText text={line.en} onWord={setActiveWord} className={isUser ? "text-white" : "text-ink"} />
+                      <ClickableText text={line.en} onWord={setActiveWord} language={targetLanguage} className={isUser ? "text-white" : "text-ink"} />
                     </div>
                     {showZh && <p className={`text-sm mt-1 ${isUser ? "text-white/80" : "text-inkSoft"}`}>{line.zh}</p>}
                     <div className="mt-1 flex gap-3">
@@ -282,7 +285,7 @@ export default function ScenePracticePage() {
         </button>
       </div>
 
-      <WordSheet word={activeWord} onClose={() => setActiveWord(null)} />
+      <WordSheet word={activeWord} language={targetLanguage} onClose={() => setActiveWord(null)} />
     </div>
   );
 }

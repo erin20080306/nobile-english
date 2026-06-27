@@ -1,0 +1,24 @@
+<svg width="420" height="420" viewBox="0 0 420 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Giulia Italian tutor portrait">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FEF3C7"/>
+      <stop offset=".55" stop-color="#FFF7ED"/>
+      <stop offset="1" stop-color="#DCFCE7"/>
+    </linearGradient>
+  </defs>
+  <rect width="420" height="420" rx="44" fill="url(#bg)"/>
+  <rect x="61" y="53" width="22" height="70" rx="10" fill="#16A34A" opacity=".85"/>
+  <rect x="83" y="53" width="22" height="70" rx="10" fill="#FFFFFF" opacity=".85"/>
+  <rect x="105" y="53" width="22" height="70" rx="10" fill="#DC2626" opacity=".85"/>
+  <path d="M96 365c16-77 58-121 114-121 57 0 99 44 115 121H96z" fill="#EA580C"/>
+  <path d="M155 267c30 23 80 23 110 0l-12 50c-27 18-59 18-86 0l-12-50z" fill="#FFF7ED"/>
+  <circle cx="210" cy="160" r="82" fill="#EDBE9A"/>
+  <path d="M121 176c-10-75 29-126 92-126 64 0 98 52 88 126-18-49-51-73-99-72-37 1-64 24-81 72z" fill="#4A2D24"/>
+  <path d="M122 177c30-39 70-55 120-45 23 5 43 17 58 36-3-73-39-118-88-118-62 0-101 51-90 127z" fill="#6B3F2D"/>
+  <circle cx="179" cy="160" r="8" fill="#2F2937"/>
+  <circle cx="241" cy="160" r="8" fill="#2F2937"/>
+  <circle cx="157" cy="181" r="13" fill="#FB7185" opacity=".22"/>
+  <circle cx="263" cy="181" r="13" fill="#FB7185" opacity=".22"/>
+  <path d="M188 199c17 14 36 14 53 0" stroke="#984B63" stroke-width="8" stroke-linecap="round" fill="none"/>
+  <path d="M102 365h216c-8-31-23-56-44-75-42 24-86 24-128 0-21 19-36 44-44 75z" fill="#F97316"/>
+</svg>

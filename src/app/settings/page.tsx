@@ -35,6 +35,7 @@ export default function SettingsPage() {
   const profiles = shownUser.profiles || [];
   const activeProfileId = shownUser.activeProfileId || profiles[0]?.id;
   const currentLanguage = getLearningLanguage(settings.targetLanguage);
+  const currentSpeechRate = settings.speechRateByLanguage?.[settings.targetLanguage] ?? 1;
 
   function update(patch: Partial<UserSettings>) {
     const next = { ...settings!, ...patch };
@@ -50,6 +51,18 @@ export default function SettingsPage() {
     const nextProfile = { ...profile, language: language.label };
     setProfile(nextProfile);
     learningService.saveProfile(nextProfile);
+  }
+
+  function updateSpeechRate(code: UserSettings["targetLanguage"], value: number) {
+    const next = {
+      ...settings!,
+      speechRateByLanguage: {
+        ...settings!.speechRateByLanguage,
+        [code]: value,
+      },
+    };
+    setSettings(next);
+    learningService.saveSettings(next);
   }
 
   function addProfile() {
@@ -158,7 +171,48 @@ export default function SettingsPage() {
         <div className="card space-y-4">
           <p className="font-bold text-ink flex items-center gap-2"><Volume2 size={18} className="text-lilacDeep" /> 一般</p>
           <Toggle label={`${currentLanguage.zhName}發音功能`} checked={settings.pronunciationOn} onChange={(v) => update({ pronunciationOn: v })} />
+          <div className="rounded-3xl bg-cream p-3">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-bold text-ink">目前語速</span>
+              <span className="chip bg-lilac text-lilacDeep text-xs">{currentSpeechRate.toFixed(2)}x</span>
+            </div>
+            <input
+              type="range"
+              min="0.75"
+              max="1.25"
+              step="0.05"
+              value={currentSpeechRate}
+              onChange={(e) => updateSpeechRate(settings.targetLanguage, Number(e.target.value))}
+              className="mt-3 w-full accent-lilacDeep"
+              aria-label={`${currentLanguage.zhName}語速`}
+            />
+          </div>
           <Toggle label="全域中文輔助" checked={settings.showChineseGlobal} onChange={(v) => update({ showChineseGlobal: v })} />
+        </div>
+
+        <div className="card space-y-3">
+          <p className="font-bold text-ink flex items-center gap-2"><Volume2 size={18} className="text-mintDeep" /> 各語言語速</p>
+          {LEARNING_LANGUAGES.map((lang) => {
+            const rate = settings.speechRateByLanguage?.[lang.code] ?? 1;
+            return (
+              <div key={lang.code} className="rounded-3xl bg-cream p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-extrabold text-ink">{lang.flag} {lang.zhName}</span>
+                  <span className="text-xs font-bold text-inkSoft">{rate.toFixed(2)}x</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.75"
+                  max="1.25"
+                  step="0.05"
+                  value={rate}
+                  onChange={(e) => updateSpeechRate(lang.code, Number(e.target.value))}
+                  className="mt-2 w-full accent-lilacDeep"
+                  aria-label={`${lang.zhName}語速`}
+                />
+              </div>
+            );
+          })}
         </div>
 
         <div className="card space-y-4">

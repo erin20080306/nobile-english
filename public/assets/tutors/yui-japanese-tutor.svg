@@ -1,0 +1,23 @@
+<svg width="420" height="420" viewBox="0 0 420 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Yui Japanese tutor portrait">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFF1F2"/>
+      <stop offset=".55" stop-color="#FDF2F8"/>
+      <stop offset="1" stop-color="#E0F2FE"/>
+    </linearGradient>
+  </defs>
+  <rect width="420" height="420" rx="44" fill="url(#bg)"/>
+  <circle cx="85" cy="88" r="38" fill="#EF4444" opacity=".72"/>
+  <circle cx="85" cy="88" r="70" fill="#FFFFFF" opacity=".36"/>
+  <path d="M96 364c15-76 58-120 114-120 57 0 100 44 115 120H96z" fill="#F472B6"/>
+  <path d="M156 265c30 24 80 24 109 0l-12 48c-27 17-59 17-86 0l-11-48z" fill="#FFF7ED"/>
+  <circle cx="210" cy="161" r="82" fill="#F0C4A8"/>
+  <path d="M125 170c-8-72 29-121 88-121 60 0 96 48 86 122-26-25-52-40-82-45-32-5-63 9-92 44z" fill="#241C2F"/>
+  <path d="M122 174c23-48 57-72 102-72 31 0 59 11 81 33-12-54-47-86-91-86-57 0-94 49-92 125z" fill="#34253D"/>
+  <circle cx="179" cy="160" r="8" fill="#2F2937"/>
+  <circle cx="241" cy="160" r="8" fill="#2F2937"/>
+  <circle cx="157" cy="181" r="13" fill="#FB7185" opacity=".25"/>
+  <circle cx="263" cy="181" r="13" fill="#FB7185" opacity=".25"/>
+  <path d="M187 198c17 14 37 14 54 0" stroke="#984B63" stroke-width="8" stroke-linecap="round" fill="none"/>
+  <path d="M105 364h211c-7-29-21-54-40-74-42 24-88 24-132 0-18 20-31 45-39 74z" fill="#EC4899"/>
+</svg>

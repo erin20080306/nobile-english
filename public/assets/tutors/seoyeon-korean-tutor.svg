@@ -1,0 +1,24 @@
+<svg width="420" height="420" viewBox="0 0 420 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Seoyeon Korean tutor portrait">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FDF2F8"/>
+      <stop offset=".55" stop-color="#ECFDF5"/>
+      <stop offset="1" stop-color="#DBEAFE"/>
+    </linearGradient>
+  </defs>
+  <rect width="420" height="420" rx="44" fill="url(#bg)"/>
+  <circle cx="88" cy="90" r="48" fill="#FFFFFF" opacity=".55"/>
+  <path d="M56 90a32 32 0 0164 0 32 32 0 01-64 0z" fill="#DC2626" opacity=".8"/>
+  <path d="M56 90a32 32 0 0064 0 32 32 0 00-64 0z" fill="#2563EB" opacity=".8"/>
+  <path d="M95 365c15-78 57-123 115-123 59 0 101 45 116 123H95z" fill="#7C3AED"/>
+  <path d="M155 266c31 25 80 25 110 0l-12 51c-27 18-59 18-86 0l-12-51z" fill="#FFF7ED"/>
+  <circle cx="210" cy="160" r="82" fill="#F0C4A8"/>
+  <path d="M122 175c-9-76 27-125 89-125 64 0 99 50 89 126-22-50-57-76-105-76-31 0-56 22-73 75z" fill="#1F1A2B"/>
+  <path d="M122 177c29-33 65-49 108-45 25 2 48 12 69 31-3-71-40-113-91-113-61 0-97 50-86 127z" fill="#31243C"/>
+  <circle cx="180" cy="160" r="8" fill="#2F2937"/>
+  <circle cx="241" cy="160" r="8" fill="#2F2937"/>
+  <circle cx="157" cy="181" r="13" fill="#FB7185" opacity=".24"/>
+  <circle cx="263" cy="181" r="13" fill="#FB7185" opacity=".24"/>
+  <path d="M188 199c17 14 36 14 53 0" stroke="#984B63" stroke-width="8" stroke-linecap="round" fill="none"/>
+  <path d="M102 365h216c-8-31-23-56-44-75-42 25-84 25-126 0-22 19-37 44-46 75z" fill="#A855F7"/>
+</svg>

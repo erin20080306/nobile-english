@@ -94,7 +94,10 @@ export default function CustomScenePage() {
               {s.keyPatterns.map((p, i) => (
                 <div key={i} className="rounded-3xl bg-cream p-3 flex items-start gap-2">
                     <button
-                      onClick={() => speechService.speak(p.en, { ...voiceForLanguage(created.targetLanguage || targetLanguage), onError: (message) => alert(message) })}
+                      onClick={() => speechService.speak(p.en, {
+                        ...voiceForLanguage(created.targetLanguage || targetLanguage, learningService.getSpeechRate(created.targetLanguage || targetLanguage)),
+                        onError: (message) => alert(message),
+                      })}
                       className="text-lilacDeep mt-0.5"
                     >
                       <Volume2 size={16} />

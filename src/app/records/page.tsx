@@ -16,7 +16,10 @@ import BottomNav from "@/components/BottomNav";
 type RecordLanguageFilter = LearningLanguageCode | "all";
 
 function speakRecordText(text: string, language: LearningLanguageCode = "en") {
-  const r = speechService.speak(text, { ...voiceForLanguage(language), onError: (message) => alert(message) });
+  const r = speechService.speak(text, {
+    ...voiceForLanguage(language, learningService.getSpeechRate(language)),
+    onError: (message) => alert(message),
+  });
   if (!r.ok) alert(r.message || "無法播放語音");
 }
 

@@ -22,6 +22,11 @@ function daysBetween(a: string, b: string) {
   return Math.round((db.getTime() - da.getTime()) / 86400000);
 }
 
+function clampSpeechRate(rate?: number) {
+  if (!Number.isFinite(rate)) return 1;
+  return Math.max(0.75, Math.min(1.25, Number(rate)));
+}
+
 const defaultStats: Stats = {
   xp: 0,
   streak: 0,
@@ -46,6 +51,12 @@ export const learningService = {
     const defaults: UserSettings = {
       userId,
       targetLanguage: "en",
+      speechRateByLanguage: {
+        en: 1,
+        ja: 0.95,
+        ko: 0.95,
+        it: 1,
+      },
       pronunciationOn: true,
       showChineseGlobal: true,
       sceneChinese: true,
@@ -55,7 +66,15 @@ export const learningService = {
       examChinese: true,
     };
     const stored = storageService.get<Partial<UserSettings>>(KEYS.settings, {});
-    return { ...defaults, ...stored, userId };
+    return {
+      ...defaults,
+      ...stored,
+      speechRateByLanguage: {
+        ...defaults.speechRateByLanguage,
+        ...(stored.speechRateByLanguage || {}),
+      },
+      userId,
+    };
   },
   saveSettings(settings: UserSettings) {
     storageService.set(KEYS.settings, settings);
@@ -69,6 +88,23 @@ export const learningService = {
     const settings = this.getSettings(userId);
     this.saveSettings({ ...settings, targetLanguage: code });
     this.saveProfile({ language: getLearningLanguage(code).label });
+  },
+  getSpeechRate(language?: LearningLanguageCode, userId = storageService.get<string>(KEYS.session, "")): number {
+    const targetLanguage = language || this.getCurrentLanguage();
+    const settings = this.getSettings(userId);
+    return clampSpeechRate(settings.speechRateByLanguage?.[targetLanguage] ?? 1);
+  },
+  setSpeechRate(language: LearningLanguageCode, rate: number, userId = storageService.get<string>(KEYS.session, "")): UserSettings {
+    const settings = this.getSettings(userId);
+    const next: UserSettings = {
+      ...settings,
+      speechRateByLanguage: {
+        ...settings.speechRateByLanguage,
+        [language]: clampSpeechRate(rate),
+      },
+    };
+    this.saveSettings(next);
+    return next;
   },
 
   // ---- Stats / streak / xp ----

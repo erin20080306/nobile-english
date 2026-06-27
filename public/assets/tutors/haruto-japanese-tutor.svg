@@ -1,0 +1,26 @@
+<svg width="420" height="420" viewBox="0 0 420 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Haruto Japanese tutor portrait">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#DCEBFF"/>
+      <stop offset="0.52" stop-color="#F7FBFF"/>
+      <stop offset="1" stop-color="#FFE4E6"/>
+    </linearGradient>
+    <radialGradient id="light" cx="66%" cy="18%" r="48%">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".95"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="420" height="420" rx="44" fill="url(#bg)"/>
+  <circle cx="319" cy="82" r="54" fill="#FFFFFF" opacity=".55"/>
+  <circle cx="319" cy="82" r="27" fill="#EF4444" opacity=".85"/>
+  <rect width="420" height="420" rx="44" fill="url(#light)"/>
+  <path d="M112 364c13-77 50-121 99-121 51 0 88 44 100 121H112z" fill="#1E3A8A"/>
+  <path d="M151 268c26 25 91 25 119 0l-9 50c-24 19-73 19-100 0l-10-50z" fill="#F8FAFC"/>
+  <circle cx="210" cy="165" r="83" fill="#F1C7A9"/>
+  <path d="M127 157c10-66 45-104 91-104 55 0 86 45 77 113-23-29-63-36-98-34-28 2-51 8-70 25z" fill="#252331"/>
+  <path d="M130 153c31-23 68-31 112-24 20 3 38 11 53 25-7-53-42-91-86-91-42 0-72 34-79 90z" fill="#171722"/>
+  <circle cx="179" cy="166" r="8" fill="#2F2937"/>
+  <circle cx="241" cy="166" r="8" fill="#2F2937"/>
+  <path d="M190 202c15 12 35 12 51 0" stroke="#8F4D61" stroke-width="8" stroke-linecap="round" fill="none"/>
+  <path d="M102 364h218c-5-21-13-40-24-56-55 20-115 20-170 0-10 16-18 35-24 56z" fill="#2563EB"/>
+</svg>

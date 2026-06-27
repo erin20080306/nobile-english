@@ -1,0 +1,22 @@
+<svg width="420" height="420" viewBox="0 0 420 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Marco Italian tutor portrait">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#DCFCE7"/>
+      <stop offset=".5" stop-color="#FFF7ED"/>
+      <stop offset="1" stop-color="#FEE2E2"/>
+    </linearGradient>
+  </defs>
+  <rect width="420" height="420" rx="44" fill="url(#bg)"/>
+  <rect x="294" y="48" width="22" height="70" rx="10" fill="#16A34A" opacity=".85"/>
+  <rect x="316" y="48" width="22" height="70" rx="10" fill="#FFFFFF" opacity=".85"/>
+  <rect x="338" y="48" width="22" height="70" rx="10" fill="#DC2626" opacity=".85"/>
+  <path d="M102 365c14-74 54-119 108-119 55 0 95 45 109 119H102z" fill="#14532D"/>
+  <path d="M154 267c28 23 84 23 112 0l-10 49c-26 18-66 18-92 0l-10-49z" fill="#F8FAFC"/>
+  <circle cx="210" cy="164" r="82" fill="#E9B88F"/>
+  <path d="M130 151c12-62 47-98 89-98 47 0 78 38 80 99-35-22-72-28-110-20-24 5-43 11-59 19z" fill="#4A2F24"/>
+  <path d="M139 209c13 29 39 47 71 47 34 0 60-18 73-47-10 52-39 83-73 83-34 0-62-31-71-83z" fill="#3C241C" opacity=".9"/>
+  <circle cx="181" cy="164" r="8" fill="#2F2937"/>
+  <circle cx="240" cy="164" r="8" fill="#2F2937"/>
+  <path d="M189 202c16 13 36 13 52 0" stroke="#8F4D61" stroke-width="8" stroke-linecap="round" fill="none"/>
+  <path d="M103 365h215c-7-26-19-49-36-68-46 22-99 22-145 0-16 19-28 42-34 68z" fill="#166534"/>
+</svg>

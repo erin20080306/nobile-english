@@ -94,6 +94,7 @@ export interface LearningPlan {
 
 export interface Word {
   word: string;
+  language?: LearningLanguageCode;
   phonetic: string;
   pos: PartOfSpeech;
   enDef: string;
@@ -214,6 +215,7 @@ export interface LearningRecord {
 export interface UserSettings {
   userId: string;
   targetLanguage: LearningLanguageCode;
+  speechRateByLanguage: Partial<Record<LearningLanguageCode, number>>;
   pronunciationOn: boolean;
   showChineseGlobal: boolean;
   sceneChinese: boolean;

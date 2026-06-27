@@ -1,0 +1,16 @@
+<svg width="420" height="420" viewBox="0 0 420 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Tutor portrait fallback">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#EDE9FE"/>
+      <stop offset="1" stop-color="#D1FAE5"/>
+    </linearGradient>
+  </defs>
+  <rect width="420" height="420" rx="44" fill="url(#bg)"/>
+  <circle cx="210" cy="156" r="82" fill="#F6D0B6"/>
+  <path d="M128 158c8-64 48-101 86-101 44 0 83 42 78 100-26-20-55-28-86-28-29 0-55 9-78 29z" fill="#4A4159"/>
+  <circle cx="178" cy="158" r="9" fill="#302A3E"/>
+  <circle cx="242" cy="158" r="9" fill="#302A3E"/>
+  <path d="M184 194c18 17 41 17 59 0" stroke="#9D5875" stroke-width="9" stroke-linecap="round" fill="none"/>
+  <path d="M103 362c13-74 54-115 107-115s95 41 108 115H103z" fill="#A78BFA"/>
+  <path d="M157 268c28 23 77 23 106 0" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round"/>
+</svg>

@@ -10,6 +10,7 @@ import { speechService } from "@/services/speechService";
 import { learningService } from "@/services/learningService";
 
 const TUTOR_KEY = "selected_tutor_id";
+const TUTOR_FALLBACK_PHOTO = "/assets/tutors/tutor-fallback.svg";
 
 function tutorKey(language: LearningLanguageCode) {
   return `${TUTOR_KEY}_${language}`;
@@ -33,7 +34,14 @@ function TutorAvatar({ tutor, size = 72 }: { tutor: TutorProfile; size?: number 
       className="rounded-full overflow-hidden flex items-center justify-center border-2 border-white shadow-soft shrink-0"
       style={{ width: size, height: size, background: tutor.avatarBg }}
     >
-      <img src={tutor.photoUrl} alt={tutor.name} width={size} height={size} className="h-full w-full object-cover" />
+      <img
+        src={tutor.photoUrl}
+        alt={tutor.name}
+        width={size}
+        height={size}
+        onError={(e) => { e.currentTarget.src = TUTOR_FALLBACK_PHOTO; }}
+        className="h-full w-full object-cover"
+      />
     </div>
   );
 }
@@ -111,6 +119,7 @@ function TutorCard({
       voiceKeywords: tutor.voiceKeywords,
       ttsVoice: tutor.ttsVoice,
       ttsInstructions: tutor.ttsInstructions,
+      rate: learningService.getSpeechRate(tutor.targetLanguage),
       volumeGain: tutor.ttsVolumeGain,
       onError: (message) => alert(message),
     });
@@ -130,7 +139,12 @@ function TutorCard({
       )}
       <button type="button" onClick={() => onPick(tutor)} className="w-full active:scale-[0.98] transition">
         <div className="relative h-36 w-full overflow-hidden rounded-[24px] bg-ink">
-          <img src={tutor.photoUrl} alt={tutor.name} className="h-full w-full object-cover object-top" />
+          <img
+            src={tutor.photoUrl}
+            alt={tutor.name}
+            onError={(e) => { e.currentTarget.src = TUTOR_FALLBACK_PHOTO; }}
+            className="h-full w-full object-cover object-top"
+          />
           <div className="absolute inset-0 bg-gradient-to-t from-ink/70 via-transparent to-white/10" />
           <span className="absolute left-2 bottom-2 rounded-full bg-white/90 px-2.5 py-1 text-xs font-extrabold text-ink">
             {tutor.flag} {tutor.accentLabel}

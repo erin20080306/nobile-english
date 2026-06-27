@@ -22,6 +22,7 @@ interface Msg {
 
 const MIN_PRACTICE_TURNS = 5;
 const MAX_PRACTICE_TURNS = 7;
+const TUTOR_FALLBACK_PHOTO = "/assets/tutors/tutor-fallback.svg";
 
 const SCENE_PERSONAS: Record<string, string[]> = {
   cafe:       ["Mia", "Leo", "Sophie"],
@@ -199,6 +200,7 @@ export default function ConversationPractice({
   const [activeWord, setActiveWord] = useState<string | null>(null);
   const [toast, setToast] = useState("");
   const [tutorSpeaking, setTutorSpeaking] = useState(false);
+  const [speechRate, setSpeechRate] = useState(() => learningService.getSpeechRate(targetLanguage));
   const [persona] = useState(() => pickPersona(scene));
   const [selectedTutor] = useState(() => getSelectedTutor(targetLanguage));
   const tutorName = selectedTutor.name;
@@ -216,6 +218,7 @@ export default function ConversationPractice({
     voiceKeywords: selectedTutor.voiceKeywords,
     ttsVoice: selectedTutor.ttsVoice,
     ttsInstructions: selectedTutor.ttsInstructions,
+    rate: speechRate,
     volumeGain: selectedTutor.ttsVolumeGain,
   };
 
@@ -272,6 +275,12 @@ export default function ConversationPractice({
     const r = speechService.speak(text, animateTutor ? tutorSpeechOptions() : speechOptions);
     if (!r.ok) setTutorVoiceActive(false);
     if (!r.ok) flashToast(r.message || "無法播放發音");
+  }
+
+  function updateSpeechRate(value: number) {
+    const next = Math.max(0.75, Math.min(1.25, Number(value)));
+    setSpeechRate(next);
+    learningService.setSpeechRate(targetLanguage, next);
   }
 
   function queueSpeak(text: string, animateTutor = true, extra?: Partial<SpeakOptions>): Promise<void> {
@@ -441,10 +450,16 @@ export default function ConversationPractice({
     <div className="flex flex-col min-h-0 flex-1">
       <div className="px-4 pb-3 shrink-0">
         <div className={`relative h-52 overflow-hidden rounded-[30px] bg-ink shadow-soft transition-all duration-300 ${tutorSpeaking ? "ring-4 ring-mint/70" : ""}`}>
-          <img src={selectedTutor.photoUrl} alt="" className="absolute inset-0 h-full w-full scale-110 object-cover blur-lg opacity-50" />
+          <img
+            src={selectedTutor.photoUrl}
+            alt=""
+            onError={(e) => { e.currentTarget.src = TUTOR_FALLBACK_PHOTO; }}
+            className="absolute inset-0 h-full w-full scale-110 object-cover blur-lg opacity-50"
+          />
           <motion.img
             src={selectedTutor.photoUrl}
             alt={selectedTutor.name}
+            onError={(e) => { e.currentTarget.src = TUTOR_FALLBACK_PHOTO; }}
             animate={tutorSpeaking ? { scale: [1, 1.025, 1.01], y: [0, -3, 0] } : { scale: 1, y: 0 }}
             transition={tutorSpeaking ? { duration: 1.15, repeat: Infinity, ease: "easeInOut" } : { duration: 0.25 }}
             className={`relative h-full w-full object-contain object-center transition-[filter] duration-300 ${tutorSpeaking ? "drop-shadow-[0_0_24px_rgba(167,139,250,0.55)]" : ""}`}
@@ -512,7 +527,7 @@ export default function ConversationPractice({
             <div className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"}`}>
               {m.role === "tutor" && <span className="text-xs font-bold text-inkSoft ml-1 mb-0.5">{tutorName}</span>}
               <div className={`max-w-[85%] rounded-3xl p-3 ${m.role === "user" ? "bg-lilacDeep text-white" : "bg-white text-ink shadow-softer"}`}>
-                <ClickableText text={m.en} onWord={setActiveWord} className={m.role === "user" ? "text-white" : "text-ink"} />
+                <ClickableText text={m.en} onWord={setActiveWord} language={targetLanguage} className={m.role === "user" ? "text-white" : "text-ink"} />
                 {showZh && m.zh && <p className={`text-sm mt-1 ${m.role === "user" ? "text-white/80" : "text-inkSoft"}`}>{m.zh}</p>}
                 <div className="mt-1 flex gap-3">
                   <button onClick={() => speak(m.en, m.role === "tutor")} className={m.role === "user" ? "text-white/90" : "text-lilacDeep"}><Volume2 size={15} /></button>
@@ -567,6 +582,19 @@ export default function ConversationPractice({
         <div className="flex items-center justify-end gap-2 px-1">
           <button className="text-xs font-bold text-peachDeep" onClick={finish}>{finishLabel}</button>
         </div>
+        <div className="flex items-center gap-2 px-1">
+          <span className="text-xs font-bold text-inkSoft shrink-0">語速 {speechRate.toFixed(2)}x</span>
+          <input
+            type="range"
+            min="0.75"
+            max="1.25"
+            step="0.05"
+            value={speechRate}
+            onChange={(e) => updateSpeechRate(Number(e.target.value))}
+            className="w-full accent-lilacDeep"
+            aria-label={`${languageInfo.zhName}語速`}
+          />
+        </div>
 
         {listening && (
           <div className="flex items-center justify-center gap-2 text-lilacDeep font-bold text-sm">
@@ -599,7 +627,7 @@ export default function ConversationPractice({
         </div>
       </div>
 
-      <WordSheet word={activeWord} onClose={() => setActiveWord(null)} />
+      <WordSheet word={activeWord} language={targetLanguage} onClose={() => setActiveWord(null)} />
     </div>
   );
 }

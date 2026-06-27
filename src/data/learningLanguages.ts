@@ -84,13 +84,14 @@ export function languageFromLabel(label?: string | null): LearningLanguageCode {
   return "en";
 }
 
-export function voiceForLanguage(code?: LearningLanguageCode): SpeakOptions {
+export function voiceForLanguage(code?: LearningLanguageCode, rate = 1): SpeakOptions {
   const lang = getLearningLanguage(code);
   return {
     lang: lang.speechLang,
     voiceKeywords: [lang.speechLang.toLowerCase()],
     ttsVoice: "nova",
     ttsInstructions: lang.ttsInstructions,
+    rate,
     volumeGain: 1.55,
   };
 }

@@ -70,6 +70,12 @@ function defaultSettings(userId: string): UserSettings {
   return {
     userId,
     targetLanguage: "en",
+    speechRateByLanguage: {
+      en: 1,
+      ja: 0.95,
+      ko: 0.95,
+      it: 1,
+    },
     pronunciationOn: true,
     showChineseGlobal: true,
     sceneChinese: true,
