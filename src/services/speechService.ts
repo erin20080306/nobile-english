@@ -3,6 +3,7 @@
 
 let voicesReady: Promise<SpeechSynthesisVoice[]> | null = null;
 let currentAudio: HTMLAudioElement | null = null;
+let currentAudioContext: AudioContext | null = null;
 
 interface SpeakOptions {
   rate?: number;
@@ -10,6 +11,7 @@ interface SpeakOptions {
   voiceKeywords?: string[];
   ttsVoice?: string;
   ttsInstructions?: string;
+  volumeGain?: number;
 }
 
 function supported() {
@@ -50,14 +52,24 @@ function pickVoice(voices: SpeechSynthesisVoice[], lang = "en-US", keywords: str
 }
 
 function stopAudio() {
-  if (!currentAudio) return;
+  if (!currentAudio) {
+    try {
+      void currentAudioContext?.close();
+    } catch {
+      /* ignore */
+    }
+    currentAudioContext = null;
+    return;
+  }
   try {
     currentAudio.pause();
     currentAudio.src = "";
+    void currentAudioContext?.close();
   } catch {
     /* ignore */
   }
   currentAudio = null;
+  currentAudioContext = null;
 }
 
 function speakNow(text: string, opts?: SpeakOptions) {
@@ -92,13 +104,47 @@ async function speakWithOpenAi(text: string, opts?: SpeakOptions) {
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
     currentAudio = audio;
-    audio.onended = () => {
+    const cleanup = () => {
       URL.revokeObjectURL(url);
       if (currentAudio === audio) currentAudio = null;
+      currentAudioContext = null;
+    };
+    audio.onended = cleanup;
+    audio.onerror = cleanup;
+    const playedWithBoost = await playWithGain(audio, opts?.volumeGain ?? 1.35, cleanup);
+    if (!playedWithBoost) {
+      audio.volume = 1;
+      await audio.play();
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function playWithGain(audio: HTMLAudioElement, gainValue: number, cleanup: () => void) {
+  if (typeof window === "undefined") return false;
+  const AudioContextCtor =
+    window.AudioContext ||
+    (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioContextCtor) return false;
+
+  try {
+    const context = new AudioContextCtor();
+    const source = context.createMediaElementSource(audio);
+    const gain = context.createGain();
+    gain.gain.value = Math.max(1, Math.min(1.8, gainValue));
+    source.connect(gain);
+    gain.connect(context.destination);
+    currentAudioContext = context;
+    if (context.state === "suspended") await context.resume();
+    audio.onended = () => {
+      cleanup();
+      void context.close();
     };
     audio.onerror = () => {
-      URL.revokeObjectURL(url);
-      if (currentAudio === audio) currentAudio = null;
+      cleanup();
+      void context.close();
     };
     await audio.play();
     return true;

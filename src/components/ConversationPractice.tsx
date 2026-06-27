@@ -76,6 +76,7 @@ export default function ConversationPractice({
     voiceKeywords: selectedTutor.voiceKeywords,
     ttsVoice: selectedTutor.ttsVoice,
     ttsInstructions: selectedTutor.ttsInstructions,
+    volumeGain: selectedTutor.ttsVolumeGain,
   };
 
   useEffect(() => {
@@ -199,6 +200,27 @@ export default function ConversationPractice({
 
   return (
     <div className="flex flex-col min-h-0 flex-1">
+      <div className="px-4 pb-3 shrink-0">
+        <div className="relative h-40 overflow-hidden rounded-[30px] bg-ink shadow-soft">
+          <img src={selectedTutor.photoUrl} alt={selectedTutor.name} className="h-full w-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-ink/80 via-ink/10 to-white/10" />
+          <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-black/35 px-3 py-1.5 text-xs font-extrabold text-white backdrop-blur">
+            <span className="h-2 w-2 rounded-full bg-mintDeep shadow-[0_0_12px_rgba(86,211,145,0.9)]" />
+            LIVE
+          </div>
+          <button
+            onClick={() => speak(selectedTutor.sampleLine)}
+            className="absolute right-4 top-4 h-10 w-10 rounded-2xl bg-white/90 text-lilacDeep flex items-center justify-center shadow-softer active:scale-90 transition"
+            title="試聽導師聲音"
+          >
+            <Volume2 size={18} />
+          </button>
+          <div className="absolute left-4 right-4 bottom-4">
+            <p className="text-xl font-black text-white leading-tight drop-shadow">{selectedTutor.name} {selectedTutor.flag}</p>
+            <p className="text-sm font-semibold text-white/85 truncate">{selectedTutor.accentLabel} · {selectedTutor.description}</p>
+          </div>
+        </div>
+      </div>
       <div className="flex-1 px-4 pb-44 space-y-3 overflow-y-auto">
         {msgs.map((m, i) => (
           <div key={i}>

@@ -78,12 +78,13 @@ function ScenerPicker({
         {/* Tutor selector banner */}
         <button
           onClick={() => setShowTutorModal(true)}
-          className="w-full flex items-center gap-3 bg-white rounded-3xl px-4 py-3 shadow-softer mb-4 active:scale-95 transition"
+          className="w-full flex items-center gap-4 bg-white rounded-[30px] px-4 py-4 shadow-softer mb-4 active:scale-95 transition"
         >
-          <TutorAvatar tutor={currentTutor} size={44} />
+          <TutorAvatar tutor={currentTutor} size={64} />
           <div className="flex-1 text-left min-w-0">
             <p className="text-xs text-inkSoft">目前導師</p>
-            <p className="font-extrabold text-ink">{currentTutor.name} {currentTutor.flag} · {currentTutor.accentLabel}</p>
+            <p className="text-lg font-extrabold text-ink leading-tight">{currentTutor.name} {currentTutor.flag}</p>
+            <p className="text-sm font-bold text-lilacDeep">{currentTutor.accentLabel}</p>
             <p className="text-xs text-inkSoft truncate">{currentTutor.description}</p>
           </div>
           <span className="chip bg-lilac text-lilacDeep text-xs shrink-0">更換</span>

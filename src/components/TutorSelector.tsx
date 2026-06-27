@@ -96,12 +96,13 @@ function TutorCard({
       voiceKeywords: tutor.voiceKeywords,
       ttsVoice: tutor.ttsVoice,
       ttsInstructions: tutor.ttsInstructions,
+      volumeGain: tutor.ttsVolumeGain,
     });
   }
 
   return (
     <motion.div
-      className={`relative rounded-3xl p-3 text-left transition border-2 ${
+      className={`relative rounded-[28px] p-2 text-left transition border-2 overflow-hidden ${
         selected ? "border-lilacDeep shadow-soft" : "border-transparent bg-white shadow-softer"
       }`}
       style={{ background: selected ? tutor.avatarBg : undefined }}
@@ -111,12 +112,17 @@ function TutorCard({
           <Check size={11} className="text-white" />
         </span>
       )}
-      <button type="button" onClick={() => onPick(tutor)} className="w-full flex flex-col items-center gap-2 active:scale-[0.98] transition">
-        <TutorAvatar tutor={tutor} size={68} />
-        <div className="text-center">
-          <p className="font-extrabold text-ink text-sm">{tutor.name} {tutor.flag}</p>
-          <p className="text-xs text-inkSoft">{tutor.accentLabel}</p>
-          <p className="text-xs text-inkSoft mt-0.5 leading-tight">{tutor.description}</p>
+      <button type="button" onClick={() => onPick(tutor)} className="w-full active:scale-[0.98] transition">
+        <div className="relative h-32 w-full overflow-hidden rounded-[24px] bg-ink">
+          <img src={tutor.photoUrl} alt={tutor.name} className="h-full w-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-ink/70 via-transparent to-white/10" />
+          <span className="absolute left-2 bottom-2 rounded-full bg-white/90 px-2.5 py-1 text-xs font-extrabold text-ink">
+            {tutor.flag} {tutor.accentLabel}
+          </span>
+        </div>
+        <div className="px-2 pt-2 text-left">
+          <p className="font-extrabold text-ink text-base leading-tight">{tutor.name}</p>
+          <p className="text-xs text-inkSoft mt-0.5 leading-tight line-clamp-2">{tutor.description}</p>
         </div>
       </button>
       <button
