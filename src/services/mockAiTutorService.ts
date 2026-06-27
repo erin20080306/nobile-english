@@ -719,7 +719,7 @@ function multilingualFeedback(scene: Scene, userInput: string, turn: number): Tu
       grammarTip: "文法可理解，建議補上更多細節。",
       betterWay: userInput.trim(),
       zhExplain: "你的句子可溝通，繼續練習會更自然。",
-      encouragement: "Great job! 繼續保持。",
+      encouragement: pick(encouragements, turn + userInput.length),
     };
   }
   const lang = getLearningLanguage(language);

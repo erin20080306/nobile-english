@@ -48,9 +48,17 @@ export default function ResultsPage() {
   }
 
   const stars = data.total >= 85 ? 3 : data.total >= 60 ? 2 : 1;
+  const currentLang = learningService.getCurrentLanguage();
+  const langName = {
+    en: "英文",
+    ja: "日文",
+    ko: "韓文",
+    it: "義大利文",
+    es: "西班牙文",
+  }[currentLang] || "英文";
   const cheerText =
     data.total >= 85 ? "很棒！你完成今天的任務了！" :
-    data.total >= 60 ? "Great job! 你的英文正在進步。" :
+    data.total >= 60 ? `Great job! 你的${langName}正在進步。` :
     "加油！再練習一次會更自然。";
   const rewardImage = rewardImageForScore(data.total);
 
@@ -183,7 +191,17 @@ export default function ResultsPage() {
 
       {data.reviewSentences?.length > 0 && (
         <div className="card mt-3">
-          <p className="font-bold text-ink mb-2">建議複習句型</p>
+          <p className="font-bold text-ink mb-2">
+            {data.title.includes("餐廳") ? "餐廳場景複習句型" :
+             data.title.includes("問路") ? "問路場景複習句型" :
+             data.title.includes("機場") ? "機場場景複習句型" :
+             data.title.includes("購物") ? "購物場景複習句型" :
+             data.title.includes("面試") ? "面試場景複習句型" :
+             data.title.includes("電話") ? "電話場景複習句型" :
+             data.title.includes("日常") ? "日常場景複習句型" :
+             data.title.includes("對話") ? "對話複習句型" :
+             "建議複習句型"}
+          </p>
           <ul className="space-y-1 text-sm text-ink list-disc list-inside">
             {data.reviewSentences.map((s) => <li key={s}>{s}</li>)}
           </ul>
