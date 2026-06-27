@@ -85,11 +85,18 @@ export const aiTutorService = {
       }
     });
 
-    // Add score-based suggestions
-    if (fluency < 70) suggestions.push({ area: "流暢度", tip: "試著用更完整的句子回答，避免單字回覆", example: "Instead of 'yes', try 'Yes, I'd love to!'" });
-    if (vocab < 70) suggestions.push({ area: "單字量", tip: "嘗試使用場景關鍵單字：" + scene.keyWords.slice(0, 3).join(", ") });
-    if (grammar < 70) suggestions.push({ area: "文法基礎", tip: "注意動詞時態，過去式加 -ed，現在式第三人稱加 -s" });
-    if (total >= 80) suggestions.push({ area: "進階挑戰", tip: "嘗試更難的場景，或用更複雜的句型表達想法" });
+    // Always add score-based suggestions for areas needing improvement
+    if (fluency < 75) suggestions.push({ area: "流暢度加強", tip: "試著用完整句子回答，加上細節更自然", example: "Instead of 'yes', try 'Yes, I'd love to, thank you!'" });
+    if (vocab < 75) suggestions.push({ area: "單字應用", tip: "多練習場景關鍵單字：" + scene.keyWords.slice(0, 4).join("、") });
+    if (grammar < 75) suggestions.push({ area: "文法重點", tip: "留意請求句型：'I'd like...' / 'Could I have...' 比 'I want' 更禮貌自然" });
+    if (total >= 80) suggestions.push({ area: "進階挑戰", tip: "表現很好！嘗試更難的場景，或加入更多細節描述" });
+    if (taskCompletion < 80) suggestions.push({ area: "任務完成度", tip: "記得達成場景目標，例如確認訂單、詢問價格等" });
+
+    // Ensure at least 2 suggestions always exist
+    if (suggestions.length === 0) {
+      suggestions.push({ area: "持續練習", tip: "保持每日練習習慣，重複同一場景可以大幅提升流暢度" });
+      suggestions.push({ area: "句型練習", tip: "嘗試在對話中使用更多場景句型：" + scene.keyPatterns.slice(0, 2).map(p => p.en).join(" / ") });
+    }
 
     return {
       total,

@@ -52,14 +52,23 @@ function safeJson(text: string) {
 function buildPrompt({ scene, userInput, turn, history = [] }: TutorRequest, persona: string) {
   const recent = history.slice(-4).join(" | ");
   const patterns = scene.keyPatterns.slice(0, 3).map((p) => p.en).join(" | ");
+  const tutorLines = scene.dialogue
+    .filter((d) => d.speaker === "tutor")
+    .slice(0, 3)
+    .map((d) => d.en)
+    .join(" / ");
 
   return [
-    `You are ${persona} in a "${scene.name}" scene. Reply as a real person, not a teacher.`,
-    `Return ONLY JSON: {"reply":string,"replyZh":string,"naturalness":number,"grammarTip":string,"betterWay":string,"zhExplain":string,"encouragement":string}`,
-    `reply=English 6-15 words continuing scene. replyZh=Traditional Chinese. betterWay=better version of learner sentence. grammarTip/zhExplain=short Traditional Chinese. naturalness=45-99. encouragement=short Traditional Chinese+English.`,
-    `Patterns: ${patterns}`,
-    recent ? `History: ${recent}` : "",
-    `Turn ${turn}/7. Learner: ${userInput}`,
+    `You are ${persona}, playing the NON-LEARNER role in scene: "${scene.name}".`,
+    `IMPORTANT: You are the ${persona} (staff/host/interviewer). The learner is the customer/guest/applicant. NEVER say lines that belong to the learner's role.`,
+    `Your job: respond naturally as ${persona} to what the learner said, then continue the scene forward.`,
+    `Example tutor lines in this scene: ${tutorLines}`,
+    `Key patterns learner should use: ${patterns}`,
+    recent ? `Recent learner answers: ${recent}` : "",
+    `Turn ${turn}/7. Learner just said: "${userInput}"`,
+    ``,
+    `Return ONLY valid JSON (no extra text):`,
+    `{"reply":"your 8-16 word in-character English response","replyZh":"Traditional Chinese translation","naturalness":50-99,"grammarTip":"短中文文法建議","betterWay":"more natural version of learner sentence in English","zhExplain":"短中文解釋","encouragement":"短鼓勵中文+English"}`,
   ].filter(Boolean).join("\n");
 }
 
@@ -91,7 +100,7 @@ export async function POST(req: Request) {
         model: MODEL,
         input: buildPrompt(body, persona),
         temperature: 0.75,
-        max_output_tokens: 160,
+        max_output_tokens: 200,
       }),
     });
 
