@@ -12,6 +12,27 @@ import { speechService } from "@/services/speechService";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 
+const recordVoice = {
+  lang: "en-US",
+  voiceKeywords: ["samantha", "ava", "en-us"],
+  ttsVoice: "nova" as const,
+  ttsInstructions: "Speak clearly and naturally for English learning. Use a warm, crisp, non-raspy voice with strong volume.",
+  ttsVolumeGain: 1.55,
+};
+
+function speakRecordText(text: string) {
+  const r = speechService.speak(text, recordVoice);
+  if (!r.ok) alert(r.message || "無法播放語音");
+}
+
+function speakRecord(record: LearningRecord) {
+  const lines = record.transcript?.length
+    ? record.transcript.map((line) => line.en)
+    : (record.userAnswer || record.enContent || "").split(" / ");
+  const text = lines.map((line) => line.trim()).filter(Boolean).join(". ");
+  if (text) speakRecordText(text);
+}
+
 const tabs = [
   { key: "words", label: "我的單字" },
   { key: "sentences", label: "我的句子" },
@@ -71,7 +92,7 @@ function RecordsInner() {
               <p className="font-extrabold text-ink">{w.word}</p>
               <span className="chip bg-lilac text-lilacDeep text-xs">{w.pos}</span>
               {w.inReview && <span className="chip bg-mint text-mintDeep text-xs">複習中</span>}
-              <button onClick={() => speechService.speak(w.word)} className="ml-auto text-lilacDeep"><Volume2 size={18} /></button>
+              <button onClick={() => speakRecordText(w.word)} className="ml-auto text-lilacDeep"><Volume2 size={18} /></button>
             </div>
             <p className="text-sm text-inkSoft">{w.phonetic} · {w.zh}</p>
             <p className="text-sm text-ink mt-1">{w.example}</p>
@@ -84,7 +105,7 @@ function RecordsInner() {
             <p className="text-ink font-semibold">{s.en}</p>
             <p className="text-sm text-inkSoft">{s.zh}</p>
             <div className="mt-2 flex gap-2">
-              <button onClick={() => speechService.speak(s.en)} className="chip bg-lilac text-lilacDeep text-xs flex items-center gap-1"><Volume2 size={12} /> 發音</button>
+              <button onClick={() => speakRecordText(s.en)} className="chip bg-lilac text-lilacDeep text-xs flex items-center gap-1"><Volume2 size={12} /> 發音</button>
               <button onClick={() => { dictionaryService.toggleSentence(s.en, s.zh); reload(); }} className="chip bg-peach text-peachDeep text-xs">移除</button>
             </div>
           </div>
@@ -119,7 +140,7 @@ function RecordsInner() {
             <div key={w.word} className="card !p-4">
               <div className="flex items-center gap-2">
                 <p className="font-extrabold text-ink">{w.word}</p>
-                <button onClick={() => speechService.speak(w.word)} className="ml-auto text-lilacDeep"><Volume2 size={18} /></button>
+                <button onClick={() => speakRecordText(w.word)} className="ml-auto text-lilacDeep"><Volume2 size={18} /></button>
               </div>
               <p className="text-sm text-inkSoft">{w.phonetic} · {w.zh}</p>
               <button onClick={() => { vocabularyService.toggleReview(w.word); reload(); }} className="chip bg-peach text-peachDeep text-xs mt-2">移出複習</button>
@@ -146,9 +167,21 @@ function RecordList({ items, onOpen }: { items: LearningRecord[]; onOpen: (recor
           <p className="text-xs text-inkSoft">{new Date(r.date).toLocaleString()} · {r.minutes} 分鐘</p>
           {r.userAnswer && <p className="text-sm text-ink mt-1">你的回答：{r.userAnswer}</p>}
           {r.suggestion && <p className="text-sm text-inkSoft mt-1">建議：{r.suggestion}</p>}
-          <p className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-lilacDeep">
-            <MessageSquare size={13} /> 查看完整對話紀錄
-          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <span className="inline-flex items-center gap-1 text-xs font-bold text-lilacDeep">
+              <MessageSquare size={13} /> 查看完整對話紀錄
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                speakRecord(r);
+              }}
+              className="inline-flex items-center gap-1 text-xs font-bold text-peachDeep"
+            >
+              <Volume2 size={13} /> 播放紀錄
+            </button>
+          </div>
         </button>
       ))}
     </>
@@ -172,6 +205,9 @@ function RecordDetail({ record, onClose }: { record: LearningRecord; onClose: ()
             <h2 className="text-2xl font-black text-ink break-words">{record.title}</h2>
             <p className="text-sm text-inkSoft">{new Date(record.date).toLocaleString()} · {record.score} 分</p>
           </div>
+          <button onClick={() => speakRecord(record)} className="h-11 w-11 rounded-2xl bg-lilac text-lilacDeep flex items-center justify-center">
+            <Volume2 size={20} />
+          </button>
           <button onClick={onClose} className="h-11 w-11 rounded-2xl bg-white shadow-softer text-inkSoft flex items-center justify-center">
             <X size={20} />
           </button>
@@ -185,6 +221,12 @@ function RecordDetail({ record, onClose }: { record: LearningRecord; onClose: ()
                 <div className={`max-w-[88%] rounded-3xl p-3 ${isUser ? "bg-lilacDeep text-white" : "bg-white text-ink shadow-softer"}`}>
                   <p className="font-semibold leading-relaxed break-words">{line.en}</p>
                   {line.zh && <p className={`mt-1 text-sm ${isUser ? "text-white/80" : "text-inkSoft"}`}>{line.zh}</p>}
+                  <button
+                    onClick={() => speakRecordText(line.en)}
+                    className={`mt-2 inline-flex items-center gap-1 text-xs font-bold ${isUser ? "text-white/90" : "text-lilacDeep"}`}
+                  >
+                    <Volume2 size={13} /> 播放
+                  </button>
                   {isUser && (line.betterWay || line.grammarTip) && (
                     <div className="mt-3 rounded-2xl bg-white/95 p-3 text-sm text-ink">
                       {typeof line.naturalness === "number" && <p className="font-bold text-mintDeep">自然度 {line.naturalness}</p>}

@@ -16,6 +16,14 @@ import ConversationPractice from "@/components/ConversationPractice";
 import { LevelBadge } from "@/components/ui";
 import type { DialogueResult, TutorFeedback, DialogueTranscriptLine } from "@/types";
 
+const sceneVoice = {
+  lang: "en-US",
+  voiceKeywords: ["samantha", "ava", "en-us"],
+  ttsVoice: "nova" as const,
+  ttsInstructions: "Speak clearly and naturally for English learning. Use a warm, crisp, non-raspy voice with strong volume.",
+  ttsVolumeGain: 1.55,
+};
+
 function buildTranscript(userTurns: string[], feedbacks: TutorFeedback[]): DialogueTranscriptLine[] {
   const transcript: DialogueTranscriptLine[] = [];
   feedbacks.forEach((fb, index) => {
@@ -75,7 +83,7 @@ export default function ScenePracticePage() {
       alert("發音功能已關閉，可至設定開啟。");
       return;
     }
-    const r = speechService.speak(text);
+    const r = speechService.speak(text, sceneVoice);
     if (!r.ok) alert(r.message);
   }
 

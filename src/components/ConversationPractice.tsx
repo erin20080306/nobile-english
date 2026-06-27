@@ -271,6 +271,15 @@ export default function ConversationPractice({
 
   const recSupported = speechService.isRecognitionSupported();
   const userTurnCount = msgs.filter((m) => m.role === "user").length;
+  const mouthTopByTutor: Record<string, string> = {
+    amy: "45%",
+    emma: "46%",
+    lily: "47%",
+    sophie: "45%",
+    jake: "48%",
+    william: "48%",
+  };
+  const talkingMouthStyle = { left: "50%", top: mouthTopByTutor[selectedTutor.id] ?? "46%" };
 
   return (
     <div className="flex flex-col min-h-0 flex-1">
@@ -284,6 +293,21 @@ export default function ConversationPractice({
             transition={tutorSpeaking ? { duration: 1.15, repeat: Infinity, ease: "easeInOut" } : { duration: 0.25 }}
             className={`relative h-full w-full object-contain object-center transition-[filter] duration-300 ${tutorSpeaking ? "drop-shadow-[0_0_24px_rgba(167,139,250,0.55)]" : ""}`}
           />
+          {tutorSpeaking && (
+            <motion.div
+              className="pointer-events-none absolute z-10 -translate-x-1/2 rounded-full border border-rose-100/80 bg-gradient-to-b from-rose-300/80 via-rose-500/80 to-rose-950/85 shadow-[0_0_14px_rgba(244,114,182,0.35)]"
+              style={talkingMouthStyle}
+              initial={{ opacity: 0, scaleX: 0.8, height: 4, width: 26 }}
+              animate={{
+                opacity: [0.45, 0.78, 0.5, 0.82, 0.45],
+                scaleX: [0.8, 1.08, 0.92, 1.16, 0.82],
+                height: [4, 13, 6, 15, 5],
+                width: [26, 34, 28, 36, 26],
+              }}
+              transition={{ duration: 0.42, repeat: Infinity, ease: "easeInOut" }}
+              aria-hidden="true"
+            />
+          )}
           <div className="absolute inset-0 bg-gradient-to-t from-ink/85 via-ink/10 to-white/10" />
           <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-black/35 px-3 py-1.5 text-xs font-extrabold text-white backdrop-blur">
             <span className={`h-2 w-2 rounded-full bg-mintDeep shadow-[0_0_12px_rgba(86,211,145,0.9)] ${tutorSpeaking ? "animate-ping" : ""}`} />
