@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import React from "react";
 import { useSearchParams } from "next/navigation";
 import { MessageSquare, Volume2, Star, X } from "lucide-react";
 import type { SavedWord, SavedSentence, LearningRecord, ExamResult, ExamQuestion, LearningLanguageCode } from "@/types";
@@ -268,20 +269,65 @@ function RecordDetail({ record, onClose }: { record: LearningRecord; onClose: ()
 }
 
 function LanguageFilter({ value, onChange }: { value: RecordLanguageFilter; onChange: (value: RecordLanguageFilter) => void }) {
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const [showLeftArrow, setShowLeftArrow] = React.useState(false);
+  const [showRightArrow, setShowRightArrow] = React.useState(true);
+
+  const scroll = (direction: "left" | "right") => {
+    if (scrollRef.current) {
+      const scrollAmount = 120;
+      scrollRef.current.scrollBy({ left: direction === "left" ? -scrollAmount : scrollAmount, behavior: "smooth" });
+    }
+  };
+
+  const handleScroll = () => {
+    if (scrollRef.current) {
+      setShowLeftArrow(scrollRef.current.scrollLeft > 10);
+      setShowRightArrow(scrollRef.current.scrollLeft < scrollRef.current.scrollWidth - scrollRef.current.clientWidth - 10);
+    }
+  };
+
+  React.useEffect(() => {
+    const ref = scrollRef.current;
+    if (ref) {
+      ref.addEventListener("scroll", handleScroll);
+      handleScroll();
+      return () => ref.removeEventListener("scroll", handleScroll);
+    }
+  }, []);
+
   return (
-    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 pr-2">
-      <button onClick={() => onChange("all")} className={`chip whitespace-nowrap ${value === "all" ? "bg-lilacDeep text-white" : "bg-white text-ink shadow-softer"}`}>
-        全部語言
-      </button>
-      {LEARNING_LANGUAGES.map((lang) => (
+    <div className="relative">
+      {showLeftArrow && (
         <button
-          key={lang.code}
-          onClick={() => onChange(lang.code)}
-          className={`chip whitespace-nowrap ${value === lang.code ? "bg-lilacDeep text-white" : "bg-white text-ink shadow-softer"}`}
+          onClick={() => scroll("left")}
+          className="absolute left-0 top-0 bottom-1 z-10 w-8 bg-gradient-to-r from-cream to-transparent flex items-center justify-center text-lilacDeep"
         >
-          {lang.flag} {lang.zhName}
+          ‹
         </button>
-      ))}
+      )}
+      <div ref={scrollRef} className="flex gap-2 overflow-x-auto no-scrollbar pb-1 px-2">
+        <button onClick={() => onChange("all")} className={`chip whitespace-nowrap ${value === "all" ? "bg-lilacDeep text-white" : "bg-white text-ink shadow-softer"}`}>
+          全部語言
+        </button>
+        {LEARNING_LANGUAGES.map((lang) => (
+          <button
+            key={lang.code}
+            onClick={() => onChange(lang.code)}
+            className={`chip whitespace-nowrap ${value === lang.code ? "bg-lilacDeep text-white" : "bg-white text-ink shadow-softer"}`}
+          >
+            {lang.flag} {lang.zhName}
+          </button>
+        ))}
+      </div>
+      {showRightArrow && (
+        <button
+          onClick={() => scroll("right")}
+          className="absolute right-0 top-0 bottom-1 z-10 w-8 bg-gradient-to-l from-cream to-transparent flex items-center justify-center text-lilacDeep"
+        >
+          ›
+        </button>
+      )}
     </div>
   );
 }
