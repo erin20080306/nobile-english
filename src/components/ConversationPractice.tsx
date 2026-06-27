@@ -466,27 +466,34 @@ export default function ConversationPractice({
           />
           {tutorSpeaking && (
             <motion.div
-              className="pointer-events-none absolute z-10 -translate-x-1/2 overflow-hidden rounded-[999px] border border-white/70 bg-gradient-to-b from-rose-200 via-rose-500 to-rose-950 shadow-[0_0_18px_rgba(244,114,182,0.55),inset_0_1px_2px_rgba(255,255,255,0.8)]"
-              style={talkingMouthStyle}
-              initial={{ opacity: 0, scaleX: 0.78, height: 6, width: 28 }}
-              animate={{
-                opacity: [0.72, 0.96, 0.78, 1, 0.72],
-                scaleX: [0.78, 1.1, 0.88, 1.18, 0.8],
-                height: [6, 20, 8, 24, 7],
-                width: [28, 42, 34, 46, 30],
+              className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-1/2 overflow-hidden"
+              style={{
+                ...talkingMouthStyle,
+                borderRadius: "45% 45% 50% 50%",
+                background: "linear-gradient(180deg, #b07060 0%, #7a2020 30%, #2a0808 65%, #150303 100%)",
+                boxShadow: "0 2px 10px rgba(0,0,0,0.45), inset 0 1px 2px rgba(255,255,255,0.25)",
               }}
-              transition={{ duration: 0.32, repeat: Infinity, ease: "easeInOut" }}
+              initial={{ opacity: 0, width: 30, height: 3 }}
+              animate={{
+                opacity: [0.88, 1, 0.92, 1, 0.88],
+                width: [30, 46, 36, 50, 30],
+                height: [3, 22, 8, 26, 4],
+              }}
+              transition={{ duration: 0.38, repeat: Infinity, ease: "easeInOut" }}
               aria-hidden="true"
             >
-              <motion.span
-                className="absolute left-1/2 top-1/2 h-2.5 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/35 blur-[1px]"
-                animate={{ opacity: [0.25, 0.65, 0.35], scaleX: [0.8, 1.15, 0.9] }}
-                transition={{ duration: 0.32, repeat: Infinity, ease: "easeInOut" }}
+              <motion.div
+                className="absolute top-0 left-[8%] right-[8%] rounded-b-sm bg-white/92"
+                animate={{ height: ["0px", "8px", "2px", "10px", "0px"] }}
+                transition={{ duration: 0.38, repeat: Infinity, ease: "easeInOut" }}
               />
-              <motion.span
-                className="absolute bottom-0 left-1/2 h-2 w-9 -translate-x-1/2 rounded-t-full bg-rose-100/55"
-                animate={{ y: [2, 0, 2], opacity: [0.45, 0.8, 0.45] }}
-                transition={{ duration: 0.32, repeat: Infinity, ease: "easeInOut" }}
+              <motion.div
+                className="absolute bottom-0 left-1/2 -translate-x-1/2 rounded-t-full bg-rose-300/50"
+                animate={{
+                  width: ["12px", "22px", "14px", "26px", "12px"],
+                  height: ["0px", "5px", "1px", "7px", "0px"],
+                }}
+                transition={{ duration: 0.38, repeat: Infinity, ease: "easeInOut" }}
               />
             </motion.div>
           )}

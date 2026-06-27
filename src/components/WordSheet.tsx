@@ -100,8 +100,20 @@ export default function WordSheet({
                 <p className="text-inkSoft mt-1">{entry.phonetic}</p>
 
                 <div className="mt-4 space-y-3">
-                  <Block label="英文解釋" value={entry.enDef} />
-                  <Block label="中文解釋" value={entry.zh} />
+                  {language === "en" ? (
+                    <>
+                      <Block label="英文解釋" value={entry.enDef} />
+                      <Block label="中文解釋" value={entry.zh} />
+                    </>
+                  ) : (
+                    <>
+                      <Block label="中文解釋" value={entry.zh} />
+                      <Block
+                        label={language === "ja" ? "日文詞意" : language === "ko" ? "韓文詞意" : "義大利文詞意"}
+                        value={entry.enDef}
+                      />
+                    </>
+                  )}
                   <Block label="例句" value={entry.example} sub={entry.exampleZh} />
                   {entry.synonyms?.length ? (
                     <Block label="同義詞" value={entry.synonyms.join(", ")} />

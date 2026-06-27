@@ -175,12 +175,18 @@ function multilingualFallback(word: string, language: Exclude<LearningLanguageCo
     it: { example: `Prova a usare "${q}" in una frase breve.`, zh: `試著用「${q}」造一個短句。` },
   };
 
+  const nativeDef: Record<Exclude<LearningLanguageCode, "en">, string> = {
+    ja: `「${q}」は日本語の会話でよく使われる言葉です。前後の文脈で意味を確認してください。`,
+    ko: `'${q}'은(는) 한국어 대화에서 자주 쓰이는 표현입니다. 문맥으로 의미를 확인해 주세요.`,
+    it: `"${q}" è un'espressione comune nelle conversazioni italiane. Controlla il significato nel contesto.`,
+  };
+
   return {
     language,
     word: q,
     phonetic: "/-/",
     pos: "n.",
-    enDef: `A ${lang.nativeName} word or phrase used in real-life conversation scenes.`,
+    enDef: nativeDef[language],
     zh: `${lang.zhName}情境對話詞，請搭配原句理解意思與用法。`,
     example: examples[language].example,
     exampleZh: examples[language].zh,
