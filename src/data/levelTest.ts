@@ -1,0 +1,76 @@
+import type { LevelTestQuestion } from "@/types";
+
+export const levelTestQuestions: LevelTestQuestion[] = [
+  {
+    id: "lt1", type: "vocabulary",
+    question: "Choose the correct word: I'd like a cup of ___.",
+    options: ["coffee", "chair", "happy", "run"],
+    answerIndex: 0,
+    explanation: "coffee（咖啡）是可以喝的飲料，符合語意。",
+  },
+  {
+    id: "lt2", type: "grammar",
+    question: "She ___ to school every day.",
+    options: ["go", "goes", "going", "gone"],
+    answerIndex: 1,
+    explanation: "主詞 She 為第三人稱單數，現在式動詞加 s → goes。",
+  },
+  {
+    id: "lt3", type: "vocabulary",
+    question: "Opposite of 'expensive' is ___.",
+    options: ["cheap", "big", "fast", "happy"],
+    answerIndex: 0,
+    explanation: "expensive（昂貴）的反義字是 cheap（便宜）。",
+  },
+  {
+    id: "lt4", type: "grammar",
+    question: "They ___ watching a movie now.",
+    options: ["is", "am", "are", "be"],
+    answerIndex: 2,
+    explanation: "主詞 They 為複數，be 動詞用 are。",
+  },
+  {
+    id: "lt5", type: "situational",
+    question: "At a cafe, how do you order politely?",
+    options: ["Give me coffee!", "I'd like a coffee, please.", "Coffee now.", "Where coffee?"],
+    answerIndex: 1,
+    explanation: "用 I'd like... please 是最禮貌的點餐方式。",
+  },
+  {
+    id: "lt6", type: "grammar",
+    question: "I have ___ apple in my bag.",
+    options: ["a", "an", "the", "some"],
+    answerIndex: 1,
+    explanation: "apple 以母音開頭，用 an。",
+  },
+  {
+    id: "lt7", type: "reading",
+    passage: "Tom gets up at 6 a.m. He eats breakfast and then rides his bike to work. He likes his job at the library.",
+    question: "How does Tom go to work?",
+    options: ["By car", "By bus", "By bike", "On foot"],
+    answerIndex: 2,
+    explanation: "文中提到 'rides his bike to work'（騎腳踏車上班）。",
+  },
+  {
+    id: "lt8", type: "grammar",
+    question: "If it ___ tomorrow, we will stay home.",
+    options: ["rain", "rains", "rained", "raining"],
+    answerIndex: 1,
+    explanation: "第一條件句：if + 現在式，主句用 will。rains。",
+  },
+  {
+    id: "lt9", type: "vocabulary",
+    question: "A person who serves food in a restaurant is a ___.",
+    options: ["waiter", "doctor", "teacher", "driver"],
+    answerIndex: 0,
+    explanation: "waiter = 服務生。",
+  },
+  {
+    id: "lt10", type: "reading",
+    passage: "The meeting has been moved from Monday to Wednesday because the manager is on a business trip.",
+    question: "Why was the meeting rescheduled?",
+    options: ["It was a holiday", "The manager is traveling for work", "The room was busy", "No reason given"],
+    answerIndex: 1,
+    explanation: "因為經理出差（business trip），所以會議改期。",
+  },
+];

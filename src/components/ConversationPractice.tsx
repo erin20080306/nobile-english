@@ -1,0 +1,239 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
+import { Send, Volume2, Star, Mic, MicOff, VolumeX } from "lucide-react";
+import type { Scene, TutorFeedback, DialogueResult } from "@/types";
+import { aiTutorService } from "@/services/aiTutorService";
+import { dictionaryService } from "@/services/dictionaryService";
+import { speechService } from "@/services/speechService";
+import ClickableText from "@/components/ClickableText";
+import WordSheet from "@/components/WordSheet";
+
+interface Msg {
+  role: "tutor" | "user";
+  en: string;
+  zh: string;
+  feedback?: TutorFeedback;
+}
+
+const MIN_PRACTICE_TURNS = 5;
+const RECOMMENDED_PRACTICE_TURNS = 6;
+
+export default function ConversationPractice({
+  scene,
+  showZh,
+  pronunciationOn = true,
+  finishLabel = "結束對話並看成果",
+  onFinish,
+}: {
+  scene: Scene;
+  showZh: boolean;
+  pronunciationOn?: boolean;
+  finishLabel?: string;
+  onFinish: (result: DialogueResult, userTurns: string[], feedbacks: TutorFeedback[]) => void;
+}) {
+  const firstTutor =
+    scene.dialogue.find((d) => d.speaker === "tutor") || { en: "Hi! Let's practice together.", zh: "嗨！我們一起練習吧。" };
+
+  const [msgs, setMsgs] = useState<Msg[]>([{ role: "tutor", en: firstTutor.en, zh: firstTutor.zh }]);
+  const [input, setInput] = useState("");
+  const [turn, setTurn] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [autoSpeak, setAutoSpeak] = useState(pronunciationOn);
+  const [activeWord, setActiveWord] = useState<string | null>(null);
+  const [toast, setToast] = useState("");
+
+  const endRef = useRef<HTMLDivElement>(null);
+  const stopListenRef = useRef<(() => void) | null>(null);
+  const historyRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [msgs]);
+
+  // Speak the opening tutor line once.
+  useEffect(() => {
+    if (autoSpeak) speechService.speak(firstTutor.en);
+    return () => {
+      speechService.stop();
+      stopListenRef.current?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function flashToast(t: string) {
+    setToast(t);
+    setTimeout(() => setToast(""), 2500);
+  }
+
+  function speak(text: string) {
+    const r = speechService.speak(text);
+    if (!r.ok) flashToast(r.message || "無法播放發音");
+  }
+
+  async function handleSend(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed || busy) return;
+    setBusy(true);
+    setInput("");
+
+    setMsgs((m) => [...m, { role: "user", en: trimmed, zh: "" }]);
+
+    const history = [...historyRef.current];
+    historyRef.current.push(trimmed);
+
+    const fb = await aiTutorService.feedback(scene, trimmed, turn + 1, history);
+
+    setMsgs((m) => {
+      const copy = [...m];
+      const lastUser = [...copy].reverse().find((x) => x.role === "user" && !x.feedback);
+      if (lastUser) lastUser.feedback = fb;
+      copy.push({ role: "tutor", en: fb.reply, zh: fb.replyZh });
+      return [...copy];
+    });
+    setTurn((t) => t + 1);
+    setBusy(false);
+    if (autoSpeak) speak(fb.reply);
+  }
+
+  function toggleMic() {
+    if (listening) {
+      stopListenRef.current?.();
+      setListening(false);
+      return;
+    }
+    speechService.stop();
+    const stop = speechService.listen({
+      onResult: (text) => {
+        setInput((prev) => (prev ? prev + " " : "") + text);
+        // auto-send after a short delay so the user sees the transcript
+        setTimeout(() => {
+          setInput((cur) => {
+            handleSend(cur);
+            return cur;
+          });
+        }, 350);
+      },
+      onError: (msg) => {
+        flashToast(msg);
+        setListening(false);
+      },
+      onEnd: () => setListening(false),
+    });
+    if (stop) {
+      stopListenRef.current = stop;
+      setListening(true);
+    }
+  }
+
+  function finish() {
+    const userTurns = msgs.filter((m) => m.role === "user").map((m) => m.en);
+    if (userTurns.length < MIN_PRACTICE_TURNS) {
+      flashToast(`請至少練習 ${MIN_PRACTICE_TURNS} 句對話再結束`);
+      return;
+    }
+    const feedbacks = msgs.filter((m) => m.feedback).map((m) => m.feedback!) as TutorFeedback[];
+    const result = aiTutorService.summarize(scene, feedbacks, userTurns);
+    speechService.stop();
+    stopListenRef.current?.();
+    onFinish(result, userTurns, feedbacks);
+  }
+
+  const recSupported = speechService.isRecognitionSupported();
+  const userTurnCount = msgs.filter((m) => m.role === "user").length;
+
+  return (
+    <div className="flex flex-col min-h-0 flex-1">
+      <div className="flex-1 px-4 pb-44 space-y-3 overflow-y-auto">
+        {msgs.map((m, i) => (
+          <div key={i}>
+            <div className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div className={`max-w-[85%] rounded-3xl p-3 ${m.role === "user" ? "bg-lilacDeep text-white" : "bg-white text-ink shadow-softer"}`}>
+                <ClickableText text={m.en} onWord={setActiveWord} className={m.role === "user" ? "text-white" : "text-ink"} />
+                {showZh && m.zh && <p className={`text-sm mt-1 ${m.role === "user" ? "text-white/80" : "text-inkSoft"}`}>{m.zh}</p>}
+                <div className="mt-1 flex gap-3">
+                  <button onClick={() => speak(m.en)} className={m.role === "user" ? "text-white/90" : "text-lilacDeep"}><Volume2 size={15} /></button>
+                  <button onClick={() => { dictionaryService.toggleSentence(m.en, m.zh, scene.name); flashToast("已收藏句子"); }} className={m.role === "user" ? "text-white/90" : "text-peachDeep"}><Star size={15} /></button>
+                </div>
+              </div>
+            </div>
+
+            {m.feedback && (
+              <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mt-2 ml-auto max-w-[90%] rounded-3xl bg-mint/60 p-3 text-sm">
+                <p className="font-bold text-mintDeep">即時回饋 · 自然度 {m.feedback.naturalness}</p>
+                <p className="text-ink mt-1">📝 {m.feedback.grammarTip}</p>
+                <p className="text-ink">✨ 更自然：{m.feedback.betterWay}</p>
+                {showZh && <p className="text-inkSoft">{m.feedback.zhExplain}</p>}
+                <p className="text-peachDeep font-semibold mt-1">{m.feedback.encouragement}</p>
+              </motion.div>
+            )}
+          </div>
+        ))}
+        {busy && (
+          <div className="flex justify-start">
+            <div className="rounded-3xl bg-white shadow-softer px-4 py-3 text-inkSoft text-sm">導師思考中…</div>
+          </div>
+        )}
+        <div ref={endRef} />
+      </div>
+
+      {toast && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-ink text-white text-sm px-4 py-2 rounded-2xl shadow-soft max-w-[90%] text-center">
+          {toast}
+        </div>
+      )}
+
+      {/* Input bar */}
+      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] p-3 bg-cream/95 backdrop-blur space-y-2">
+        <div className="flex items-center justify-between gap-2 px-1 flex-wrap">
+          <span className="text-xs font-bold text-inkSoft">
+            已練習 {userTurnCount}/{RECOMMENDED_PRACTICE_TURNS} 句
+          </span>
+          <button onClick={() => setAutoSpeak((v) => !v)} className="flex items-center gap-1 text-xs font-bold text-inkSoft">
+            {autoSpeak ? <Volume2 size={14} className="text-lilacDeep" /> : <VolumeX size={14} />}
+            自動朗讀導師回覆：{autoSpeak ? "開" : "關"}
+          </button>
+        </div>
+        <div className="flex items-center justify-between gap-2 px-1 flex-wrap">
+          <span className="text-xs font-bold text-mintDeep">
+            {userTurnCount >= MIN_PRACTICE_TURNS ? "可結束，也可練到 6 句更完整" : "至少完成 5 句"}
+          </span>
+          <button className="text-xs font-bold text-peachDeep" onClick={finish}>{finishLabel}</button>
+        </div>
+
+        {listening && (
+          <div className="flex items-center justify-center gap-2 text-lilacDeep font-bold text-sm">
+            <span className="h-2 w-2 rounded-full bg-peachDeep animate-ping" /> 聆聽中…請說英文
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 bg-white rounded-3xl px-3 py-2 shadow-softer">
+          <button
+            onClick={toggleMic}
+            disabled={busy}
+            title={recSupported ? "語音輸入" : "此瀏覽器不支援語音輸入"}
+            className={`h-10 w-10 rounded-2xl flex items-center justify-center active:scale-90 transition shrink-0 ${
+              listening ? "bg-peachDeep text-white animate-pulse" : recSupported ? "bg-mint text-mintDeep" : "bg-cream text-inkSoft"
+            }`}
+          >
+            {listening ? <MicOff size={18} /> : <Mic size={18} />}
+          </button>
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSend(input)}
+            placeholder="用語音或打字回覆…"
+            className="flex-1 bg-transparent outline-none text-ink min-w-0"
+          />
+          <button onClick={() => handleSend(input)} disabled={busy || !input.trim()} className="h-10 w-10 rounded-2xl bg-lilacDeep text-white flex items-center justify-center active:scale-90 transition disabled:opacity-50 shrink-0">
+            <Send size={18} />
+          </button>
+        </div>
+      </div>
+
+      <WordSheet word={activeWord} onClose={() => setActiveWord(null)} />
+    </div>
+  );
+}

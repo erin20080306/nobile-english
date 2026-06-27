@@ -1,0 +1,60 @@
+@import url("https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Noto+Sans+TC:wght@400;500;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  font-family: "Baloo 2", "Noto Sans TC", system-ui, sans-serif;
+  background: linear-gradient(180deg, #fffbf3 0%, #f6f1ff 100%);
+  color: #4a4458;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Mobile-first app shell: center column max 480 */
+.app-shell {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  position: relative;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+button {
+  font-family: inherit;
+}
+
+.btn-primary {
+  @apply rounded-3xl bg-lilacDeep text-white font-bold py-4 px-6 shadow-soft active:scale-95 transition-transform;
+}
+.btn-secondary {
+  @apply rounded-3xl bg-white text-ink font-bold py-4 px-6 shadow-softer active:scale-95 transition-transform;
+}
+.card {
+  @apply rounded-4xl bg-white shadow-soft p-5;
+}
+.chip {
+  @apply rounded-full px-4 py-2 text-sm font-bold;
+}

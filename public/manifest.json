@@ -1,0 +1,18 @@
+{
+  "name": "Mobile English",
+  "short_name": "MobileEN",
+  "description": "時尚 Q 版手機英文學習 App",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFFBF3",
+  "theme_color": "#B8A6F0",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/assets/cheer-fallback.svg",
+      "sizes": "220x240",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
