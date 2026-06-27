@@ -8,6 +8,8 @@ const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const MODEL = process.env.OPENAI_TUTOR_MODEL || "gpt-4o-mini";
 
 const PERSONAS: Record<string, string[]> = {
+  daily:      ["Alex (local helper)", "Jordan (neighbor)", "Taylor (local guide)"],
+  travel:     ["Morgan (local passerby)", "Riley (tourist information guide)", "Alex (helpful local)"],
   cafe:       ["Mia (barista)", "Leo (cafe owner)", "Sophie (barista)"],
   airport:    ["Jake (check-in staff)", "Emma (gate agent)", "Ryan (airline rep)"],
   hotel:      ["Olivia (front desk)", "Liam (concierge)", "Ava (receptionist)"],
@@ -22,6 +24,40 @@ function getPersona(themeId?: string): string {
   const key = themeId && PERSONAS[themeId] ? themeId : "default";
   const list = PERSONAS[key];
   return list[Math.floor(Math.random() * list.length)];
+}
+
+function getScenePersona(scene: Scene, requestedPersona?: string) {
+  const title = `${scene.name} ${scene.enName}`.toLowerCase();
+  if (title.includes("問路") || title.includes("direction")) return "Morgan (helpful local guide)";
+  return requestedPersona || getPersona(scene.themeId);
+}
+
+function sceneRoleGuide(scene: Scene) {
+  const title = `${scene.name} ${scene.enName}`.toLowerCase();
+  if (title.includes("問路") || title.includes("direction")) {
+    return [
+      "You are a helpful local passerby or local guide giving directions.",
+      "Casual small talk is allowed, but your identity must stay as a passerby/local guide.",
+      "If the learner mentions food, seafood, shops, or asks 'do you sell...', do NOT become a store clerk or seller.",
+      "Instead, say you are not selling anything, then naturally mention a nearby place and give directions.",
+    ].join(" ");
+  }
+  if (scene.themeId === "travel") {
+    return "You are a helpful local or travel staff member. Keep every reply about travel, locations, transport, tickets, or directions.";
+  }
+  if (scene.themeId === "cafe") {
+    return "You are cafe staff. Keep every reply about ordering drinks, food, sizes, sweetness, payment, or pickup.";
+  }
+  if (scene.themeId === "shopping") {
+    return "You are store staff. Keep every reply about products, sizes, prices, stock, payment, or returns.";
+  }
+  if (scene.themeId === "airport") {
+    return "You are airport or hotel staff. Keep every reply about check-in, luggage, gates, rooms, or travel logistics.";
+  }
+  if (scene.themeId === "interview") {
+    return "You are an interviewer. Keep every reply about the job interview and candidate answers.";
+  }
+  return "Stay strictly inside the current scenario. If the learner goes off topic, acknowledge briefly and guide them back to the scenario.";
 }
 
 interface TutorRequest {
@@ -60,15 +96,17 @@ function buildPrompt({ scene, userInput, turn, history = [] }: TutorRequest, per
 
   return [
     `You are ${persona}, playing the NON-LEARNER role in scene: "${scene.name}".`,
+    sceneRoleGuide(scene),
     `IMPORTANT: You are the ${persona} (staff/host/interviewer). The learner is the customer/guest/applicant. NEVER say lines that belong to the learner's role.`,
-    `Your job: respond naturally as ${persona} to what the learner said, then continue the scene forward.`,
+    `Your job: respond naturally as ${persona} to what the learner said, then continue the exact scene forward.`,
+    `You may chat naturally, but never change your role. If the learner's sentence is off-topic, bridge it back to the scene in character.`,
     `Example tutor lines in this scene: ${tutorLines}`,
     `Key patterns learner should use: ${patterns}`,
     recent ? `Recent learner answers: ${recent}` : "",
     `Turn ${turn}/7. Learner just said: "${userInput}"`,
     ``,
     `Return ONLY valid JSON (no extra text):`,
-    `{"reply":"your 8-16 word in-character English response","replyZh":"Traditional Chinese translation","naturalness":50-99,"grammarTip":"短中文文法建議","betterWay":"more natural version of learner sentence in English","zhExplain":"短中文解釋","encouragement":"短鼓勵中文+English"}`,
+    `{"reply":"your natural in-character English response, 2 short sentences, 18-32 words","replyZh":"Traditional Chinese translation","naturalness":50-99,"grammarTip":"短中文文法建議","betterWay":"more natural version of learner sentence in English","zhExplain":"短中文解釋","encouragement":"短鼓勵中文+English"}`,
   ].filter(Boolean).join("\n");
 }
 
@@ -87,7 +125,7 @@ export async function POST(req: Request) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return fallback(body);
 
-  const persona = body.persona || getPersona(body.scene?.themeId);
+  const persona = getScenePersona(body.scene, body.persona);
 
   try {
     const response = await fetch(OPENAI_RESPONSES_URL, {
@@ -99,8 +137,8 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         model: MODEL,
         input: buildPrompt(body, persona),
-        temperature: 0.75,
-        max_output_tokens: 200,
+        temperature: 0.55,
+        max_output_tokens: 320,
       }),
     });
 

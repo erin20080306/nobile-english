@@ -133,7 +133,7 @@ async function playWithGain(audio: HTMLAudioElement, gainValue: number, cleanup:
     const context = new AudioContextCtor();
     const source = context.createMediaElementSource(audio);
     const gain = context.createGain();
-    gain.gain.value = Math.max(1, Math.min(1.8, gainValue));
+    gain.gain.value = Math.max(1, Math.min(2, gainValue));
     source.connect(gain);
     gain.connect(context.destination);
     currentAudioContext = context;

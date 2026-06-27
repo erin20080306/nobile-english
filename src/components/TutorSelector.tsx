@@ -113,8 +113,8 @@ function TutorCard({
         </span>
       )}
       <button type="button" onClick={() => onPick(tutor)} className="w-full active:scale-[0.98] transition">
-        <div className="relative h-32 w-full overflow-hidden rounded-[24px] bg-ink">
-          <img src={tutor.photoUrl} alt={tutor.name} className="h-full w-full object-cover" />
+        <div className="relative h-36 w-full overflow-hidden rounded-[24px] bg-ink">
+          <img src={tutor.photoUrl} alt={tutor.name} className="h-full w-full object-cover object-top" />
           <div className="absolute inset-0 bg-gradient-to-t from-ink/70 via-transparent to-white/10" />
           <span className="absolute left-2 bottom-2 rounded-full bg-white/90 px-2.5 py-1 text-xs font-extrabold text-ink">
             {tutor.flag} {tutor.accentLabel}

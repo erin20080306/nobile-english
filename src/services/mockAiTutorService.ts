@@ -434,6 +434,15 @@ function adaptiveRoleplayReply(
     };
   }
 
+  if (scene.name.includes("問路") || scene.enName.toLowerCase().includes("direction")) {
+    if (hasAny(lower, ["seafood", "sell", "supermarket", "grocery", "groceries", "market", "restaurant", "food"])) {
+      return { en: "I don't sell seafood, but the market near the station does. Go straight two blocks, then turn left.", zh: "我不是賣海鮮的，但車站附近的市場有賣。直走兩個街區，然後左轉。" };
+    }
+    if (hasAny(lower, ["lost", "station", "street", "map", "direction", "where", "how do i get", "walk", "bus", "taxi", "far", "long"])) {
+      return { en: "You're close. Go straight for two blocks, then turn right at the pharmacy. The station will be on your left.", zh: "你很近了。直走兩個街區，然後在藥局右轉。車站會在你的左邊。" };
+    }
+  }
+
   if (scene.themeId === "daily") {
     if (hasAny(lower, ["lost", "hard to find", "couldn't find", "office", "directions"])) {
       return { en: "That happens a lot in this building. Did someone at the front desk help you?", zh: "這棟樓很多人第一次都會找不到。櫃台有人協助你嗎？" };
@@ -472,6 +481,9 @@ function adaptiveRoleplayReply(
   }
 
   if (scene.themeId === "travel") {
+    if (hasAny(lower, ["seafood", "sell", "supermarket", "grocery", "groceries", "market", "restaurant", "food"])) {
+      return { en: "I don't sell food, but I can point you to the market. Go straight two blocks, then turn left.", zh: "我不是賣食物的，但我可以指路去市場。直走兩個街區，然後左轉。" };
+    }
     if (hasAny(lower, ["lost", "station", "street", "map", "direction", "where", "how do i get"])) {
       return { en: "You're close. Go straight for two blocks, then turn right at the pharmacy.", zh: "你很近了。直走兩個街區，然後在藥局右轉。" };
     }
@@ -481,6 +493,10 @@ function adaptiveRoleplayReply(
     if (hasAny(lower, ["ticket", "machine", "buy"])) {
       return { en: "You can buy a ticket at the machine. There is an English menu on the screen.", zh: "你可以在售票機買票。螢幕上有英文選單。" };
     }
+  }
+
+  if ((scene.name.includes("問路") || scene.enName.toLowerCase().includes("direction")) && hasAny(lower, ["seafood", "sell", "supermarket", "grocery", "groceries", "market", "restaurant", "food"])) {
+    return { en: "I don't work at a shop, but the market near the station has food. Go straight, then turn left at the pharmacy.", zh: "我不是店員，但車站附近的市場有吃的。直走，然後在藥局左轉。" };
   }
 
   if (scene.themeId === "airport") {

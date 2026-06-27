@@ -238,6 +238,21 @@ const themePatterns: Record<string, { en: string; zh: string }[]> = {
 function buildDialogue(themeId: string, name: string): DialogueLine[] {
   switch (themeId) {
     case "daily":
+      if (name.includes("問路")) {
+        return [
+          { speaker: "tutor", en: "Excuse me, you seem a bit lost. Are you looking for somewhere?", zh: "不好意思，你看起來有點迷路。你在找地方嗎？" },
+          { speaker: "user", en: "Yes, I'm trying to find the nearest station.", zh: "對，我想找最近的車站。" },
+          { speaker: "tutor", en: "You're close. Go straight for two blocks, then turn left.", zh: "你很近了。直走兩個街區，然後左轉。" },
+          { speaker: "user", en: "Is it next to the market?", zh: "它在市場旁邊嗎？" },
+          { speaker: "tutor", en: "Yes, it's across from the market entrance.", zh: "對，它在市場入口對面。" },
+          { speaker: "user", en: "Great. How long does it take to walk there?", zh: "太好了。走路要多久？" },
+          { speaker: "tutor", en: "About eight minutes. Keep the park on your right.", zh: "大約八分鐘。讓公園保持在你的右手邊。" },
+          { speaker: "user", en: "Thank you. That helps a lot.", zh: "謝謝你，這幫了我很多。" },
+          { speaker: "tutor", en: "You're welcome. If you reach the bridge, you've gone too far.", zh: "不客氣。如果你走到橋那邊，就是走太遠了。" },
+          { speaker: "user", en: "Got it. I'll turn before the bridge.", zh: "了解。我會在橋前轉彎。" },
+          { speaker: "tutor", en: "Exactly. Have a good walk.", zh: "沒錯。祝你走路順利。" },
+        ];
+      }
       return [
         { speaker: "tutor", en: "Hey, good to see you. You look a little rushed.", zh: "嘿，很高興看到你。你看起來有點趕。" },
         { speaker: "user", en: "Yeah, I have a few errands before lunch.", zh: "對，我午餐前有幾件事要辦。" },

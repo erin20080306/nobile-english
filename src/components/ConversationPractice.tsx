@@ -33,7 +33,11 @@ const SCENE_PERSONAS: Record<string, string[]> = {
   default:    ["Alex", "Jordan", "Taylor", "Morgan"],
 };
 
-function pickPersona(themeId?: string): string {
+function pickPersona(scene: Scene): string {
+  if (scene.name.includes("問路") || scene.enName.toLowerCase().includes("direction")) {
+    return "Morgan, a helpful local guide";
+  }
+  const themeId = scene.themeId;
   const list = SCENE_PERSONAS[themeId ?? "default"] ?? SCENE_PERSONAS.default;
   return list[Math.floor(Math.random() * list.length)];
 }
@@ -62,8 +66,9 @@ export default function ConversationPractice({
   const [autoSpeak, setAutoSpeak] = useState(pronunciationOn);
   const [activeWord, setActiveWord] = useState<string | null>(null);
   const [toast, setToast] = useState("");
-  const [persona] = useState(() => pickPersona(scene.themeId));
+  const [persona] = useState(() => pickPersona(scene));
   const [selectedTutor] = useState(() => getSelectedTutor());
+  const tutorName = selectedTutor.name;
 
   const endRef = useRef<HTMLDivElement>(null);
   const stopListenRef = useRef<(() => void) | null>(null);
@@ -115,6 +120,14 @@ export default function ConversationPractice({
     setInput("");
 
     setMsgs((m) => [...m, { role: "user", en: trimmed, zh: "" }]);
+    if (autoSpeak) {
+      window.setTimeout(() => {
+        speechService.speak(trimmed, {
+          ...speechOptions,
+          ttsInstructions: "Repeat the learner's English sentence clearly and naturally for listening practice. Use strong clear volume.",
+        });
+      }, 80);
+    }
 
     const history = [...historyRef.current];
     historyRef.current.push(trimmed);
@@ -201,9 +214,10 @@ export default function ConversationPractice({
   return (
     <div className="flex flex-col min-h-0 flex-1">
       <div className="px-4 pb-3 shrink-0">
-        <div className="relative h-40 overflow-hidden rounded-[30px] bg-ink shadow-soft">
-          <img src={selectedTutor.photoUrl} alt={selectedTutor.name} className="h-full w-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-ink/80 via-ink/10 to-white/10" />
+        <div className="relative h-52 overflow-hidden rounded-[30px] bg-ink shadow-soft">
+          <img src={selectedTutor.photoUrl} alt="" className="absolute inset-0 h-full w-full scale-110 object-cover blur-lg opacity-50" />
+          <img src={selectedTutor.photoUrl} alt={selectedTutor.name} className="relative h-full w-full object-contain object-center" />
+          <div className="absolute inset-0 bg-gradient-to-t from-ink/85 via-ink/10 to-white/10" />
           <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-black/35 px-3 py-1.5 text-xs font-extrabold text-white backdrop-blur">
             <span className="h-2 w-2 rounded-full bg-mintDeep shadow-[0_0_12px_rgba(86,211,145,0.9)]" />
             LIVE
@@ -225,7 +239,7 @@ export default function ConversationPractice({
         {msgs.map((m, i) => (
           <div key={i}>
             <div className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"}`}>
-              {m.role === "tutor" && <span className="text-xs font-bold text-inkSoft ml-1 mb-0.5">{persona}</span>}
+              {m.role === "tutor" && <span className="text-xs font-bold text-inkSoft ml-1 mb-0.5">{tutorName}</span>}
               <div className={`max-w-[85%] rounded-3xl p-3 ${m.role === "user" ? "bg-lilacDeep text-white" : "bg-white text-ink shadow-softer"}`}>
                 <ClickableText text={m.en} onWord={setActiveWord} className={m.role === "user" ? "text-white" : "text-ink"} />
                 {showZh && m.zh && <p className={`text-sm mt-1 ${m.role === "user" ? "text-white/80" : "text-inkSoft"}`}>{m.zh}</p>}
@@ -249,7 +263,7 @@ export default function ConversationPractice({
         ))}
         {busy && (
           <div className="flex justify-start flex-col gap-1">
-            <span className="text-xs font-bold text-inkSoft ml-1">{persona}</span>
+            <span className="text-xs font-bold text-inkSoft ml-1">{tutorName}</span>
             <div className="rounded-3xl bg-white shadow-softer px-4 py-3 text-inkSoft text-sm flex items-center gap-2">
               <span className="inline-flex gap-1">
                 <span className="h-2 w-2 rounded-full bg-lilacDeep/50 animate-bounce" style={{animationDelay:"0ms"}} />
@@ -279,10 +293,7 @@ export default function ConversationPractice({
             自動朗讀：{autoSpeak ? "開" : "關"}
           </button>
         </div>
-        <div className="flex items-center justify-between gap-2 px-1 flex-wrap">
-          <span className="text-xs font-bold text-mintDeep">
-            {userTurnCount >= MIN_PRACTICE_TURNS ? "可結束；第 7 句會自動評分" : "至少完成 5 句，最多 7 句"}
-          </span>
+        <div className="flex items-center justify-end gap-2 px-1">
           <button className="text-xs font-bold text-peachDeep" onClick={finish}>{finishLabel}</button>
         </div>
 
