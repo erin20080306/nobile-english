@@ -66,7 +66,7 @@ function normalizeMultilingualToken(word: string, language: LearningLanguageCode
     .trim()
     .replace(/[’‘]/g, "'")
     .replace(/^[\s"'`.,!?;:()[\]{}<>「」『』（）。，、！？；：]+|[\s"'`.,!?;:()[\]{}<>「」『』（）。，、！？；：]+$/g, "");
-  if (language === "it") {
+  if (language === "it" || language === "es") {
     return clean
       .toLowerCase()
       .normalize("NFC")
@@ -166,19 +166,21 @@ function multilingualFallback(word: string, language: Exclude<LearningLanguageCo
   if (!q) return null;
   if (language === "ja" && !/[\u3040-\u30ff\u3400-\u9fff]/.test(q)) return null;
   if (language === "ko" && !/[\uac00-\ud7af]/.test(q)) return null;
-  if (language === "it" && !/^[A-Za-zÀ-ÖØ-öø-ÿ']{2,}$/.test(q)) return null;
+  if ((language === "it" || language === "es") && !/^[A-Za-zÀ-ÖØ-öø-ÿ']{2,}$/.test(q)) return null;
 
   const lang = getLearningLanguage(language);
   const examples: Record<Exclude<LearningLanguageCode, "en">, { example: string; zh: string }> = {
     ja: { example: `${q}を使って短い文を作りましょう。`, zh: `試著用「${q}」造一個短句。` },
     ko: { example: `${q}을/를 넣어서 짧은 문장을 만들어 보세요.`, zh: `試著把「${q}」放進短句裡。` },
     it: { example: `Prova a usare "${q}" in una frase breve.`, zh: `試著用「${q}」造一個短句。` },
+    es: { example: `Prueba a usar "${q}" en una frase corta.`, zh: `試著用「${q}」造一個短句。` },
   };
 
   const nativeDef: Record<Exclude<LearningLanguageCode, "en">, string> = {
     ja: `「${q}」は日本語の会話でよく使われる言葉です。前後の文脈で意味を確認してください。`,
     ko: `'${q}'은(는) 한국어 대화에서 자주 쓰이는 표현입니다. 문맥으로 의미를 확인해 주세요.`,
     it: `"${q}" è un'espressione comune nelle conversazioni italiane. Controlla il significato nel contesto.`,
+    es: `"${q}" es una palabra o expresión común en conversaciones en español. Revisa el significado según el contexto.`,
   };
 
   return {
@@ -194,7 +196,7 @@ function multilingualFallback(word: string, language: Exclude<LearningLanguageCo
 }
 
 function tokenizeWithRegex(text: string, language: LearningLanguageCode): ClickableToken[] {
-  const pattern = language === "it"
+  const pattern = language === "it" || language === "es"
     ? /[A-Za-zÀ-ÖØ-öø-ÿ]+(?:[’'][A-Za-zÀ-ÖØ-öø-ÿ]+)?/g
     : /[A-Za-z]+(?:[’'][A-Za-z]+)?/g;
   const tokens: ClickableToken[] = [];
@@ -225,7 +227,7 @@ type SegmenterCtor = new (
 function tokenizeWithSegmenter(text: string, language: Exclude<LearningLanguageCode, "en">): ClickableToken[] | null {
   const Segmenter = (Intl as typeof Intl & { Segmenter?: SegmenterCtor }).Segmenter;
   if (!Segmenter) return null;
-  const locale = language === "ja" ? "ja-JP" : language === "ko" ? "ko-KR" : "it-IT";
+  const locale = language === "ja" ? "ja-JP" : language === "ko" ? "ko-KR" : language === "es" ? "es-ES" : "it-IT";
   const segmenter = new Segmenter(locale, { granularity: "word" });
   const tokens: ClickableToken[] = [];
   let lastIndex = 0;
@@ -233,7 +235,7 @@ function tokenizeWithSegmenter(text: string, language: Exclude<LearningLanguageC
   Array.from(segmenter.segment(text)).forEach((part) => {
     if (part.index > lastIndex) tokens.push({ text: text.slice(lastIndex, part.index) });
     const lookup = normalizeMultilingualToken(part.segment, language);
-    const isKnown = language === "it" ? Boolean(lookup) : Boolean(findMultilingualEntry(lookup, language) || multilingualFallback(lookup, language));
+    const isKnown = language === "it" || language === "es" ? Boolean(lookup) : Boolean(findMultilingualEntry(lookup, language) || multilingualFallback(lookup, language));
     tokens.push({
       text: part.segment,
       lookup: (part.isWordLike || isKnown) && lookup ? lookup : undefined,
@@ -251,7 +253,7 @@ function isTargetScript(char: string, language: Exclude<LearningLanguageCode, "e
 }
 
 function tokenizeWithDictionary(text: string, language: Exclude<LearningLanguageCode, "en">): ClickableToken[] {
-  if (language === "it") return tokenizeWithRegex(text, language);
+  if (language === "it" || language === "es") return tokenizeWithRegex(text, language);
   const entries = multilingualDictionaryEntries
     .filter((entry) => entry.language === language)
     .map((entry) => entry.word)

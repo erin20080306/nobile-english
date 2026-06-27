@@ -75,6 +75,7 @@ function defaultSettings(userId: string): UserSettings {
       ja: 0.95,
       ko: 0.95,
       it: 1,
+      es: 1,
     },
     pronunciationOn: true,
     showChineseGlobal: true,

@@ -473,6 +473,11 @@ function buildFreeScene(targetLanguage: LearningLanguageCode = "en"): Scene {
         { en: "Dimmi qualcosa in più.", zh: "再多告訴我一點。" },
         { en: "È molto interessante.", zh: "這很有趣。" },
       ],
+      es: [
+        { en: "¿Qué quieres hacer hoy?", zh: "今天想做什麼？" },
+        { en: "Cuéntame un poco más.", zh: "再多告訴我一點。" },
+        { en: "Eso es muy interesante.", zh: "這很有趣。" },
+      ],
     };
     const dialogue: Record<LearningLanguageCode, Scene["dialogue"]> = {
       en: [],
@@ -491,6 +496,18 @@ function buildFreeScene(targetLanguage: LearningLanguageCode = "en"): Scene {
         { speaker: "user", en: "Vorrei praticare l'italiano.", zh: "我想練習義大利文。" },
         { speaker: "tutor", en: "Perfetto. Quale argomento vuoi provare oggi?", zh: "很好。今天想練什麼主題呢？" },
       ],
+      es: [
+        { speaker: "tutor", en: language.freeOpening.target, zh: language.freeOpening.zh },
+        { speaker: "user", en: "Quiero practicar español.", zh: "我想練習西班牙文。" },
+        { speaker: "tutor", en: "Perfecto. ¿Qué tema quieres practicar hoy?", zh: "很好。今天想練什麼主題呢？" },
+      ],
+    };
+    const keyWordsByLanguage: Record<LearningLanguageCode, string[]> = {
+      en: ["chat", "talk", "share", "express", "practice"],
+      ja: ["今日", "練習", "話す", "テーマ", "詳しく"],
+      ko: ["오늘", "연습", "말하다", "주제", "자세히"],
+      it: ["oggi", "praticare", "parlare", "argomento", "dettaglio"],
+      es: ["hoy", "practicar", "hablar", "tema", "detalle"],
     };
     return {
       id: "free-chat",
@@ -502,7 +519,7 @@ function buildFreeScene(targetLanguage: LearningLanguageCode = "en"): Scene {
       minutes: 10,
       intro: `沒有特定情境，使用${language.zhName}隨意聊聊任何你想練習的主題。`,
       goals: ["自由表達", "流暢對話", "日常聊天"],
-      keyWords: targetLanguage === "ja" ? ["今日", "練習", "話す", "テーマ", "詳しく"] : targetLanguage === "ko" ? ["오늘", "연습", "말하다", "주제", "자세히"] : ["oggi", "praticare", "parlare", "argomento", "dettaglio"],
+      keyWords: keyWordsByLanguage[targetLanguage],
       keyPatterns: patterns[targetLanguage],
       dialogue: dialogue[targetLanguage],
       quiz: [],

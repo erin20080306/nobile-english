@@ -35,7 +35,7 @@ function collectDiagnostics() {
     at: new Date().toISOString(),
     url: typeof window === "undefined" ? "" : window.location.href,
     userAgent: typeof navigator === "undefined" ? "" : navigator.userAgent,
-    app: "Mobile English",
+    app: "Mobile Language",
     account: user
       ? {
           email: user.email,
@@ -98,7 +98,7 @@ export default function FeedbackPage() {
     return {
       id: Math.random().toString(36).slice(2),
       category,
-      title: title.trim() || "Mobile English 意見回饋",
+      title: title.trim() || "Mobile Language 意見回饋",
       message: message.trim(),
       contactEmail: contactEmail.trim() || FEEDBACK_EMAIL,
       attachedFile: fileInfo,
@@ -133,7 +133,7 @@ export default function FeedbackPage() {
   }
 
   function downloadReport() {
-    downloadJson(`mobile-english-feedback-${Date.now()}.json`, buildReport());
+    downloadJson(`mobile-language-feedback-${Date.now()}.json`, buildReport());
   }
 
   return (

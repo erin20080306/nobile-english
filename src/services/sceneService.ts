@@ -268,6 +268,30 @@ function localizedRestaurantPlan(targetLanguage: LearningLanguageCode) {
       stages,
     };
   }
+  if (targetLanguage === "es") {
+    const stages: CustomSceneStage[] = [
+      { title: "接待與預約", enTitle: "Recepción y reserva", tutorPrompt: "Buenas noches, bienvenidos. ¿Tienen una reserva?", learnerGoal: "說明是否有預約，或詢問座位。", sampleUser: "No tenemos una reserva. ¿Tienen una mesa para dos?" },
+      { title: "座位需求", enTitle: "Preferencia de mesa", tutorPrompt: "¿Prefieren una mesa junto a la ventana o un lugar más tranquilo?", learnerGoal: "表達想坐哪裡或特殊需求。", sampleUser: "Una mesa tranquila estaría bien, gracias." },
+      { title: "菜單與推薦", enTitle: "Menú y recomendaciones", tutorPrompt: "Aquí tienen los menús. ¿Quieren alguna recomendación?", learnerGoal: "詢問推薦、特色菜或過敏資訊。", sampleUser: "¿Qué me recomienda que sea ligero?" },
+      { title: "正式點餐", enTitle: "Pedir comida", tutorPrompt: "¿Están listos para pedir?", learnerGoal: "自然地點餐和飲料。", sampleUser: "Quisiera el pollo a la parrilla y un té helado, por favor." },
+      { title: "加點與客製", enTitle: "Extras y cambios", tutorPrompt: "¿Quieren algo más o algún cambio?", learnerGoal: "練習加點或調整口味。", sampleUser: "¿Podría traer la salsa aparte?" },
+      { title: "結帳與收據", enTitle: "Cuenta y recibo", tutorPrompt: "¿Qué tal estuvo todo? ¿Quieren la cuenta?", learnerGoal: "要求帳單、付款與道謝。", sampleUser: "Todo estuvo muy bien. ¿Nos trae la cuenta, por favor?" },
+    ];
+    return {
+      name: "餐廳點餐（西班牙文）",
+      enName: "Restaurant Ordering in Spanish",
+      intro: "用西班牙文練習從入座、詢問推薦、點餐、客製需求到結帳的完整餐廳情境。",
+      keyWords: ["reserva", "mesa", "menú", "recomendación", "pedir", "bebida", "alergia", "cuenta", "recibo", "por favor"],
+      patterns: [
+        { en: "¿Tienen una mesa para dos?", zh: "有兩人座位嗎？" },
+        { en: "¿Qué me recomienda?", zh: "你推薦什麼？" },
+        { en: "Quisiera ___, por favor.", zh: "我想點 ___，謝謝。" },
+        { en: "¿Podría traer ___ aparte?", zh: "可以把 ___ 分開放嗎？" },
+        { en: "¿Nos trae la cuenta, por favor?", zh: "可以給我們帳單嗎？" },
+      ],
+      stages,
+    };
+  }
   return inferScenarioPlan("餐廳點餐", "restaurant", "customer", "en");
 }
 
@@ -294,6 +318,14 @@ function localizedDefaultStages(situation: string, targetLanguage: LearningLangu
       { title: "確認細節", enTitle: "Chiarire i dettagli", tutorPrompt: "Va bene. Puoi dirmi qualche dettaglio in più?", learnerGoal: "補充時間、地點、數量或原因。", sampleUser: "Certo. Il dettaglio principale è l'orario." },
       { title: "提出問題", enTitle: "Fare una domanda", tutorPrompt: "Perfetto. Che cosa vuoi chiedere adesso?", learnerGoal: "提出一個後續問題。", sampleUser: "Può spiegarmi il prossimo passo?" },
       { title: "確認結果", enTitle: "Confermare", tutorPrompt: "Allora confermiamo il piano insieme.", learnerGoal: "確認資訊並禮貌收尾。", sampleUser: "Va bene. Grazie per l'aiuto." },
+    ];
+  }
+  if (targetLanguage === "es") {
+    return [
+      { title: "開場說明", enTitle: "Apertura", tutorPrompt: `Hola. Practiquemos esta situación: ${situation || "tu tema"}. ¿Qué quieres decir primero?`, learnerGoal: "用一句西班牙文說明自己的需求。", sampleUser: "Hola, quisiera pedir información." },
+      { title: "確認細節", enTitle: "Aclarar detalles", tutorPrompt: "Muy bien. ¿Puedes darme algún detalle más?", learnerGoal: "補充時間、地點、數量或原因。", sampleUser: "Claro. El detalle principal es la hora." },
+      { title: "提出問題", enTitle: "Hacer una pregunta", tutorPrompt: "Perfecto. ¿Qué quieres preguntar ahora?", learnerGoal: "提出一個後續問題。", sampleUser: "¿Puede explicarme el siguiente paso?" },
+      { title: "確認結果", enTitle: "Confirmar", tutorPrompt: "Entonces confirmemos el plan juntos.", learnerGoal: "確認資訊並禮貌收尾。", sampleUser: "Está bien. Gracias por la ayuda." },
     ];
   }
   return [
@@ -354,6 +386,15 @@ function localizedDefaultPatterns(targetLanguage: LearningLanguageCode) {
       { en: "Qual è il prossimo passo?", zh: "下一步是什麼？" },
       { en: "Posso confermare una cosa?", zh: "我可以確認一件事嗎？" },
       { en: "Grazie, mi è stato molto utile.", zh: "謝謝，這對我很有幫助。" },
+    ];
+  }
+  if (targetLanguage === "es") {
+    return [
+      { en: "Quisiera pedir información.", zh: "我想詢問一個資訊。" },
+      { en: "¿Puede darme algún detalle más?", zh: "可以再多告訴我一些細節嗎？" },
+      { en: "¿Cuál es el siguiente paso?", zh: "下一步是什麼？" },
+      { en: "¿Puedo confirmar una cosa?", zh: "我可以確認一件事嗎？" },
+      { en: "Gracias, me ha sido muy útil.", zh: "謝謝，這對我很有幫助。" },
     ];
   }
   return [];

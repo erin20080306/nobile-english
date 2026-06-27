@@ -9,7 +9,7 @@ export default function Landing() {
   const router = useRouter();
   const features = [
     { icon: MessageCircle, title: "場景對話", desc: "100+ 真實情境練習" },
-    { icon: BookOpen, title: "同尾字＆字典", desc: "300+ 單字、英英解釋" },
+    { icon: BookOpen, title: "同尾字＆字典", desc: "多語單字、例句解釋" },
     { icon: GraduationCap, title: "三大考試", desc: "TOEIC / IELTS / TOEFL" },
     { icon: Sparkles, title: "AI 對話導師", desc: "即時回饋與鼓勵" },
   ];
@@ -20,11 +20,11 @@ export default function Landing() {
         animate={{ opacity: 1, y: 0 }}
         className="text-center"
       >
-        <span className="chip bg-lilac text-lilacDeep">時尚 Q 版英文學習</span>
+        <span className="chip bg-lilac text-lilacDeep">時尚 Q 版語言學習</span>
         <h1 className="mt-4 text-4xl font-extrabold text-ink leading-tight">
-          Mobile <span className="text-lilacDeep">English</span>
+          Mobile <span className="text-lilacDeep">Language</span>
         </h1>
-        <p className="mt-2 text-inkSoft">每天 15 分鐘，輕鬆把英文練成日常。</p>
+        <p className="mt-2 text-inkSoft">每天 15 分鐘，輕鬆把語言練成日常。</p>
       </motion.div>
 
       <motion.div

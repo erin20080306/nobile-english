@@ -40,7 +40,7 @@ function TutorAvatar({ tutor, size = 72 }: { tutor: TutorProfile; size?: number 
         width={size}
         height={size}
         onError={(e) => { e.currentTarget.src = TUTOR_FALLBACK_PHOTO; }}
-        className="h-full w-full object-cover"
+        className="h-full w-full object-contain bg-cream"
       />
     </div>
   );
@@ -143,7 +143,7 @@ function TutorCard({
             src={tutor.photoUrl}
             alt={tutor.name}
             onError={(e) => { e.currentTarget.src = TUTOR_FALLBACK_PHOTO; }}
-            className="h-full w-full object-cover object-top"
+            className="h-full w-full object-contain object-center bg-cream"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-ink/70 via-transparent to-white/10" />
           <span className="absolute left-2 bottom-2 rounded-full bg-white/90 px-2.5 py-1 text-xs font-extrabold text-ink">

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Volume2, Star, X, BookmarkPlus } from "lucide-react";
 import type { LearningLanguageCode } from "@/types";
-import { voiceForLanguage } from "@/data/learningLanguages";
+import { getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
 import { dictionaryService } from "@/services/dictionaryService";
 import { vocabularyService } from "@/services/vocabularyService";
 import { speechService } from "@/services/speechService";
@@ -24,6 +24,7 @@ export default function WordSheet({
 
   const result = word ? dictionaryService.lookup(word, language) : { entry: null, fromFallback: false };
   const entry = result.entry;
+  const languageInfo = getLearningLanguage(language);
 
   useEffect(() => {
     if (entry) setSaved(vocabularyService.isSaved(entry.word));
@@ -109,7 +110,7 @@ export default function WordSheet({
                     <>
                       <Block label="中文解釋" value={entry.zh} />
                       <Block
-                        label={language === "ja" ? "日文詞意" : language === "ko" ? "韓文詞意" : "義大利文詞意"}
+                        label={`${languageInfo.zhName}詞意`}
                         value={entry.enDef}
                       />
                     </>

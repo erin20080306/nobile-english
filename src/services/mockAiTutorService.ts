@@ -17,6 +17,7 @@ const multilingualEncouragements: Record<Exclude<LearningLanguageCode, "en">, st
   ja: ["很好！日文表達越來越自然。", "いいですね！繼續保持。", "很棒，下一句試著多加一個細節。"],
   ko: ["很好！韓文表達越來越自然。", "좋아요! 繼續保持。", "很棒，下一句試著多加一個細節。"],
   it: ["很好！義大利文表達越來越自然。", "Bravo! 繼續保持。", "很棒，下一句試著多加一個細節。"],
+  es: ["很好！西班牙文表達越來越自然。", "¡Muy bien! 繼續保持。", "很棒，下一句試著多加一個細節。"],
 };
 
 function pick<T>(arr: T[], seed = 0): T {
@@ -661,6 +662,25 @@ function multilingualReply(scene: Scene, language: Exclude<LearningLanguageCode,
       ],
       better: "In modo più naturale, puoi dirlo così.",
     },
+    es: {
+      free: [
+        { en: "Perfecto. Cuéntame un poco más.", zh: "很好。再多告訴我一點。" },
+        { en: "Suena natural. Ahora intenta añadir también el motivo.", zh: "聽起來很自然。現在試著也加上原因。" },
+      ],
+      restaurant: [
+        { en: "Perfecto. ¿Quiere algo de beber también?", zh: "好的。您也想點飲料嗎？" },
+        { en: "Muy bien. Confirmo su pedido.", zh: "很好。我幫您確認餐點。" },
+      ],
+      cafe: [
+        { en: "Claro. ¿Para tomar aquí o para llevar?", zh: "當然。內用還是外帶？" },
+        { en: "Buena elección. ¿Qué tamaño quiere?", zh: "好選擇。您要什麼尺寸？" },
+      ],
+      travel: [
+        { en: "Claro. Siga recto y gire a la derecha en la segunda esquina.", zh: "當然。請直走，在第二個轉角右轉。" },
+        { en: "Está cerca. Se tarda unos diez minutos a pie.", zh: "很近。走路大約十分鐘。" },
+      ],
+      better: "De forma más natural, puedes decirlo así.",
+    },
   }[language];
 
   if (isTravel || /lost|where|station|map|direction|路|駅|길|strada/i.test(lower)) return pick(bank.travel, turn);
@@ -679,6 +699,10 @@ function multilingualBetterWay(language: Exclude<LearningLanguageCode, "en">, sc
   if (language === "ko") {
     if (scene.themeId === "travel") return "죄송하지만 역까지 어떻게 가는지 알려 주세요.";
     return "조금 더 자세히 말해 주세요.";
+  }
+  if (language === "es") {
+    if (scene.themeId === "travel") return "Disculpe, ¿puede decirme cómo llegar a la estación?";
+    return "¿Puede contarme un poco más?";
   }
   if (scene.themeId === "travel") return "Mi scusi, può dirmi come arrivare alla stazione?";
   return "Può dirmi qualcosa in più?";

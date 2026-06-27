@@ -151,7 +151,7 @@ export default function SettingsPage() {
 
         <div className="card">
           <p className="font-bold text-ink flex items-center gap-2"><Globe size={18} className="text-mintDeep" /> 切換學習語言</p>
-          <p className="mt-1 text-xs text-inkSoft">英文、日文、韓文、義大利文可自由切換；舊紀錄會保留在學習紀錄中。</p>
+          <p className="mt-1 text-xs text-inkSoft">英文、日文、韓文、義大利文、西班牙文可自由切換；舊紀錄會保留在學習紀錄中。</p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             {LEARNING_LANGUAGES.map((lang) => (
               <button
@@ -250,7 +250,7 @@ export default function SettingsPage() {
         <button onClick={logout} className="w-full rounded-3xl bg-white text-peachDeep font-bold py-4 shadow-softer flex items-center justify-center gap-2 active:scale-95 transition">
           <LogOut size={18} /> 登出
         </button>
-        <p className="text-center text-xs text-inkSoft">Mobile English · MVP · 資料儲存在本機 localStorage</p>
+        <p className="text-center text-xs text-inkSoft">Mobile Language · MVP · 資料儲存在本機 localStorage</p>
       </div>
       <BottomNav />
     </div>

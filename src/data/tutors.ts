@@ -5,7 +5,7 @@ export interface TutorProfile {
   name: string;
   gender: "male" | "female";
   targetLanguage: LearningLanguageCode;
-  accent: "american" | "british" | "chinese" | "japanese" | "korean" | "italian";
+  accent: "american" | "british" | "chinese" | "japanese" | "korean" | "italian" | "spanish";
   accentLabel: string;
   flag: string;
   lang: string;
@@ -151,7 +151,7 @@ export const TUTORS: TutorProfile[] = [
     description: "日本籍男老師，語速穩定，適合情境對話與發音練習",
     avatarSeed: "Haruto",
     avatarBg: "#DBEAFE",
-    photoUrl: "https://images.unsplash.com/photo-1568602471122-7832951cc4c5?auto=format&fit=crop&w=320&q=80",
+    photoUrl: "/assets/tutors/haruto-japanese-tutor-photo.png",
     sampleLine: "こんにちは。はるとです。いっしょに自然な日本語を練習しましょう。",
   },
   {
@@ -170,7 +170,7 @@ export const TUTORS: TutorProfile[] = [
     description: "日本籍女老師，聲音清楚甜美，適合初學者開口練習",
     avatarSeed: "Yui",
     avatarBg: "#FFE4E6",
-    photoUrl: "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&w=320&q=80",
+    photoUrl: "/assets/tutors/yui-japanese-tutor-photo.png",
     sampleLine: "こんにちは。ゆいです。今日は楽しく日本語を話しましょう。",
   },
   {
@@ -189,7 +189,7 @@ export const TUTORS: TutorProfile[] = [
     description: "韓國籍男老師，發音清晰，適合日常與旅遊對話",
     avatarSeed: "Minjun",
     avatarBg: "#E0F2FE",
-    photoUrl: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=320&q=80",
+    photoUrl: "/assets/tutors/minjun-korean-tutor-photo.png",
     sampleLine: "안녕하세요. 민준입니다. 자연스러운 한국어를 같이 연습해 봐요.",
   },
   {
@@ -208,7 +208,7 @@ export const TUTORS: TutorProfile[] = [
     description: "韓國籍女老師，語氣親切，適合從基礎句慢慢練",
     avatarSeed: "Seoyeon",
     avatarBg: "#FCE7F3",
-    photoUrl: "https://images.unsplash.com/photo-1554151228-14d9def656e4?auto=format&fit=crop&w=320&q=80",
+    photoUrl: "/assets/tutors/seoyeon-korean-tutor-photo.png",
     sampleLine: "안녕하세요. 서연입니다. 오늘도 편하게 한국어로 말해 봐요.",
   },
   {
@@ -227,7 +227,7 @@ export const TUTORS: TutorProfile[] = [
     description: "義大利籍男老師，語調自然，適合餐廳與旅行情境",
     avatarSeed: "Marco",
     avatarBg: "#DCFCE7",
-    photoUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=320&q=80",
+    photoUrl: "/assets/tutors/marco-italian-tutor-photo.png",
     sampleLine: "Ciao, sono Marco. Oggi pratichiamo l'italiano in modo naturale.",
   },
   {
@@ -246,8 +246,46 @@ export const TUTORS: TutorProfile[] = [
     description: "義大利籍女老師，聲音明亮，適合生活會話練習",
     avatarSeed: "Giulia",
     avatarBg: "#FEF3C7",
-    photoUrl: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?auto=format&fit=crop&w=320&q=80",
+    photoUrl: "/assets/tutors/giulia-italian-tutor-photo.png",
     sampleLine: "Ciao, sono Giulia. Parliamo insieme in italiano, passo dopo passo.",
+  },
+  {
+    id: "carlos",
+    name: "Carlos",
+    gender: "male",
+    targetLanguage: "es",
+    accent: "spanish",
+    accentLabel: "標準西班牙文",
+    flag: "🇪🇸",
+    lang: "es-ES",
+    voiceKeywords: ["jorge", "diego", "es-es", "spanish"],
+    ttsVoice: "echo",
+    ttsInstructions: "Speak as a native Spanish male tutor from Madrid. Use natural standard Spanish from Spain, clear pronunciation, warm teacher energy, expressive Spanish rhythm, and strong clean volume.",
+    ttsVolumeGain: 1.58,
+    description: "西班牙籍男老師，語調清楚，適合旅行與日常會話",
+    avatarSeed: "Carlos",
+    avatarBg: "#DBEAFE",
+    photoUrl: "/assets/tutors/carlos-spanish-tutor-photo.png",
+    sampleLine: "Hola, soy Carlos. Practiquemos español de forma natural.",
+  },
+  {
+    id: "sofia",
+    name: "Sofía",
+    gender: "female",
+    targetLanguage: "es",
+    accent: "spanish",
+    accentLabel: "標準西班牙文",
+    flag: "🇪🇸",
+    lang: "es-ES",
+    voiceKeywords: ["monica", "paulina", "es-es", "spanish"],
+    ttsVoice: "coral",
+    ttsInstructions: "Speak as a native Spanish female tutor from Barcelona. Use natural standard Spanish from Spain, a sweet clear voice, friendly pacing, expressive Spanish rhythm, and strong volume.",
+    ttsVolumeGain: 1.6,
+    description: "西班牙籍女老師，聲音清楚親切，適合初學者開口練習",
+    avatarSeed: "Sofia",
+    avatarBg: "#FCE7F3",
+    photoUrl: "/assets/tutors/sofia-spanish-tutor-photo.png",
+    sampleLine: "Hola, soy Sofía. Hablemos español paso a paso.",
   },
 ];
 

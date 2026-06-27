@@ -7,7 +7,7 @@ import { useState } from "react";
 export default function CheerImage({
   size = 140,
   className = "",
-  alt = "加油！Mobile English 鼓勵角色",
+  alt = "加油！Mobile Language 鼓勵角色",
   src: imageSrc = "/assets/cheer-fallback.svg",
 }: {
   size?: number;

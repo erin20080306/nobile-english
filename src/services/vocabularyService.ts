@@ -1,7 +1,8 @@
-import type { Word, SavedWord } from "@/types";
+import type { LearningLanguageCode, Word, SavedWord } from "@/types";
 import { vocabulary } from "@/data/vocabulary";
 import { dictionaryEntries } from "@/data/dictionary";
 import { learnerDictionaryEntries } from "@/data/learnerDictionary";
+import { multilingualDictionaryEntries } from "@/data/multilingualDictionary";
 import { storageService, KEYS } from "./storageService";
 
 const allWords: Word[] = (() => {
@@ -14,32 +15,38 @@ const allWords: Word[] = (() => {
 })();
 
 export const vocabularyService = {
-  all(): Word[] {
+  all(language: LearningLanguageCode = "en"): Word[] {
+    if (language !== "en") return multilingualDictionaryEntries.filter((w) => w.language === language);
     return allWords;
   },
 
-  count(): number {
-    return allWords.length;
+  count(language: LearningLanguageCode = "en"): number {
+    return this.all(language).length;
   },
 
   find(word: string): Word | undefined {
     return allWords.find((w) => w.word.toLowerCase() === word.toLowerCase());
   },
 
-  // Same-ending search. length = 2..5 letters.
-  sameEnding(input: string, length: number): Word[] {
-    const w = input.trim().toLowerCase();
-    if (w.length < length) return [];
-    const suffix = w.slice(-length);
-    return allWords
-      .filter((x) => x.word.toLowerCase() !== w && x.word.toLowerCase().endsWith(suffix))
+  // Same-ending search. English/Latin languages use letters; Japanese/Korean use final characters.
+  sameEnding(input: string, length: number, language: LearningLanguageCode = "en"): Word[] {
+    const w = input.trim().toLowerCase().normalize("NFC");
+    const chars = Array.from(w);
+    if (chars.length < length) return [];
+    const suffix = chars.slice(-length).join("");
+    return this.all(language)
+      .filter((x) => {
+        const candidate = x.word.toLowerCase().normalize("NFC");
+        return candidate !== w && candidate.endsWith(suffix);
+      })
       .sort((a, b) => a.word.length - b.word.length);
   },
 
-  search(query: string): Word[] {
+  search(query: string, language: LearningLanguageCode = "en"): Word[] {
     const q = query.trim().toLowerCase();
-    if (!q) return allWords.slice(0, 30);
-    return allWords.filter(
+    const words = this.all(language);
+    if (!q) return words.slice(0, 30);
+    return words.filter(
       (w) => w.word.toLowerCase().includes(q) || w.zh.includes(query)
     );
   },

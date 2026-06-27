@@ -1,7 +1,7 @@
 {
-  "name": "Mobile English",
-  "short_name": "MobileEN",
-  "description": "時尚 Q 版手機英文學習 App",
+  "name": "Mobile Language",
+  "short_name": "MobileLang",
+  "description": "時尚 Q 版手機語言學習 App",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#FFFBF3",

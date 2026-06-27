@@ -69,6 +69,8 @@ function missingCloudVoiceMessage(lang = "en-US") {
     ? "韓文"
     : lang.startsWith("it")
     ? "義大利文"
+    : lang.startsWith("es")
+    ? "西班牙文"
     : "此語言";
   return `${label}語音需要 OpenAI TTS key；目前本機未讀到 key 或瀏覽器沒有${label}語音。`;
 }

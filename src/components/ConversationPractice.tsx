@@ -159,6 +159,32 @@ function localizedOpening(scene: Scene, targetLanguage: ReturnType<typeof getLea
         { en: "Perfetto. Facciamo una conversazione naturale.", zh: "很好。我們來一段自然對話。" },
       ],
     },
+    es: {
+      free: [
+        { en: "¡Hola! ¿De qué quieres hablar hoy?", zh: "你好！今天想聊什麼呢？" },
+        { en: "¡Hola! ¿Qué quieres practicar hoy?", zh: "你好！今天想練習什麼呢？" },
+      ],
+      restaurant: [
+        { en: "Buenas noches, bienvenidos. ¿Tienen una reserva?", zh: "晚上好，歡迎光臨。請問有預約嗎？" },
+        { en: "Hola, bienvenidos. ¿Para cuántas personas?", zh: "你好，歡迎。請問幾位？" },
+      ],
+      cafe: [
+        { en: "Hola, bienvenido. ¿Qué quieres pedir hoy?", zh: "你好，歡迎光臨。今天想點什麼？" },
+        { en: "Hola. ¿Lo quieres para tomar aquí o para llevar?", zh: "你好。內用還是外帶？" },
+      ],
+      travel: [
+        { en: "Hola. ¿A dónde quieres ir? Puedo ayudarte con las indicaciones.", zh: "你好。你想去哪裡？我可以幫你指路。" },
+        { en: "¿Necesitas ayuda con la dirección?", zh: "你需要幫忙看路嗎？" },
+      ],
+      daily: [
+        { en: "¡Hola! ¿Cómo va tu día?", zh: "你好！今天過得怎麼樣？" },
+        { en: "¡Hola! Cuéntame algo que te pasó hoy.", zh: "你好！跟我說今天發生的一件事。" },
+      ],
+      default: [
+        { en: "¡Hola! Empecemos esta conversación.", zh: "你好！我們開始這個情境對話吧。" },
+        { en: "Perfecto. Vamos a practicar una conversación natural.", zh: "很好。我們來一段自然對話。" },
+      ],
+    },
   }[targetLanguage.code];
   if (!map) return fallback;
   if (scene.themeId === "free") return choose(map.free);
@@ -416,35 +442,6 @@ export default function ConversationPractice({
 
   const recSupported = speechService.isRecognitionSupported();
   const userTurnCount = msgs.filter((m) => m.role === "user").length;
-  const mouthTopByTutor: Record<string, string> = {
-    amy: "37%",
-    emma: "34%",
-    lily: "36%",
-    sophie: "38%",
-    jake: "38%",
-    william: "39%",
-    haruto: "38%",
-    yui: "37%",
-    minjun: "39%",
-    seoyeon: "37%",
-    marco: "39%",
-    giulia: "37%",
-  };
-  const mouthLeftByTutor: Record<string, string> = {
-    emma: "50%",
-    amy: "50%",
-    lily: "50%",
-    sophie: "50%",
-    jake: "50%",
-    william: "50%",
-    haruto: "50%",
-    yui: "50%",
-    minjun: "50%",
-    seoyeon: "50%",
-    marco: "50%",
-    giulia: "50%",
-  };
-  const talkingMouthStyle = { left: mouthLeftByTutor[selectedTutor.id] ?? "50%", top: mouthTopByTutor[selectedTutor.id] ?? "38%" };
 
   return (
     <div className="flex flex-col min-h-0 flex-1">
@@ -464,39 +461,6 @@ export default function ConversationPractice({
             transition={tutorSpeaking ? { duration: 1.15, repeat: Infinity, ease: "easeInOut" } : { duration: 0.25 }}
             className={`relative h-full w-full object-contain object-center transition-[filter] duration-300 ${tutorSpeaking ? "drop-shadow-[0_0_24px_rgba(167,139,250,0.55)]" : ""}`}
           />
-          {tutorSpeaking && (
-            <motion.div
-              className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-1/2 overflow-hidden"
-              style={{
-                ...talkingMouthStyle,
-                borderRadius: "45% 45% 50% 50%",
-                background: "linear-gradient(180deg, #b07060 0%, #7a2020 30%, #2a0808 65%, #150303 100%)",
-                boxShadow: "0 2px 10px rgba(0,0,0,0.45), inset 0 1px 2px rgba(255,255,255,0.25)",
-              }}
-              initial={{ opacity: 0, width: 30, height: 3 }}
-              animate={{
-                opacity: [0.88, 1, 0.92, 1, 0.88],
-                width: [30, 46, 36, 50, 30],
-                height: [3, 22, 8, 26, 4],
-              }}
-              transition={{ duration: 0.38, repeat: Infinity, ease: "easeInOut" }}
-              aria-hidden="true"
-            >
-              <motion.div
-                className="absolute top-0 left-[8%] right-[8%] rounded-b-sm bg-white/92"
-                animate={{ height: ["0px", "8px", "2px", "10px", "0px"] }}
-                transition={{ duration: 0.38, repeat: Infinity, ease: "easeInOut" }}
-              />
-              <motion.div
-                className="absolute bottom-0 left-1/2 -translate-x-1/2 rounded-t-full bg-rose-300/50"
-                animate={{
-                  width: ["12px", "22px", "14px", "26px", "12px"],
-                  height: ["0px", "5px", "1px", "7px", "0px"],
-                }}
-                transition={{ duration: 0.38, repeat: Infinity, ease: "easeInOut" }}
-              />
-            </motion.div>
-          )}
           <div className="absolute inset-0 bg-gradient-to-t from-ink/85 via-ink/10 to-white/10" />
           <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-black/35 px-3 py-1.5 text-xs font-extrabold text-white backdrop-blur">
             <span className={`h-2 w-2 rounded-full bg-mintDeep shadow-[0_0_12px_rgba(86,211,145,0.9)] ${tutorSpeaking ? "animate-ping" : ""}`} />

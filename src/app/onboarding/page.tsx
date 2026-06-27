@@ -14,7 +14,7 @@ const steps = [
     key: "language",
     title: "想學習哪種語言？",
     multi: false,
-    options: ["English（英文）", "Japanese（日文）", "Korean（韓文）", "Italian（義大利文）"],
+    options: ["English（英文）", "Japanese（日文）", "Korean（韓文）", "Italian（義大利文）", "Spanish（西班牙文）"],
   },
   {
     key: "learningGoal",
@@ -53,6 +53,7 @@ function languageCodeFromOption(option = "English（英文）"): LearningLanguag
   if (option.includes("Japanese") || option.includes("日文")) return "ja";
   if (option.includes("Korean") || option.includes("韓文")) return "ko";
   if (option.includes("Italian") || option.includes("義大利")) return "it";
+  if (option.includes("Spanish") || option.includes("西班牙")) return "es";
   return "en";
 }
 

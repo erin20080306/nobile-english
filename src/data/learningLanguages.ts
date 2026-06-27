@@ -70,6 +70,20 @@ export const LEARNING_LANGUAGES: LearningLanguage[] = [
     },
     ttsInstructions: "Speak natural Italian for a learner. Use clear standard Italian pronunciation, warm teacher energy, and strong clean volume.",
   },
+  {
+    code: "es",
+    label: "Spanish",
+    zhName: "西班牙文",
+    nativeName: "Español",
+    flag: "🇪🇸",
+    speechLang: "es-ES",
+    recordLabel: "西班牙文",
+    freeOpening: {
+      target: "¡Hola! ¿De qué quieres hablar hoy?",
+      zh: "你好！今天想聊什麼呢？",
+    },
+    ttsInstructions: "Speak natural Spanish from Spain for a learner. Use clear standard pronunciation, warm teacher energy, expressive Spanish rhythm, and strong clean volume.",
+  },
 ];
 
 export function getLearningLanguage(code?: string | null): LearningLanguage {
@@ -81,6 +95,7 @@ export function languageFromLabel(label?: string | null): LearningLanguageCode {
   if (raw.includes("japanese") || raw.includes("日文") || raw.includes("日本")) return "ja";
   if (raw.includes("korean") || raw.includes("韓文") || raw.includes("韓")) return "ko";
   if (raw.includes("italian") || raw.includes("義大利")) return "it";
+  if (raw.includes("spanish") || raw.includes("西班牙") || raw.includes("español") || raw.includes("espanol")) return "es";
   return "en";
 }
 

@@ -2,10 +2,10 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Mobile English｜時尚 Q 版英文學習",
-  description: "手機優先的英文學習 App：場景對話、同尾字、英英字典、TOEIC/IELTS/TOEFL 測驗。",
+  title: "Mobile Language｜時尚 Q 版語言學習",
+  description: "手機優先的語言學習 App：場景對話、同尾字、字典、TOEIC/IELTS/TOEFL 測驗。",
   manifest: "/manifest.json",
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "Mobile English" },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "Mobile Language" },
   icons: {
     apple: "/assets/icon.png",
     icon: "/assets/icon.png",
