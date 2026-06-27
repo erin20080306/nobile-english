@@ -9,6 +9,7 @@ import { dictionaryService } from "@/services/dictionaryService";
 import { speechService } from "@/services/speechService";
 import ClickableText from "@/components/ClickableText";
 import WordSheet from "@/components/WordSheet";
+import { getSelectedTutor } from "@/components/TutorSelector";
 
 interface Msg {
   role: "tutor" | "user";
@@ -62,6 +63,7 @@ export default function ConversationPractice({
   const [activeWord, setActiveWord] = useState<string | null>(null);
   const [toast, setToast] = useState("");
   const [persona] = useState(() => pickPersona(scene.themeId));
+  const [selectedTutor] = useState(() => getSelectedTutor());
 
   const endRef = useRef<HTMLDivElement>(null);
   const stopListenRef = useRef<(() => void) | null>(null);
@@ -95,7 +97,7 @@ export default function ConversationPractice({
   }
 
   function speak(text: string) {
-    const r = speechService.speak(text);
+    const r = speechService.speak(text, { lang: selectedTutor.lang, voiceKeywords: selectedTutor.voiceKeywords });
     if (!r.ok) flashToast(r.message || "無法播放發音");
   }
 

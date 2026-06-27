@@ -26,21 +26,28 @@ function loadVoices(): Promise<SpeechSynthesisVoice[]> {
   return voicesReady;
 }
 
-function pickVoice(voices: SpeechSynthesisVoice[]) {
+function pickVoice(voices: SpeechSynthesisVoice[], lang = "en-US", keywords: string[] = []) {
+  const preferred = lang === "en-GB" ? "en-GB" : "en-US";
+  if (keywords.length > 0) {
+    const kwMatch = voices.find((v) => keywords.some((k) => v.name.toLowerCase().includes(k)));
+    if (kwMatch) return kwMatch;
+  }
   return (
-    voices.find((v) => v.lang === "en-US" && /female|samantha|google|natural/i.test(v.name)) ||
+    voices.find((v) => v.lang === preferred) ||
+    voices.find((v) => v.lang.startsWith("en-GB") && preferred === "en-GB") ||
     voices.find((v) => v.lang === "en-US") ||
     voices.find((v) => v.lang.startsWith("en"))
   );
 }
 
-function speakNow(text: string, opts?: { rate?: number }) {
+function speakNow(text: string, opts?: { rate?: number; lang?: string; voiceKeywords?: string[] }) {
+  const lang = opts?.lang ?? "en-US";
   const utter = new SpeechSynthesisUtterance(text);
-  utter.lang = "en-US";
+  utter.lang = lang;
   utter.rate = opts?.rate ?? 0.95;
   utter.pitch = 1;
   utter.volume = 1;
-  const voice = pickVoice(window.speechSynthesis.getVoices());
+  const voice = pickVoice(window.speechSynthesis.getVoices(), lang, opts?.voiceKeywords ?? []);
   if (voice) utter.voice = voice;
   window.speechSynthesis.resume();
   window.speechSynthesis.speak(utter);
@@ -72,7 +79,7 @@ export const speechService = {
     });
   },
 
-  speak(text: string, opts?: { rate?: number }): { ok: boolean; message?: string } {
+  speak(text: string, opts?: { rate?: number; lang?: string; voiceKeywords?: string[] }): { ok: boolean; message?: string } {
     if (!this.isSupported()) {
       return { ok: false, message: "您的瀏覽器不支援語音播放，請改用 Chrome 或 Safari。" };
     }

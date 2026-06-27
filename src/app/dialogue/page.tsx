@@ -11,6 +11,8 @@ import { storageService, KEYS } from "@/services/storageService";
 import { sceneCardStyle } from "@/data/sceneVisuals";
 import AppHeader from "@/components/AppHeader";
 import ConversationPractice from "@/components/ConversationPractice";
+import TutorSelector, { getSelectedTutor, TutorAvatar } from "@/components/TutorSelector";
+import type { TutorProfile } from "@/data/tutors";
 
 export default function DialoguePage() {
   return (
@@ -48,6 +50,9 @@ function ScenerPicker({
   onFreeMode: () => void;
   router: ReturnType<typeof useRouter>;
 }) {
+  const [showTutorModal, setShowTutorModal] = useState(false);
+  const [currentTutor, setCurrentTutor] = useState<TutorProfile>(() => getSelectedTutor());
+
   useEffect(() => {
     if (preset) {
       const s = sceneService.getScene(preset);
@@ -70,6 +75,33 @@ function ScenerPicker({
         }
       />
       <div className="px-5">
+        {/* Tutor selector banner */}
+        <button
+          onClick={() => setShowTutorModal(true)}
+          className="w-full flex items-center gap-3 bg-white rounded-3xl px-4 py-3 shadow-softer mb-4 active:scale-95 transition"
+        >
+          <TutorAvatar tutor={currentTutor} size={44} />
+          <div className="flex-1 text-left min-w-0">
+            <p className="text-xs text-inkSoft">目前導師</p>
+            <p className="font-extrabold text-ink">{currentTutor.name} {currentTutor.flag} · {currentTutor.accentLabel}</p>
+            <p className="text-xs text-inkSoft truncate">{currentTutor.description}</p>
+          </div>
+          <span className="chip bg-lilac text-lilacDeep text-xs shrink-0">更換</span>
+        </button>
+
+        {showTutorModal && (
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-end">
+            <div className="w-full max-w-[480px] mx-auto bg-cream rounded-t-3xl p-5 max-h-[90dvh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <p className="font-extrabold text-ink text-lg">選擇 AI 導師</p>
+                <button onClick={() => setShowTutorModal(false)} className="chip bg-white text-inkSoft">完成</button>
+              </div>
+              <TutorSelector onSelect={(t) => { setCurrentTutor(t); }} />
+              <button onClick={() => setShowTutorModal(false)} className="btn-primary w-full mt-4">確認選擇</button>
+            </div>
+          </div>
+        )}
+
         <button onClick={onFreeMode} className="w-full card !p-4 text-left active:scale-95 transition mb-4 bg-gradient-to-r from-peach to-peachDeep text-white">
           <p className="font-bold">自由對話</p>
           <p className="text-xs opacity-90">無特定情境，支援語音或手動輸入練習</p>
