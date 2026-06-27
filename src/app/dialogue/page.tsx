@@ -3,12 +3,13 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Home, Play, RotateCcw, Wand2 } from "lucide-react";
-import type { CustomScene, EnglishLevel, Scene, TutorFeedback, DialogueResult, DialogueTranscriptLine } from "@/types";
+import type { CustomScene, EnglishLevel, Scene, TutorFeedback, DialogueResult, DialogueTranscriptLine, LearningLanguageCode } from "@/types";
 import { sceneService } from "@/services/sceneService";
 import { learningService } from "@/services/learningService";
 import { authService } from "@/services/authService";
 import { storageService, KEYS } from "@/services/storageService";
 import { sceneCardStyle } from "@/data/sceneVisuals";
+import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
 import ConversationPractice from "@/components/ConversationPractice";
 import TutorSelector, { getSelectedTutor, TutorAvatar } from "@/components/TutorSelector";
@@ -28,14 +29,39 @@ function DialogueInner() {
   const preset = search.get("scene");
   const [scene, setScene] = useState<Scene | null>(null);
   const [isFreeMode, setIsFreeMode] = useState(false);
+  const [language, setLanguage] = useState<LearningLanguageCode>(() => learningService.getCurrentLanguage());
+
+  function changeLanguage(code: LearningLanguageCode) {
+    const user = authService.getCurrentUser();
+    learningService.setCurrentLanguage(code, user?.id || undefined);
+    setLanguage(code);
+    setScene(null);
+    setIsFreeMode(false);
+  }
+
+  function pickScene(nextScene: Scene) {
+    setIsFreeMode(false);
+    setScene({ ...nextScene, targetLanguage: nextScene.targetLanguage || language });
+  }
 
   function startFreeMode() {
     setIsFreeMode(true);
-    setScene(buildFreeScene());
+    setScene(buildFreeScene(language));
   }
 
-  if (!scene) return <ScenerPicker onPick={setScene} preset={preset} onFreeMode={startFreeMode} router={router} />;
-  if (isFreeMode) return <FreeChat onExit={() => { setScene(null); setIsFreeMode(false); }} />;
+  if (!scene) {
+    return (
+      <ScenerPicker
+        onPick={pickScene}
+        preset={preset}
+        onFreeMode={startFreeMode}
+        router={router}
+        language={language}
+        onLanguageChange={changeLanguage}
+      />
+    );
+  }
+  if (isFreeMode) return <FreeChat targetLanguage={language} onExit={() => { setScene(null); setIsFreeMode(false); }} />;
   return <Chat scene={scene} onExit={() => setScene(null)} />;
 }
 
@@ -44,14 +70,22 @@ function ScenerPicker({
   preset,
   onFreeMode,
   router,
+  language,
+  onLanguageChange,
 }: {
   onPick: (s: Scene) => void;
   preset: string | null;
   onFreeMode: () => void;
   router: ReturnType<typeof useRouter>;
+  language: LearningLanguageCode;
+  onLanguageChange: (code: LearningLanguageCode) => void;
 }) {
   const [showTutorModal, setShowTutorModal] = useState(false);
-  const [currentTutor, setCurrentTutor] = useState<TutorProfile>(() => getSelectedTutor());
+  const [currentTutor, setCurrentTutor] = useState<TutorProfile>(() => getSelectedTutor(language));
+
+  useEffect(() => {
+    setCurrentTutor(getSelectedTutor(language));
+  }, [language]);
 
   useEffect(() => {
     if (preset) {
@@ -75,6 +109,18 @@ function ScenerPicker({
         }
       />
       <div className="px-5">
+        <div className="mb-4 flex gap-2 overflow-x-auto no-scrollbar pb-1">
+          {LEARNING_LANGUAGES.map((item) => (
+            <button
+              key={item.code}
+              onClick={() => onLanguageChange(item.code)}
+              className={`chip whitespace-nowrap ${language === item.code ? "bg-lilacDeep text-white" : "bg-white text-ink shadow-softer"}`}
+            >
+              {item.flag} {item.zhName}
+            </button>
+          ))}
+        </div>
+
         {/* Tutor selector banner */}
         <button
           onClick={() => setShowTutorModal(true)}
@@ -97,7 +143,7 @@ function ScenerPicker({
                 <p className="font-extrabold text-ink text-lg">選擇 AI 導師</p>
                 <button onClick={() => setShowTutorModal(false)} className="chip bg-white text-inkSoft">完成</button>
               </div>
-              <TutorSelector onSelect={(t) => { setCurrentTutor(t); }} />
+              <TutorSelector targetLanguage={language} onSelect={(t) => { setCurrentTutor(t); }} />
               <button onClick={() => setShowTutorModal(false)} className="btn-primary w-full mt-4">確認選擇</button>
             </div>
           </div>
@@ -177,6 +223,7 @@ function buildTranscript(userTurns: string[], feedbacks: TutorFeedback[]): Dialo
 
 function Chat({ scene, onExit }: { scene: Scene; onExit: () => void }) {
   const router = useRouter();
+  const targetLanguage = scene.targetLanguage || learningService.getCurrentLanguage();
   const settings = useMemo(() => {
     const u = authService.getCurrentUser();
     return u ? learningService.getSettings(u.id) : null;
@@ -190,6 +237,7 @@ function Chat({ scene, onExit }: { scene: Scene; onExit: () => void }) {
     learningService.touchActivity(8, 30);
     learningService.addRecord({
       type: "dialogue",
+      targetLanguage,
       title: scene.name,
       sceneName: scene.name,
       enContent: userTurns.join(" / "),
@@ -243,7 +291,7 @@ function Chat({ scene, onExit }: { scene: Scene; onExit: () => void }) {
   );
 }
 
-function FreeChat({ onExit }: { onExit: () => void }) {
+function FreeChat({ targetLanguage, onExit }: { targetLanguage: LearningLanguageCode; onExit: () => void }) {
   const router = useRouter();
   const settings = useMemo(() => {
     const u = authService.getCurrentUser();
@@ -253,7 +301,8 @@ function FreeChat({ onExit }: { onExit: () => void }) {
   const pron = settings ? settings.pronunciationOn : true;
   const [createdScene, setCreatedScene] = useState<CustomScene | null>(null);
 
-  const freeScene = buildFreeScene();
+  const languageInfo = getLearningLanguage(targetLanguage);
+  const freeScene = buildFreeScene(targetLanguage);
 
   function createScenarioFromText(latest: string) {
     const explicitCreate = /建立|產生|自訂|新增|做一個|create|make|generate/i.test(latest) &&
@@ -276,6 +325,7 @@ function FreeChat({ onExit }: { onExit: () => void }) {
       pattern: "",
       showChinese: showZh,
       rounds: 6,
+      targetLanguage,
     });
     setCreatedScene(custom);
     return true;
@@ -287,7 +337,8 @@ function FreeChat({ onExit }: { onExit: () => void }) {
     learningService.touchActivity(10, 30);
     learningService.addRecord({
       type: "dialogue",
-      title: "自由對話",
+      targetLanguage,
+      title: `自由對話（${languageInfo.zhName}）`,
       sceneName: "自由對話",
       enContent: userTurns.join(" / "),
       zhContent: "",
@@ -300,7 +351,7 @@ function FreeChat({ onExit }: { onExit: () => void }) {
     });
     storageService.set(KEYS.lastResult, {
       kind: "dialogue",
-      title: "自由對話",
+      title: `自由對話（${languageInfo.zhName}）`,
       total: result.total,
       breakdown: [
         { label: "單字量", value: result.vocab },
@@ -402,10 +453,65 @@ function FreeChat({ onExit }: { onExit: () => void }) {
   );
 }
 
-function buildFreeScene(): Scene {
+function buildFreeScene(targetLanguage: LearningLanguageCode = "en"): Scene {
+  const language = getLearningLanguage(targetLanguage);
+  if (targetLanguage !== "en") {
+    const patterns: Record<LearningLanguageCode, { en: string; zh: string }[]> = {
+      en: [],
+      ja: [
+        { en: "今日は何をしたいですか？", zh: "今天想做什麼？" },
+        { en: "もう少し詳しく教えてください。", zh: "請再詳細告訴我一點。" },
+        { en: "それは面白いですね。", zh: "那很有趣呢。" },
+      ],
+      ko: [
+        { en: "오늘 무엇을 하고 싶어요?", zh: "今天想做什麼？" },
+        { en: "조금 더 자세히 말해 주세요.", zh: "請再詳細說一點。" },
+        { en: "정말 재미있네요.", zh: "真的很有趣。" },
+      ],
+      it: [
+        { en: "Che cosa vuoi fare oggi?", zh: "今天想做什麼？" },
+        { en: "Dimmi qualcosa in più.", zh: "再多告訴我一點。" },
+        { en: "È molto interessante.", zh: "這很有趣。" },
+      ],
+    };
+    const dialogue: Record<LearningLanguageCode, Scene["dialogue"]> = {
+      en: [],
+      ja: [
+        { speaker: "tutor", en: language.freeOpening.target, zh: language.freeOpening.zh },
+        { speaker: "user", en: "日本語を練習したいです。", zh: "我想練習日文。" },
+        { speaker: "tutor", en: "いいですね。今日はどんなテーマがいいですか？", zh: "很好。今天想練什麼主題呢？" },
+      ],
+      ko: [
+        { speaker: "tutor", en: language.freeOpening.target, zh: language.freeOpening.zh },
+        { speaker: "user", en: "한국어를 연습하고 싶어요.", zh: "我想練習韓文。" },
+        { speaker: "tutor", en: "좋아요. 오늘 어떤 주제가 좋을까요?", zh: "很好。今天想練什麼主題呢？" },
+      ],
+      it: [
+        { speaker: "tutor", en: language.freeOpening.target, zh: language.freeOpening.zh },
+        { speaker: "user", en: "Vorrei praticare l'italiano.", zh: "我想練習義大利文。" },
+        { speaker: "tutor", en: "Perfetto. Quale argomento vuoi provare oggi?", zh: "很好。今天想練什麼主題呢？" },
+      ],
+    };
+    return {
+      id: "free-chat",
+      themeId: "free",
+      targetLanguage,
+      name: `自由對話（${language.zhName}）`,
+      enName: `${language.label} Free Conversation`,
+      difficulty: "Intermediate",
+      minutes: 10,
+      intro: `沒有特定情境，使用${language.zhName}隨意聊聊任何你想練習的主題。`,
+      goals: ["自由表達", "流暢對話", "日常聊天"],
+      keyWords: targetLanguage === "ja" ? ["今日", "練習", "話す", "テーマ", "詳しく"] : targetLanguage === "ko" ? ["오늘", "연습", "말하다", "주제", "자세히"] : ["oggi", "praticare", "parlare", "argomento", "dettaglio"],
+      keyPatterns: patterns[targetLanguage],
+      dialogue: dialogue[targetLanguage],
+      quiz: [],
+    };
+  }
   return {
     id: "free-chat",
     themeId: "free",
+    targetLanguage,
     name: "自由對話",
     enName: "Free Conversation",
     difficulty: "Intermediate",

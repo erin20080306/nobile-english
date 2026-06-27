@@ -1,4 +1,5 @@
-import type { Scene, TutorFeedback } from "@/types";
+import type { Scene, TutorFeedback, LearningLanguageCode } from "@/types";
+import { getLearningLanguage } from "@/data/learningLanguages";
 
 // Local mock AI tutor. Generates context-aware English replies and accurate
 // feedback (typo + grammar correction, not blind "Could you...please?" wrapping).
@@ -11,6 +12,12 @@ const encouragements = [
   "很棒！再練習一次會更流暢。",
   "Let's go! 你的英文正在進步。",
 ];
+
+const multilingualEncouragements: Record<Exclude<LearningLanguageCode, "en">, string[]> = {
+  ja: ["很好！日文表達越來越自然。", "いいですね！繼續保持。", "很棒，下一句試著多加一個細節。"],
+  ko: ["很好！韓文表達越來越自然。", "좋아요! 繼續保持。", "很棒，下一句試著多加一個細節。"],
+  it: ["很好！義大利文表達越來越自然。", "Bravo! 繼續保持。", "很棒，下一句試著多加一個細節。"],
+};
 
 function pick<T>(arr: T[], seed = 0): T {
   return arr[Math.abs(seed) % arr.length];
@@ -589,6 +596,124 @@ function adaptiveRoleplayReply(
   return scripted;
 }
 
+function multilingualReply(scene: Scene, language: Exclude<LearningLanguageCode, "en">, userInput: string, turn: number) {
+  const text = `${scene.name} ${scene.enName} ${scene.themeId}`.toLowerCase();
+  const lower = userInput.toLowerCase();
+  const isRestaurant = text.includes("餐廳") || text.includes("restaurant") || scene.themeId === "restaurant" || scene.themeId === "custom";
+  const isCafe = text.includes("咖啡") || text.includes("cafe");
+  const isTravel = text.includes("問路") || text.includes("direction") || scene.themeId === "travel";
+
+  const bank = {
+    ja: {
+      free: [
+        { en: "いいですね。もう少し詳しく教えてください。", zh: "很好。請再詳細告訴我一點。" },
+        { en: "自然な表現です。次は理由も一緒に言ってみましょう。", zh: "這個表達很自然。下一句也試著說理由。" },
+      ],
+      restaurant: [
+        { en: "かしこまりました。ほかに飲み物はいかがですか？", zh: "好的。還需要飲料嗎？" },
+        { en: "いいですね。ご注文を確認します。", zh: "好的。我確認一下您的餐點。" },
+      ],
+      cafe: [
+        { en: "かしこまりました。店内でお召し上がりですか？", zh: "好的。請問內用嗎？" },
+        { en: "いいですね。サイズはどうしますか？", zh: "很好。請問要什麼尺寸？" },
+      ],
+      travel: [
+        { en: "大丈夫です。ここからまっすぐ行って、二つ目の角を右に曲がってください。", zh: "沒問題。從這裡直走，在第二個轉角右轉。" },
+        { en: "近いですよ。歩いて十分ぐらいです。", zh: "很近。走路大約十分鐘。" },
+      ],
+      better: "もう少し自然に言うと、このように言えます。",
+    },
+    ko: {
+      free: [
+        { en: "좋아요. 조금 더 자세히 말해 주세요.", zh: "很好。請再詳細說一點。" },
+        { en: "자연스러워요. 다음에는 이유도 같이 말해 봐요.", zh: "很自然。下一句也試著說理由。" },
+      ],
+      restaurant: [
+        { en: "네, 알겠습니다. 음료도 주문하시겠어요?", zh: "好的，了解。也要點飲料嗎？" },
+        { en: "좋습니다. 주문을 확인해 드릴게요.", zh: "很好。我幫您確認餐點。" },
+      ],
+      cafe: [
+        { en: "네, 알겠습니다. 매장에서 드시나요?", zh: "好的。請問內用嗎？" },
+        { en: "좋아요. 사이즈는 어떻게 하시겠어요?", zh: "很好。請問要什麼尺寸？" },
+      ],
+      travel: [
+        { en: "괜찮아요. 여기서 직진하고 두 번째 모퉁이에서 오른쪽으로 가세요.", zh: "沒問題。從這裡直走，在第二個轉角右轉。" },
+        { en: "가까워요. 걸어서 십 분 정도 걸려요.", zh: "很近。走路大約十分鐘。" },
+      ],
+      better: "조금 더 자연스럽게 이렇게 말할 수 있어요.",
+    },
+    it: {
+      free: [
+        { en: "Perfetto. Dimmi qualcosa in più.", zh: "很好。再多告訴我一點。" },
+        { en: "Suona naturale. Ora prova ad aggiungere anche il motivo.", zh: "聽起來很自然。現在試著也加上原因。" },
+      ],
+      restaurant: [
+        { en: "Perfetto. Vuole anche qualcosa da bere?", zh: "好的。您也想點飲料嗎？" },
+        { en: "Va bene. Confermo il suo ordine.", zh: "好的。我確認一下您的餐點。" },
+      ],
+      cafe: [
+        { en: "Certo. Lo prende qui o da portare via?", zh: "當然。內用還是外帶？" },
+        { en: "Ottima scelta. Che formato vuole?", zh: "好選擇。您要什麼尺寸？" },
+      ],
+      travel: [
+        { en: "Certo. Vada dritto e giri a destra al secondo angolo.", zh: "當然。請直走，在第二個轉角右轉。" },
+        { en: "È vicino. Ci vogliono circa dieci minuti a piedi.", zh: "很近。走路大約十分鐘。" },
+      ],
+      better: "In modo più naturale, puoi dirlo così.",
+    },
+  }[language];
+
+  if (isTravel || /lost|where|station|map|direction|路|駅|길|strada/i.test(lower)) return pick(bank.travel, turn);
+  if (isCafe) return pick(bank.cafe, turn);
+  if (isRestaurant) return pick(bank.restaurant, turn);
+  return pick(bank.free, turn);
+}
+
+function multilingualBetterWay(language: Exclude<LearningLanguageCode, "en">, scene: Scene, userInput: string) {
+  const trimmed = userInput.trim();
+  if (trimmed.length > 3) return trimmed;
+  if (language === "ja") {
+    if (scene.themeId === "travel") return "すみません、駅までの行き方を教えてください。";
+    return "もう少し詳しく教えてください。";
+  }
+  if (language === "ko") {
+    if (scene.themeId === "travel") return "죄송하지만 역까지 어떻게 가는지 알려 주세요.";
+    return "조금 더 자세히 말해 주세요.";
+  }
+  if (scene.themeId === "travel") return "Mi scusi, può dirmi come arrivare alla stazione?";
+  return "Può dirmi qualcosa in più?";
+}
+
+function multilingualFeedback(scene: Scene, userInput: string, turn: number): TutorFeedback {
+  const language = (scene.targetLanguage || "en") as LearningLanguageCode;
+  if (language === "en") {
+    const next = generateReply({ scene, userInput, turn, history: [] });
+    return {
+      reply: next.en,
+      replyZh: next.zh,
+      naturalness: 78,
+      grammarTip: "文法可理解，建議補上更多細節。",
+      betterWay: userInput.trim(),
+      zhExplain: "你的句子可溝通，繼續練習會更自然。",
+      encouragement: "Great job! 繼續保持。",
+    };
+  }
+  const lang = getLearningLanguage(language);
+  const words = userInput.trim().split(/\s+/).filter(Boolean).length;
+  const naturalness = Math.max(58, Math.min(94, 72 + words * 4));
+  const betterWay = multilingualBetterWay(language, scene, userInput);
+  const next = multilingualReply(scene, language, userInput, turn);
+  return {
+    reply: next.en,
+    replyZh: next.zh,
+    naturalness,
+    grammarTip: `使用${lang.zhName}時，盡量用完整句並補上地點、時間或需求。`,
+    betterWay,
+    zhExplain: `你的意思可以理解；若想更自然，可以說：「${betterWay}」。`,
+    encouragement: pick(multilingualEncouragements[language], turn + userInput.length),
+  };
+}
+
 // Context-aware reply generation. Detects intent and responds to whatever the
 // user actually says, while gently steering back to the scene topic.
 function generateReply(ctx: ReplyCtx): { en: string; zh: string } {
@@ -756,10 +881,17 @@ export const mockAiTutorService = {
   available: true,
 
   reply(scene: Scene, userInput: string, turn: number, history: string[] = []): { en: string; zh: string } {
+    if (scene.targetLanguage && scene.targetLanguage !== "en") {
+      const fb = multilingualFeedback(scene, userInput, turn);
+      return { en: fb.reply, zh: fb.replyZh };
+    }
     return generateReply({ scene, userInput, turn, history });
   },
 
   feedback(scene: Scene, userInput: string, turn: number, history: string[] = []): TutorFeedback {
+    if (scene.targetLanguage && scene.targetLanguage !== "en") {
+      return multilingualFeedback(scene, userInput, turn);
+    }
     const words = countWords(userInput);
     const { corrected, fixes } = correctSentence(userInput);
     const polite = /\b(please|could you|would you|may i|thank)\b/i.test(userInput);

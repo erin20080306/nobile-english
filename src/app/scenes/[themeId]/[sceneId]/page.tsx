@@ -9,20 +9,13 @@ import { dictionaryService } from "@/services/dictionaryService";
 import { speechService } from "@/services/speechService";
 import { storageService, KEYS } from "@/services/storageService";
 import { authService } from "@/services/authService";
+import { getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
 import ClickableText from "@/components/ClickableText";
 import WordSheet from "@/components/WordSheet";
 import ConversationPractice from "@/components/ConversationPractice";
 import { LevelBadge } from "@/components/ui";
 import type { DialogueResult, TutorFeedback, DialogueTranscriptLine } from "@/types";
-
-const sceneVoice = {
-  lang: "en-US",
-  voiceKeywords: ["samantha", "ava", "en-us"],
-  ttsVoice: "nova" as const,
-  ttsInstructions: "Speak clearly and naturally for English learning. Use a warm, crisp, non-raspy voice with strong volume.",
-  ttsVolumeGain: 1.55,
-};
 
 function buildTranscript(userTurns: string[], feedbacks: TutorFeedback[]): DialogueTranscriptLine[] {
   const transcript: DialogueTranscriptLine[] = [];
@@ -68,6 +61,9 @@ export default function ScenePracticePage() {
     return u ? learningService.getSettings(u.id) : null;
   }, []);
   const showZh = settings ? settings.sceneChinese : true;
+  const targetLanguage = scene?.targetLanguage || settings?.targetLanguage || learningService.getCurrentLanguage();
+  const languageInfo = getLearningLanguage(targetLanguage);
+  const activeScene = scene ? { ...scene, targetLanguage } : null;
 
   if (!scene) {
     return (
@@ -83,7 +79,7 @@ export default function ScenePracticePage() {
       alert("發音功能已關閉，可至設定開啟。");
       return;
     }
-    const r = speechService.speak(text, sceneVoice);
+    const r = speechService.speak(text, { ...voiceForLanguage(targetLanguage), onError: (message) => alert(message) });
     if (!r.ok) alert(r.message);
   }
 
@@ -93,7 +89,7 @@ export default function ScenePracticePage() {
   }
 
   function handleFinish(result: DialogueResult, userTurns: string[], feedbacks: TutorFeedback[]) {
-    const quizQuestions = scene!.quiz;
+    const quizQuestions = activeScene!.quiz;
     const correct = quizQuestions.reduce(
       (acc, q, i) => acc + (quizAnswers[i] === q.answerIndex ? 1 : 0),
       0
@@ -102,33 +98,34 @@ export default function ScenePracticePage() {
     const convScore = Math.round((result.total / 100) * 70);
     const score = Math.round(quizScore + convScore);
 
-    sceneService.setProgress(scene!.id, score);
+    sceneService.setProgress(activeScene!.id, score);
     learningService.addScene();
-    learningService.touchActivity(scene!.minutes, 20 + correct * 5);
+    learningService.touchActivity(activeScene!.minutes, 20 + correct * 5);
     learningService.addRecord({
       type: "scene",
-      title: scene!.name,
-      sceneName: scene!.name,
-      enContent: scene!.dialogue.map((d) => d.en).join(" / "),
-      zhContent: scene!.dialogue.map((d) => d.zh).join(" / "),
+      targetLanguage,
+      title: activeScene!.name,
+      sceneName: activeScene!.name,
+      enContent: activeScene!.dialogue.map((d) => d.en).join(" / "),
+      zhContent: activeScene!.dialogue.map((d) => d.zh).join(" / "),
       userAnswer: userTurns.join(" / "),
       suggestion: feedbacks.length > 0 ? feedbacks[feedbacks.length - 1].betterWay : "持續練習關鍵句型，注意禮貌用語。",
       transcript: buildTranscript(userTurns, feedbacks),
       score,
       completed: true,
-      minutes: scene!.minutes,
+      minutes: activeScene!.minutes,
     });
 
     storageService.set(KEYS.lastResult, {
       kind: "scene",
-      title: scene!.name + "（場景對話）",
+      title: `${activeScene!.name}（${languageInfo.zhName}場景對話）`,
       total: score,
       breakdown: [
         { label: "測驗", value: Math.round(quizScore / 30 * 100) },
         { label: "對話", value: convScore },
       ],
-      newWords: scene!.keyWords,
-      reviewSentences: scene!.keyPatterns.map((p) => p.en),
+      newWords: activeScene!.keyWords,
+      reviewSentences: activeScene!.keyPatterns.map((p) => p.en),
       conversationWords: result.conversationWords,
       suggestions: result.suggestions,
       dialogueReview: result.dialogueReview,
@@ -142,7 +139,7 @@ export default function ScenePracticePage() {
     return (
       <div className="min-h-[100dvh] flex flex-col">
         <AppHeader
-          title={scene.name}
+          title={activeScene!.name}
           subtitle="AI 語音對話練習"
           right={
             <button onClick={() => setPhase("preview")} className="chip bg-white text-inkSoft shadow-softer flex items-center gap-1">
@@ -150,8 +147,8 @@ export default function ScenePracticePage() {
             </button>
           }
         />
-        <ConversationPractice
-          scene={scene}
+          <ConversationPractice
+          scene={activeScene!}
           showZh={showZh}
           pronunciationOn={settings ? settings.pronunciationOn : true}
           finishLabel="結束對話並看成果"
@@ -164,7 +161,7 @@ export default function ScenePracticePage() {
   // ---- Preview phase ----
   return (
     <div className="min-h-[100dvh] pb-28">
-      <AppHeader title={scene.name} subtitle={scene.enName} />
+      <AppHeader title={scene.name} subtitle={`${scene.enName} · ${languageInfo.flag} ${languageInfo.zhName}`} />
 
       <div className="px-5 space-y-4">
         {/* Overview */}

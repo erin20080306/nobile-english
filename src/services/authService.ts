@@ -69,6 +69,7 @@ function bindCurrentDevice(user: User): { ok: boolean; error?: string; user?: Us
 function defaultSettings(userId: string): UserSettings {
   return {
     userId,
+    targetLanguage: "en",
     pronunciationOn: true,
     showChineseGlobal: true,
     sceneChinese: true,

@@ -5,6 +5,7 @@ export type EnglishLevel =
   | "Upper-Intermediate"
   | "Advanced";
 
+export type LearningLanguageCode = "en" | "ja" | "ko" | "it";
 export type CEFRLevel = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
 export type ExamType = "TOEIC" | "IELTS" | "TOEFL";
 export type QuestionType =
@@ -120,6 +121,7 @@ export interface QuizItem {
 export interface Scene {
   id: string;
   themeId: string;
+  targetLanguage?: LearningLanguageCode;
   name: string;
   enName: string;
   intro: string;
@@ -195,6 +197,7 @@ export interface DialogueTranscriptLine {
 export interface LearningRecord {
   id: string;
   type: "scene" | "dialogue" | "exam" | "custom";
+  targetLanguage?: LearningLanguageCode;
   title: string;
   sceneName?: string;
   enContent?: string;
@@ -210,6 +213,7 @@ export interface LearningRecord {
 
 export interface UserSettings {
   userId: string;
+  targetLanguage: LearningLanguageCode;
   pronunciationOn: boolean;
   showChineseGlobal: boolean;
   sceneChinese: boolean;
@@ -238,6 +242,7 @@ export interface CustomSceneStage {
 
 export interface CustomScene {
   id: string;
+  targetLanguage?: LearningLanguageCode;
   situation: string;
   role: string;
   place: string;

@@ -56,10 +56,14 @@ export const aiTutorService = {
     const fluency = Math.min(99, Math.max(50, avgNatural + trendBonus));
 
     // Vocab: unique meaningful words in user turns
+    const language = scene.targetLanguage || "en";
     const stopWords = new Set(["i","a","the","is","am","are","was","were","it","to","of","and","in","you","my","me","we","do","be","that","this","have","had","for","on","with","he","she","they","at","by","an","or","but"]);
-    const allWords = userTurns.join(" ").toLowerCase().replace(/[^a-z\s]/g, "").split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w));
+    const allWords = language === "en"
+      ? userTurns.join(" ").toLowerCase().replace(/[^a-z\s]/g, "").split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w))
+      : userTurns.join(" ").split(/[\s、。！？,.!?;:]+/).map((w) => w.trim()).filter((w) => w.length > 1);
     const uniqueWords = Array.from(new Set(allWords));
-    const vocab = Math.min(99, Math.max(50, 55 + uniqueWords.length * 3 + userTurns.length * 2));
+    const vocabBase = uniqueWords.length || scene.keyWords.length;
+    const vocab = Math.min(99, Math.max(50, 55 + vocabBase * 3 + userTurns.length * 2));
 
     // Task completion
     const expectedTurns = Math.max(1, scene.dialogue.filter(d => d.speaker === "user").length);
@@ -68,7 +72,7 @@ export const aiTutorService = {
     const total = Math.min(99, Math.round((avgNatural * 0.35 + grammar * 0.25 + fluency * 0.25 + vocab * 0.15)));
 
     // Conversation words: meaningful unique words from user turns
-    const conversationWords = uniqueWords.slice(0, 12);
+    const conversationWords = uniqueWords.length ? uniqueWords.slice(0, 12) : scene.keyWords.slice(0, 12);
 
     // Build specific suggestions from feedbacks
     const suggestions: DialogueSuggestion[] = [];

@@ -3,25 +3,20 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { MessageSquare, Volume2, Star, X } from "lucide-react";
-import type { SavedWord, SavedSentence, LearningRecord, ExamResult, ExamQuestion } from "@/types";
+import type { SavedWord, SavedSentence, LearningRecord, ExamResult, ExamQuestion, LearningLanguageCode } from "@/types";
 import { vocabularyService } from "@/services/vocabularyService";
 import { dictionaryService } from "@/services/dictionaryService";
 import { learningService } from "@/services/learningService";
 import { examService } from "@/services/examService";
 import { speechService } from "@/services/speechService";
+import { LEARNING_LANGUAGES, getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 
-const recordVoice = {
-  lang: "en-US",
-  voiceKeywords: ["samantha", "ava", "en-us"],
-  ttsVoice: "nova" as const,
-  ttsInstructions: "Speak clearly and naturally for English learning. Use a warm, crisp, non-raspy voice with strong volume.",
-  ttsVolumeGain: 1.55,
-};
+type RecordLanguageFilter = LearningLanguageCode | "all";
 
-function speakRecordText(text: string) {
-  const r = speechService.speak(text, recordVoice);
+function speakRecordText(text: string, language: LearningLanguageCode = "en") {
+  const r = speechService.speak(text, { ...voiceForLanguage(language), onError: (message) => alert(message) });
   if (!r.ok) alert(r.message || "無法播放語音");
 }
 
@@ -30,7 +25,7 @@ function speakRecord(record: LearningRecord) {
     ? record.transcript.map((line) => line.en)
     : (record.userAnswer || record.enContent || "").split(" / ");
   const text = lines.map((line) => line.trim()).filter(Boolean).join(". ");
-  if (text) speakRecordText(text);
+  if (text) speakRecordText(text, record.targetLanguage || "en");
 }
 
 const tabs = [
@@ -42,6 +37,11 @@ const tabs = [
   { key: "wrong", label: "錯題複習" },
   { key: "review", label: "複習清單" },
 ];
+
+function filterByLanguage(items: LearningRecord[], language: RecordLanguageFilter) {
+  if (language === "all") return items;
+  return items.filter((record) => (record.targetLanguage || "en") === language);
+}
 
 export default function RecordsPage() {
   return (
@@ -61,6 +61,7 @@ function RecordsInner() {
   const [examResults, setExamResults] = useState<ExamResult[]>([]);
   const [wrong, setWrong] = useState<ExamQuestion[]>([]);
   const [activeRecord, setActiveRecord] = useState<LearningRecord | null>(null);
+  const [languageFilter, setLanguageFilter] = useState<RecordLanguageFilter>("all");
 
   function reload() {
     setWords(vocabularyService.getSaved());
@@ -86,13 +87,16 @@ function RecordsInner() {
       </div>
 
       <div className="px-5 mt-2 space-y-3">
+        {(tab === "dialogue" || tab === "scene") && (
+          <LanguageFilter value={languageFilter} onChange={setLanguageFilter} />
+        )}
         {tab === "words" && (words.length ? words.map((w) => (
           <div key={w.word} className="card !p-4">
             <div className="flex items-center gap-2">
               <p className="font-extrabold text-ink">{w.word}</p>
               <span className="chip bg-lilac text-lilacDeep text-xs">{w.pos}</span>
               {w.inReview && <span className="chip bg-mint text-mintDeep text-xs">複習中</span>}
-              <button onClick={() => speakRecordText(w.word)} className="ml-auto text-lilacDeep"><Volume2 size={18} /></button>
+              <button onClick={() => speakRecordText(w.word, "en")} className="ml-auto text-lilacDeep"><Volume2 size={18} /></button>
             </div>
             <p className="text-sm text-inkSoft">{w.phonetic} · {w.zh}</p>
             <p className="text-sm text-ink mt-1">{w.example}</p>
@@ -105,14 +109,14 @@ function RecordsInner() {
             <p className="text-ink font-semibold">{s.en}</p>
             <p className="text-sm text-inkSoft">{s.zh}</p>
             <div className="mt-2 flex gap-2">
-              <button onClick={() => speakRecordText(s.en)} className="chip bg-lilac text-lilacDeep text-xs flex items-center gap-1"><Volume2 size={12} /> 發音</button>
+              <button onClick={() => speakRecordText(s.en, "en")} className="chip bg-lilac text-lilacDeep text-xs flex items-center gap-1"><Volume2 size={12} /> 發音</button>
               <button onClick={() => { dictionaryService.toggleSentence(s.en, s.zh); reload(); }} className="chip bg-peach text-peachDeep text-xs">移除</button>
             </div>
           </div>
         )) : <Empty text="尚未收藏句子。" />)}
 
-        {tab === "dialogue" && <RecordList items={records.filter((r) => r.type === "dialogue")} onOpen={setActiveRecord} />}
-        {tab === "scene" && <RecordList items={records.filter((r) => r.type === "scene" || r.type === "custom")} onOpen={setActiveRecord} />}
+        {tab === "dialogue" && <RecordList items={filterByLanguage(records.filter((r) => r.type === "dialogue"), languageFilter)} onOpen={setActiveRecord} />}
+        {tab === "scene" && <RecordList items={filterByLanguage(records.filter((r) => r.type === "scene" || r.type === "custom"), languageFilter)} onOpen={setActiveRecord} />}
 
         {tab === "exam" && (examResults.length ? examResults.map((r) => (
           <div key={r.id} className="card !p-4 flex items-center justify-between">
@@ -140,7 +144,7 @@ function RecordsInner() {
             <div key={w.word} className="card !p-4">
               <div className="flex items-center gap-2">
                 <p className="font-extrabold text-ink">{w.word}</p>
-                <button onClick={() => speakRecordText(w.word)} className="ml-auto text-lilacDeep"><Volume2 size={18} /></button>
+                <button onClick={() => speakRecordText(w.word, "en")} className="ml-auto text-lilacDeep"><Volume2 size={18} /></button>
               </div>
               <p className="text-sm text-inkSoft">{w.phonetic} · {w.zh}</p>
               <button onClick={() => { vocabularyService.toggleReview(w.word); reload(); }} className="chip bg-peach text-peachDeep text-xs mt-2">移出複習</button>
@@ -162,7 +166,10 @@ function RecordList({ items, onOpen }: { items: LearningRecord[]; onOpen: (recor
         <button key={r.id} onClick={() => onOpen(r)} className="card !p-4 w-full text-left active:scale-[0.99] transition">
           <div className="flex items-center justify-between">
             <p className="font-bold text-ink">{r.title}</p>
-            <span className="chip bg-lilac text-lilacDeep text-xs">{r.score} 分</span>
+            <div className="flex shrink-0 gap-1">
+              <span className="chip bg-mint text-mintDeep text-xs">{getLearningLanguage(r.targetLanguage || "en").zhName}</span>
+              <span className="chip bg-lilac text-lilacDeep text-xs">{r.score} 分</span>
+            </div>
           </div>
           <p className="text-xs text-inkSoft">{new Date(r.date).toLocaleString()} · {r.minutes} 分鐘</p>
           {r.userAnswer && <p className="text-sm text-ink mt-1">你的回答：{r.userAnswer}</p>}
@@ -195,6 +202,7 @@ function RecordDetail({ record, onClose }: { record: LearningRecord; onClose: ()
     .filter(Boolean)
     .map((en) => ({ role: "user" as const, en }));
   const lines: NonNullable<LearningRecord["transcript"]> = record.transcript?.length ? record.transcript : fallbackLines;
+  const language = record.targetLanguage || "en";
 
   return (
     <div className="fixed inset-0 z-50 bg-cream/95 backdrop-blur overflow-y-auto">
@@ -222,7 +230,7 @@ function RecordDetail({ record, onClose }: { record: LearningRecord; onClose: ()
                   <p className="font-semibold leading-relaxed break-words">{line.en}</p>
                   {line.zh && <p className={`mt-1 text-sm ${isUser ? "text-white/80" : "text-inkSoft"}`}>{line.zh}</p>}
                   <button
-                    onClick={() => speakRecordText(line.en)}
+                    onClick={() => speakRecordText(line.en, language)}
                     className={`mt-2 inline-flex items-center gap-1 text-xs font-bold ${isUser ? "text-white/90" : "text-lilacDeep"}`}
                   >
                     <Volume2 size={13} /> 播放
@@ -252,6 +260,25 @@ function RecordDetail({ record, onClose }: { record: LearningRecord; onClose: ()
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function LanguageFilter({ value, onChange }: { value: RecordLanguageFilter; onChange: (value: RecordLanguageFilter) => void }) {
+  return (
+    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+      <button onClick={() => onChange("all")} className={`chip whitespace-nowrap ${value === "all" ? "bg-lilacDeep text-white" : "bg-white text-ink shadow-softer"}`}>
+        全部語言
+      </button>
+      {LEARNING_LANGUAGES.map((lang) => (
+        <button
+          key={lang.code}
+          onClick={() => onChange(lang.code)}
+          className={`chip whitespace-nowrap ${value === lang.code ? "bg-lilacDeep text-white" : "bg-white text-ink shadow-softer"}`}
+        >
+          {lang.flag} {lang.zhName}
+        </button>
+      ))}
     </div>
   );
 }

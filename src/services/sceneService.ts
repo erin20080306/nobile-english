@@ -1,6 +1,7 @@
-import type { Scene, SceneTheme, CustomScene, CustomSceneStage, EnglishLevel } from "@/types";
+import type { Scene, SceneTheme, CustomScene, CustomSceneStage, EnglishLevel, LearningLanguageCode } from "@/types";
 import { scenes, themes } from "@/data/scenes";
 import { vocabulary } from "@/data/vocabulary";
+import { getLearningLanguage } from "@/data/learningLanguages";
 import { storageService, KEYS } from "./storageService";
 
 type ProgressMap = Record<string, { completed: boolean; score: number }>;
@@ -53,9 +54,12 @@ export const sceneService = {
     pattern: string;
     showChinese: boolean;
     rounds: number;
+    targetLanguage?: LearningLanguageCode;
   }): CustomScene {
     const id = "custom-" + Math.random().toString(36).slice(2, 8);
-    const smart = inferScenarioPlan(input.situation, input.place, input.role);
+    const targetLanguage = input.targetLanguage || "en";
+    const language = getLearningLanguage(targetLanguage);
+    const smart = inferScenarioPlan(input.situation, input.place, input.role, targetLanguage);
     const name = smart.name || input.situation || `${input.place} ${input.role} 練習`;
     // Pick 10 key words contextually from vocabulary.
     const keyWords = smart.keyWords.length ? smart.keyWords : pickWords(input.topic + " " + input.situation, 10);
@@ -64,6 +68,7 @@ export const sceneService = {
     const scene: Scene = {
       id,
       themeId: "custom",
+      targetLanguage,
       name,
       enName: smart.enName || "My Custom Scene",
       intro: smart.intro || `情境：在${input.place}，你的角色是「${input.role}」。${input.situation}`,
@@ -72,7 +77,7 @@ export const sceneService = {
       goals: [
         `完成「${name}」角色扮演`,
         smart.stages.length ? `依序完成 ${smart.stages.map((s) => s.title).join("、")}` : `練習句型：${input.pattern || "實用表達"}`,
-        "練習真人場景中的接話、提問與確認",
+        `練習${language.zhName}真人場景中的接話、提問與確認`,
       ],
       keyWords,
       keyPatterns: patterns,
@@ -88,6 +93,7 @@ export const sceneService = {
     };
     const custom: CustomScene = {
       id,
+      targetLanguage,
       situation: input.situation,
       role: input.role,
       place: input.place,
@@ -107,7 +113,7 @@ export const sceneService = {
   },
 };
 
-function inferScenarioPlan(situation: string, place = "", role = ""): {
+function inferScenarioPlan(situation: string, place = "", role = "", targetLanguage: LearningLanguageCode = "en"): {
   name: string;
   enName: string;
   intro: string;
@@ -118,6 +124,7 @@ function inferScenarioPlan(situation: string, place = "", role = ""): {
   const text = `${situation} ${place} ${role}`.toLowerCase();
   const hasRestaurant = /餐廳|吃飯|點餐|訂位|reservation|restaurant|order food|dining|menu/.test(text);
   if (hasRestaurant) {
+    if (targetLanguage !== "en") return localizedRestaurantPlan(targetLanguage);
     const stages: CustomSceneStage[] = [
       {
         title: "接待與預約",
@@ -180,11 +187,116 @@ function inferScenarioPlan(situation: string, place = "", role = ""): {
 
   return {
     name: situation,
-    enName: "Custom Scenario",
-    intro: "",
+    enName: targetLanguage === "en" ? "Custom Scenario" : `${getLearningLanguage(targetLanguage).label} Custom Scenario`,
+    intro: targetLanguage === "en" ? "" : `使用${getLearningLanguage(targetLanguage).zhName}練習你指定的情境。`,
     keyWords: [],
-    patterns: [],
-    stages: [
+    patterns: localizedDefaultPatterns(targetLanguage),
+    stages: localizedDefaultStages(situation, targetLanguage),
+  };
+}
+
+function localizedRestaurantPlan(targetLanguage: LearningLanguageCode) {
+  if (targetLanguage === "ja") {
+    const stages: CustomSceneStage[] = [
+      { title: "接待與預約", enTitle: "受付と予約", tutorPrompt: "いらっしゃいませ。ご予約はありますか？", learnerGoal: "說明是否有預約，或詢問座位。", sampleUser: "予約はありません。二人用の席はありますか？" },
+      { title: "座位需求", enTitle: "席の希望", tutorPrompt: "かしこまりました。窓側の席と静かな席、どちらがよろしいですか？", learnerGoal: "表達想坐哪裡或特殊需求。", sampleUser: "静かな席をお願いします。" },
+      { title: "菜單與推薦", enTitle: "メニューとおすすめ", tutorPrompt: "こちらがメニューです。おすすめをお伝えしましょうか？", learnerGoal: "詢問推薦、特色菜或過敏資訊。", sampleUser: "軽い料理でおすすめはありますか？" },
+      { title: "正式點餐", enTitle: "注文する", tutorPrompt: "ご注文はお決まりですか？", learnerGoal: "自然地點餐和飲料。", sampleUser: "グリルチキンとアイスティーをお願いします。" },
+      { title: "加點與客製", enTitle: "追加と変更", tutorPrompt: "ほかに何かご注文や変更はありますか？", learnerGoal: "練習加點或調整口味。", sampleUser: "ドレッシングは別にしてもらえますか？" },
+      { title: "結帳與收據", enTitle: "会計とレシート", tutorPrompt: "お食事はいかがでしたか？お会計にしますか？", learnerGoal: "要求帳單、付款與道謝。", sampleUser: "とてもおいしかったです。お会計をお願いします。" },
+    ];
+    return {
+      name: "餐廳點餐（日文）",
+      enName: "Restaurant Ordering in Japanese",
+      intro: "用日文練習從入座、詢問推薦、點餐、客製需求到結帳的完整餐廳情境。",
+      keyWords: ["予約", "席", "メニュー", "おすすめ", "注文", "飲み物", "アレルギー", "お会計", "レシート", "お願いします"],
+      patterns: [
+        { en: "二人用の席はありますか？", zh: "有兩人座位嗎？" },
+        { en: "おすすめは何ですか？", zh: "你推薦什麼？" },
+        { en: "___をお願いします。", zh: "我想點 ___，謝謝。" },
+        { en: "別にしてもらえますか？", zh: "可以分開放嗎？" },
+        { en: "お会計をお願いします。", zh: "請幫我結帳。" },
+      ],
+      stages,
+    };
+  }
+  if (targetLanguage === "ko") {
+    const stages: CustomSceneStage[] = [
+      { title: "接待與預約", enTitle: "예약 확인", tutorPrompt: "어서 오세요. 예약하셨나요?", learnerGoal: "說明是否有預約，或詢問座位。", sampleUser: "예약은 없어요. 두 명 자리 있나요?" },
+      { title: "座位需求", enTitle: "자리 요청", tutorPrompt: "네. 창가 자리와 조용한 자리 중 어디가 좋으세요?", learnerGoal: "表達想坐哪裡或特殊需求。", sampleUser: "조용한 자리로 부탁드려요." },
+      { title: "菜單與推薦", enTitle: "메뉴와 추천", tutorPrompt: "메뉴 여기 있습니다. 추천해 드릴까요?", learnerGoal: "詢問推薦、特色菜或過敏資訊。", sampleUser: "가벼운 음식으로 뭐가 좋아요?" },
+      { title: "正式點餐", enTitle: "주문하기", tutorPrompt: "주문하시겠어요, 아니면 조금 더 보시겠어요?", learnerGoal: "自然地點餐和飲料。", sampleUser: "그릴 치킨이랑 아이스티 주세요." },
+      { title: "加點與客製", enTitle: "추가와 변경", tutorPrompt: "더 필요한 것이나 변경할 내용이 있나요?", learnerGoal: "練習加點或調整口味。", sampleUser: "드레싱은 따로 주실 수 있나요?" },
+      { title: "結帳與收據", enTitle: "계산과 영수증", tutorPrompt: "식사는 괜찮으셨어요? 계산해 드릴까요?", learnerGoal: "要求帳單、付款與道謝。", sampleUser: "맛있었어요. 계산 부탁드려요." },
+    ];
+    return {
+      name: "餐廳點餐（韓文）",
+      enName: "Restaurant Ordering in Korean",
+      intro: "用韓文練習從入座、詢問推薦、點餐、客製需求到結帳的完整餐廳情境。",
+      keyWords: ["예약", "자리", "메뉴", "추천", "주문", "음료", "알레르기", "계산", "영수증", "부탁드려요"],
+      patterns: [
+        { en: "두 명 자리 있나요?", zh: "有兩人座位嗎？" },
+        { en: "뭐가 좋아요?", zh: "你推薦什麼？" },
+        { en: "___ 주세요.", zh: "我想點 ___，謝謝。" },
+        { en: "따로 주실 수 있나요?", zh: "可以分開放嗎？" },
+        { en: "계산 부탁드려요.", zh: "請幫我結帳。" },
+      ],
+      stages,
+    };
+  }
+  if (targetLanguage === "it") {
+    const stages: CustomSceneStage[] = [
+      { title: "接待與預約", enTitle: "Accoglienza e prenotazione", tutorPrompt: "Buonasera, benvenuti. Avete una prenotazione?", learnerGoal: "說明是否有預約，或詢問座位。", sampleUser: "Non abbiamo una prenotazione. Avete un tavolo per due?" },
+      { title: "座位需求", enTitle: "Preferenza del tavolo", tutorPrompt: "Certo. Preferite un tavolo vicino alla finestra o un posto più tranquillo?", learnerGoal: "表達想坐哪裡或特殊需求。", sampleUser: "Un tavolo tranquillo sarebbe perfetto, grazie." },
+      { title: "菜單與推薦", enTitle: "Menu e consigli", tutorPrompt: "Ecco i menu. Volete qualche consiglio?", learnerGoal: "詢問推薦、特色菜或過敏資訊。", sampleUser: "Che cosa mi consiglia di leggero?" },
+      { title: "正式點餐", enTitle: "Ordinare", tutorPrompt: "Siete pronti per ordinare?", learnerGoal: "自然地點餐和飲料。", sampleUser: "Vorrei il pollo alla griglia e un tè freddo, per favore." },
+      { title: "加點與客製", enTitle: "Extra e modifiche", tutorPrompt: "Volete qualcos'altro o qualche modifica?", learnerGoal: "練習加點或調整口味。", sampleUser: "Potrei avere il condimento a parte?" },
+      { title: "結帳與收據", enTitle: "Conto e ricevuta", tutorPrompt: "Com'è andata? Volete il conto?", learnerGoal: "要求帳單、付款與道謝。", sampleUser: "Era tutto ottimo. Possiamo avere il conto, per favore?" },
+    ];
+    return {
+      name: "餐廳點餐（義大利文）",
+      enName: "Restaurant Ordering in Italian",
+      intro: "用義大利文練習從入座、詢問推薦、點餐、客製需求到結帳的完整餐廳情境。",
+      keyWords: ["prenotazione", "tavolo", "menu", "consiglio", "ordinare", "bevanda", "allergia", "conto", "ricevuta", "per favore"],
+      patterns: [
+        { en: "Avete un tavolo per due?", zh: "有兩人座位嗎？" },
+        { en: "Che cosa mi consiglia?", zh: "你推薦什麼？" },
+        { en: "Vorrei ___, per favore.", zh: "我想點 ___，謝謝。" },
+        { en: "Potrei avere ___ a parte?", zh: "可以把 ___ 分開放嗎？" },
+        { en: "Possiamo avere il conto, per favore?", zh: "可以給我們帳單嗎？" },
+      ],
+      stages,
+    };
+  }
+  return inferScenarioPlan("餐廳點餐", "restaurant", "customer", "en");
+}
+
+function localizedDefaultStages(situation: string, targetLanguage: LearningLanguageCode): CustomSceneStage[] {
+  if (targetLanguage === "ja") {
+    return [
+      { title: "開場說明", enTitle: "始める", tutorPrompt: `こんにちは。「${situation || "カスタムテーマ"}」を練習しましょう。まず何を言いたいですか？`, learnerGoal: "用一句日文說明自己的需求。", sampleUser: "こんにちは。少し相談したいです。" },
+      { title: "確認細節", enTitle: "詳しく確認", tutorPrompt: "わかりました。もう少し詳しく教えてください。", learnerGoal: "補充時間、地點、數量或原因。", sampleUser: "はい。大事なポイントは時間です。" },
+      { title: "提出問題", enTitle: "質問する", tutorPrompt: "いいですね。次に何を聞きたいですか？", learnerGoal: "提出一個後續問題。", sampleUser: "次のステップを教えてもらえますか？" },
+      { title: "確認結果", enTitle: "確認する", tutorPrompt: "では、最後に内容を確認しましょう。", learnerGoal: "確認資訊並禮貌收尾。", sampleUser: "わかりました。ありがとうございます。" },
+    ];
+  }
+  if (targetLanguage === "ko") {
+    return [
+      { title: "開場說明", enTitle: "시작하기", tutorPrompt: `안녕하세요. "${situation || "사용자 주제"}" 상황을 연습해 봐요. 먼저 무엇을 말하고 싶어요?`, learnerGoal: "用一句韓文說明自己的需求。", sampleUser: "안녕하세요. 조금 상담하고 싶어요." },
+      { title: "確認細節", enTitle: "자세히 확인", tutorPrompt: "좋아요. 조금 더 자세히 말해 주세요.", learnerGoal: "補充時間、地點、數量或原因。", sampleUser: "네. 중요한 점은 시간이에요." },
+      { title: "提出問題", enTitle: "질문하기", tutorPrompt: "좋습니다. 다음에는 무엇을 물어보고 싶어요?", learnerGoal: "提出一個後續問題。", sampleUser: "다음 단계를 알려 주실 수 있나요?" },
+      { title: "確認結果", enTitle: "확인하기", tutorPrompt: "그럼 마지막으로 내용을 확인해 봐요.", learnerGoal: "確認資訊並禮貌收尾。", sampleUser: "알겠습니다. 감사합니다." },
+    ];
+  }
+  if (targetLanguage === "it") {
+    return [
+      { title: "開場說明", enTitle: "Apertura", tutorPrompt: `Ciao. Facciamo pratica con questa situazione: ${situation || "il tuo tema"}. Che cosa vuoi dire per prima cosa?`, learnerGoal: "用一句義大利文說明自己的需求。", sampleUser: "Ciao, vorrei chiedere un'informazione." },
+      { title: "確認細節", enTitle: "Chiarire i dettagli", tutorPrompt: "Va bene. Puoi dirmi qualche dettaglio in più?", learnerGoal: "補充時間、地點、數量或原因。", sampleUser: "Certo. Il dettaglio principale è l'orario." },
+      { title: "提出問題", enTitle: "Fare una domanda", tutorPrompt: "Perfetto. Che cosa vuoi chiedere adesso?", learnerGoal: "提出一個後續問題。", sampleUser: "Può spiegarmi il prossimo passo?" },
+      { title: "確認結果", enTitle: "Confermare", tutorPrompt: "Allora confermiamo il piano insieme.", learnerGoal: "確認資訊並禮貌收尾。", sampleUser: "Va bene. Grazie per l'aiuto." },
+    ];
+  }
+  return [
       {
         title: "開場說明",
         enTitle: "Opening",
@@ -213,8 +325,38 @@ function inferScenarioPlan(situation: string, place = "", role = ""): {
         learnerGoal: "確認資訊並禮貌收尾。",
         sampleUser: "That sounds good. Thank you for your help.",
       },
-    ],
-  };
+    ];
+}
+
+function localizedDefaultPatterns(targetLanguage: LearningLanguageCode) {
+  if (targetLanguage === "ja") {
+    return [
+      { en: "少し相談したいです。", zh: "我想稍微諮詢一下。" },
+      { en: "もう少し詳しく教えてください。", zh: "請再詳細告訴我一點。" },
+      { en: "次のステップは何ですか？", zh: "下一步是什麼？" },
+      { en: "確認してもいいですか？", zh: "我可以確認一下嗎？" },
+      { en: "ありがとうございます。助かりました。", zh: "謝謝你，幫了大忙。" },
+    ];
+  }
+  if (targetLanguage === "ko") {
+    return [
+      { en: "조금 상담하고 싶어요.", zh: "我想稍微諮詢一下。" },
+      { en: "조금 더 자세히 말해 주세요.", zh: "請再詳細說一點。" },
+      { en: "다음 단계는 뭐예요?", zh: "下一步是什麼？" },
+      { en: "확인해도 될까요?", zh: "我可以確認一下嗎？" },
+      { en: "감사합니다. 도움이 됐어요.", zh: "謝謝你，幫了大忙。" },
+    ];
+  }
+  if (targetLanguage === "it") {
+    return [
+      { en: "Vorrei chiedere un'informazione.", zh: "我想詢問一個資訊。" },
+      { en: "Può dirmi qualche dettaglio in più?", zh: "可以再多告訴我一些細節嗎？" },
+      { en: "Qual è il prossimo passo?", zh: "下一步是什麼？" },
+      { en: "Posso confermare una cosa?", zh: "我可以確認一件事嗎？" },
+      { en: "Grazie, mi è stato molto utile.", zh: "謝謝，這對我很有幫助。" },
+    ];
+  }
+  return [];
 }
 
 function pickWords(seed: string, n: number) {

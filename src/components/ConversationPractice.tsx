@@ -6,7 +6,9 @@ import { Send, Volume2, Star, Mic, MicOff, VolumeX } from "lucide-react";
 import type { Scene, TutorFeedback, DialogueResult } from "@/types";
 import { aiTutorService } from "@/services/aiTutorService";
 import { dictionaryService } from "@/services/dictionaryService";
+import { learningService } from "@/services/learningService";
 import { speechService, type SpeakOptions } from "@/services/speechService";
+import { getLearningLanguage } from "@/data/learningLanguages";
 import ClickableText from "@/components/ClickableText";
 import WordSheet from "@/components/WordSheet";
 import { getSelectedTutor } from "@/components/TutorSelector";
@@ -42,6 +44,130 @@ function pickPersona(scene: Scene): string {
   return list[Math.floor(Math.random() * list.length)];
 }
 
+function localizedOpening(scene: Scene, targetLanguage: ReturnType<typeof getLearningLanguage>, fallback: { en: string; zh: string }) {
+  const choose = (items: { en: string; zh: string }[]) => items[Math.floor(Math.random() * items.length)] || fallback;
+  const title = `${scene.name} ${scene.enName} ${scene.themeId}`.toLowerCase();
+  const map = {
+    en: {
+      free: [
+        { en: "Hi! What would you like to talk about today?", zh: "嗨！今天想聊什麼呢？" },
+        { en: "Hey, good to see you. What topic feels useful today?", zh: "嘿，很高興見到你。今天想練什麼主題？" },
+        { en: "Hi there. Tell me what you want to practice, and we'll make it real.", zh: "嗨。告訴我你想練什麼，我們把它變成真實對話。" },
+      ],
+      restaurant: [
+        { en: "Good evening. Welcome in. Do you have a reservation?", zh: "晚上好，歡迎光臨。請問有預約嗎？" },
+        { en: "Hi, welcome. Are you dining in today, or picking up an order?", zh: "你好，歡迎。今天內用還是取餐？" },
+        { en: "Welcome. How many people are in your party tonight?", zh: "歡迎光臨。今晚幾位用餐？" },
+      ],
+      cafe: [
+        { en: "Hi there. What can I get started for you today?", zh: "你好。今天想先點什麼？" },
+        { en: "Welcome in. Are you thinking coffee, tea, or something cold?", zh: "歡迎光臨。你想喝咖啡、茶，還是冰飲？" },
+        { en: "Hey, take your time. What sounds good today?", zh: "嘿，慢慢看。今天想喝什麼？" },
+      ],
+      travel: [
+        { en: "Excuse me, you seem a bit lost. Are you looking for somewhere?", zh: "不好意思，你看起來有點迷路。你在找地方嗎？" },
+        { en: "Hi, can I help? Which place are you trying to get to?", zh: "你好，我可以幫忙嗎？你想去哪裡？" },
+        { en: "You look like you're checking directions. Where are you headed?", zh: "你看起來在看路線。你要去哪裡？" },
+      ],
+      daily: [
+        { en: "Hey, good to see you. How's your day going so far?", zh: "嘿，很高興看到你。今天目前過得如何？" },
+        { en: "Hi! What's been the busiest part of your day?", zh: "嗨！你今天最忙的是什麼？" },
+        { en: "Nice to see you. Tell me one thing that happened today.", zh: "很高興見到你。跟我說今天發生的一件事。" },
+      ],
+      default: [
+        fallback,
+        { en: "Hi, let's start naturally. What's the first thing you want to say?", zh: "嗨，我們自然開始吧。你第一句想說什麼？" },
+        { en: "Great, let's role-play this. What would you say first?", zh: "很好，我們來角色扮演。你第一句會怎麼說？" },
+      ],
+    },
+    ja: {
+      free: [
+        { en: "こんにちは。今日はどんなテーマで話しましょうか？", zh: "你好。今天想用什麼主題聊天呢？" },
+        { en: "こんにちは。今日は何を練習したいですか？", zh: "你好。今天想練習什麼呢？" },
+      ],
+      restaurant: [
+        { en: "いらっしゃいませ。ご予約はありますか？", zh: "歡迎光臨。請問有預約嗎？" },
+        { en: "こんばんは。何名様ですか？", zh: "晚上好。請問幾位？" },
+      ],
+      cafe: [
+        { en: "いらっしゃいませ。今日は何を注文しますか？", zh: "歡迎光臨。今天想點什麼呢？" },
+        { en: "こんにちは。店内でお召し上がりですか？", zh: "你好。請問內用嗎？" },
+      ],
+      travel: [
+        { en: "こんにちは。どこへ行きたいですか？道案内しますよ。", zh: "你好。你想去哪裡？我可以幫你指路。" },
+        { en: "大丈夫ですか？道に迷いましたか？", zh: "你還好嗎？迷路了嗎？" },
+      ],
+      daily: [
+        { en: "こんにちは。今日はどんな一日でしたか？", zh: "你好。今天過得怎麼樣？" },
+        { en: "お疲れさまです。今日はいそがしかったですか？", zh: "辛苦了。今天忙嗎？" },
+      ],
+      default: [
+        { en: "こんにちは。この場面で会話を始めましょう。", zh: "你好。我們開始這個情境對話吧。" },
+        { en: "では、自然な会話で練習しましょう。", zh: "那我們用自然對話來練習吧。" },
+      ],
+    },
+    ko: {
+      free: [
+        { en: "안녕하세요. 오늘은 어떤 주제로 이야기해 볼까요?", zh: "你好。今天想聊什麼主題呢？" },
+        { en: "안녕하세요. 오늘 무엇을 연습하고 싶어요?", zh: "你好。今天想練什麼呢？" },
+      ],
+      restaurant: [
+        { en: "어서 오세요. 예약하셨나요?", zh: "歡迎光臨。請問有預約嗎？" },
+        { en: "안녕하세요. 몇 분이세요?", zh: "你好。請問幾位？" },
+      ],
+      cafe: [
+        { en: "어서 오세요. 무엇을 주문하시겠어요?", zh: "歡迎光臨。你想點什麼呢？" },
+        { en: "안녕하세요. 매장에서 드시나요?", zh: "你好。請問內用嗎？" },
+      ],
+      travel: [
+        { en: "안녕하세요. 어디로 가고 싶으세요? 길을 안내해 드릴게요.", zh: "你好。你想去哪裡？我可以幫你指路。" },
+        { en: "길을 찾고 계세요? 어디로 가세요?", zh: "你在找路嗎？你要去哪裡？" },
+      ],
+      daily: [
+        { en: "안녕하세요. 오늘 하루는 어땠어요?", zh: "你好。今天過得怎麼樣？" },
+        { en: "오늘 바빴어요? 하나만 이야기해 주세요.", zh: "今天忙嗎？跟我說一件事。" },
+      ],
+      default: [
+        { en: "안녕하세요. 이 상황으로 대화를 시작해 봐요.", zh: "你好。我們開始這個情境對話吧。" },
+        { en: "좋아요. 자연스럽게 역할 연습을 해 봐요.", zh: "很好。我們自然地角色練習吧。" },
+      ],
+    },
+    it: {
+      free: [
+        { en: "Ciao! Di che cosa vuoi parlare oggi?", zh: "你好！今天想聊什麼呢？" },
+        { en: "Ciao! Che cosa vuoi esercitare oggi?", zh: "你好！今天想練習什麼呢？" },
+      ],
+      restaurant: [
+        { en: "Buonasera, benvenuti. Avete una prenotazione?", zh: "晚上好，歡迎光臨。請問有預約嗎？" },
+        { en: "Buongiorno. Per quante persone?", zh: "您好。請問幾位？" },
+      ],
+      cafe: [
+        { en: "Ciao, benvenuto. Che cosa prendi oggi?", zh: "你好，歡迎光臨。今天想點什麼？" },
+        { en: "Ciao! Lo prendi qui o da portare via?", zh: "你好！內用還是外帶？" },
+      ],
+      travel: [
+        { en: "Ciao! Dove vuoi andare? Posso aiutarti con le indicazioni.", zh: "你好！你想去哪裡？我可以幫你指路。" },
+        { en: "Hai bisogno di aiuto con la strada?", zh: "你需要幫忙看路嗎？" },
+      ],
+      daily: [
+        { en: "Ciao! Com'è andata la tua giornata?", zh: "你好！今天過得怎麼樣？" },
+        { en: "Ciao! Raccontami una cosa successa oggi.", zh: "你好！跟我說今天發生的一件事。" },
+      ],
+      default: [
+        { en: "Ciao! Iniziamo questa conversazione insieme.", zh: "你好！我們一起開始這個情境對話吧。" },
+        { en: "Perfetto. Facciamo una conversazione naturale.", zh: "很好。我們來一段自然對話。" },
+      ],
+    },
+  }[targetLanguage.code];
+  if (!map) return fallback;
+  if (scene.themeId === "free") return choose(map.free);
+  if (title.includes("餐廳") || title.includes("restaurant") || scene.themeId === "restaurant") return choose(map.restaurant);
+  if (title.includes("咖啡") || title.includes("cafe")) return choose(map.cafe);
+  if (title.includes("問路") || title.includes("direction") || scene.themeId === "travel") return choose(map.travel);
+  if (scene.themeId === "daily") return choose(map.daily);
+  return choose(map.default);
+}
+
 export default function ConversationPractice({
   scene,
   showZh,
@@ -57,8 +183,12 @@ export default function ConversationPractice({
   onUserTurn?: (text: string) => boolean | void;
   onFinish: (result: DialogueResult, userTurns: string[], feedbacks: TutorFeedback[]) => void;
 }) {
-  const firstTutor =
+  const targetLanguage = scene.targetLanguage || learningService.getCurrentLanguage();
+  const languageInfo = getLearningLanguage(targetLanguage);
+  const activeScene = { ...scene, targetLanguage };
+  const baseFirstTutor =
     scene.dialogue.find((d) => d.speaker === "tutor") || { en: "Hi! Let's practice together.", zh: "嗨！我們一起練習吧。" };
+  const firstTutor = localizedOpening(scene, languageInfo, baseFirstTutor);
 
   const [msgs, setMsgs] = useState<Msg[]>([{ role: "tutor", en: firstTutor.en, zh: firstTutor.zh }]);
   const [input, setInput] = useState("");
@@ -70,7 +200,7 @@ export default function ConversationPractice({
   const [toast, setToast] = useState("");
   const [tutorSpeaking, setTutorSpeaking] = useState(false);
   const [persona] = useState(() => pickPersona(scene));
-  const [selectedTutor] = useState(() => getSelectedTutor());
+  const [selectedTutor] = useState(() => getSelectedTutor(targetLanguage));
   const tutorName = selectedTutor.name;
 
   const endRef = useRef<HTMLDivElement>(null);
@@ -130,6 +260,11 @@ export default function ConversationPractice({
         setTutorVoiceActive(false);
         extra?.onEnd?.();
       },
+      onError: (message) => {
+        setTutorVoiceActive(false);
+        flashToast(message);
+        extra?.onError?.(message);
+      },
     };
   }
 
@@ -159,7 +294,7 @@ export default function ConversationPractice({
 
       const options: SpeakOptions = animateTutor
         ? tutorSpeechOptions({ ...extra, onEnd: done })
-        : { ...speechOptions, ...extra, onEnd: done };
+        : { ...speechOptions, ...extra, onEnd: done, onError: (message) => { flashToast(message); extra?.onError?.(message); } };
       const r = speechService.speak(clean, options);
       if (!r.ok) {
         flashToast(r.message || "無法播放發音");
@@ -188,11 +323,11 @@ export default function ConversationPractice({
     let learnerSpeechDone = Promise.resolve();
     if (autoSpeak) {
       learnerSpeechDone = queueSpeak(trimmed, false, {
-        ttsInstructions: "Repeat the learner's English sentence clearly and naturally for listening practice. Use strong clear volume.",
+        ttsInstructions: `Repeat the learner's ${languageInfo.nativeName} sentence clearly and naturally for listening practice. Use strong clear volume.`,
       });
     }
 
-    const fb = await aiTutorService.feedback(scene, trimmed, turn + 1, history, persona);
+    const fb = await aiTutorService.feedback(activeScene, trimmed, turn + 1, history, persona);
     feedbacksRef.current = [...feedbacksRef.current, fb];
     const reachedMax = userTurnsRef.current.length >= MAX_PRACTICE_TURNS;
     await learnerSpeechDone;
@@ -226,6 +361,7 @@ export default function ConversationPractice({
     }
     speechService.stop();
     const stop = speechService.listen({
+      lang: selectedTutor.lang,
       onResult: (text) => {
         setInput((prev) => (prev ? prev + " " : "") + text);
         // auto-send after a short delay so the user sees the transcript
@@ -253,7 +389,7 @@ export default function ConversationPractice({
       flashToast(`請至少練習 ${MIN_PRACTICE_TURNS} 句對話再結束`);
       return;
     }
-    const result = aiTutorService.summarize(scene, feedbacks, userTurns);
+    const result = aiTutorService.summarize(activeScene, feedbacks, userTurns);
     speechService.stop();
     stopListenRef.current?.();
     onFinish(result, userTurns, feedbacks);
@@ -272,14 +408,34 @@ export default function ConversationPractice({
   const recSupported = speechService.isRecognitionSupported();
   const userTurnCount = msgs.filter((m) => m.role === "user").length;
   const mouthTopByTutor: Record<string, string> = {
-    amy: "45%",
-    emma: "46%",
-    lily: "47%",
-    sophie: "45%",
-    jake: "48%",
-    william: "48%",
+    amy: "37%",
+    emma: "34%",
+    lily: "36%",
+    sophie: "38%",
+    jake: "38%",
+    william: "39%",
+    haruto: "38%",
+    yui: "37%",
+    minjun: "39%",
+    seoyeon: "37%",
+    marco: "39%",
+    giulia: "37%",
   };
-  const talkingMouthStyle = { left: "50%", top: mouthTopByTutor[selectedTutor.id] ?? "46%" };
+  const mouthLeftByTutor: Record<string, string> = {
+    emma: "50%",
+    amy: "50%",
+    lily: "50%",
+    sophie: "50%",
+    jake: "50%",
+    william: "50%",
+    haruto: "50%",
+    yui: "50%",
+    minjun: "50%",
+    seoyeon: "50%",
+    marco: "50%",
+    giulia: "50%",
+  };
+  const talkingMouthStyle = { left: mouthLeftByTutor[selectedTutor.id] ?? "50%", top: mouthTopByTutor[selectedTutor.id] ?? "38%" };
 
   return (
     <div className="flex flex-col min-h-0 flex-1">
@@ -295,18 +451,29 @@ export default function ConversationPractice({
           />
           {tutorSpeaking && (
             <motion.div
-              className="pointer-events-none absolute z-10 -translate-x-1/2 rounded-full border border-rose-100/80 bg-gradient-to-b from-rose-300/80 via-rose-500/80 to-rose-950/85 shadow-[0_0_14px_rgba(244,114,182,0.35)]"
+              className="pointer-events-none absolute z-10 -translate-x-1/2 overflow-hidden rounded-[999px] border border-white/70 bg-gradient-to-b from-rose-200 via-rose-500 to-rose-950 shadow-[0_0_18px_rgba(244,114,182,0.55),inset_0_1px_2px_rgba(255,255,255,0.8)]"
               style={talkingMouthStyle}
-              initial={{ opacity: 0, scaleX: 0.8, height: 4, width: 26 }}
+              initial={{ opacity: 0, scaleX: 0.78, height: 6, width: 28 }}
               animate={{
-                opacity: [0.45, 0.78, 0.5, 0.82, 0.45],
-                scaleX: [0.8, 1.08, 0.92, 1.16, 0.82],
-                height: [4, 13, 6, 15, 5],
-                width: [26, 34, 28, 36, 26],
+                opacity: [0.72, 0.96, 0.78, 1, 0.72],
+                scaleX: [0.78, 1.1, 0.88, 1.18, 0.8],
+                height: [6, 20, 8, 24, 7],
+                width: [28, 42, 34, 46, 30],
               }}
-              transition={{ duration: 0.42, repeat: Infinity, ease: "easeInOut" }}
+              transition={{ duration: 0.32, repeat: Infinity, ease: "easeInOut" }}
               aria-hidden="true"
-            />
+            >
+              <motion.span
+                className="absolute left-1/2 top-1/2 h-2.5 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/35 blur-[1px]"
+                animate={{ opacity: [0.25, 0.65, 0.35], scaleX: [0.8, 1.15, 0.9] }}
+                transition={{ duration: 0.32, repeat: Infinity, ease: "easeInOut" }}
+              />
+              <motion.span
+                className="absolute bottom-0 left-1/2 h-2 w-9 -translate-x-1/2 rounded-t-full bg-rose-100/55"
+                animate={{ y: [2, 0, 2], opacity: [0.45, 0.8, 0.45] }}
+                transition={{ duration: 0.32, repeat: Infinity, ease: "easeInOut" }}
+              />
+            </motion.div>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-ink/85 via-ink/10 to-white/10" />
           <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-black/35 px-3 py-1.5 text-xs font-extrabold text-white backdrop-blur">
@@ -403,7 +570,7 @@ export default function ConversationPractice({
 
         {listening && (
           <div className="flex items-center justify-center gap-2 text-lilacDeep font-bold text-sm">
-            <span className="h-2 w-2 rounded-full bg-peachDeep animate-ping" /> 聆聽中…請說英文
+            <span className="h-2 w-2 rounded-full bg-peachDeep animate-ping" /> 聆聽中…請說{languageInfo.zhName}
           </div>
         )}
 

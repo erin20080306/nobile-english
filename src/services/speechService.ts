@@ -15,6 +15,7 @@ export interface SpeakOptions {
   volumeGain?: number;
   onStart?: () => void;
   onEnd?: () => void;
+  onError?: (message: string) => void;
 }
 
 function supported() {
@@ -41,17 +42,35 @@ function loadVoices(): Promise<SpeechSynthesisVoice[]> {
 }
 
 function pickVoice(voices: SpeechSynthesisVoice[], lang = "en-US", keywords: string[] = []) {
-  const preferred = lang === "en-GB" ? "en-GB" : "en-US";
+  const preferred = lang || "en-US";
+  const prefix = preferred.slice(0, 2).toLowerCase();
   if (keywords.length > 0) {
     const kwMatch = voices.find((v) => keywords.some((k) => v.name.toLowerCase().includes(k)));
     if (kwMatch) return kwMatch;
   }
-  return (
+  const local =
     voices.find((v) => v.lang === preferred) ||
-    voices.find((v) => v.lang.startsWith("en-GB") && preferred === "en-GB") ||
+    voices.find((v) => v.lang.toLowerCase().startsWith(prefix));
+  if (local) return local;
+  if (prefix !== "en") return undefined;
+  return voices.find((v) => v.lang.startsWith("en-GB") && preferred === "en-GB") ||
     voices.find((v) => v.lang === "en-US") ||
-    voices.find((v) => v.lang.startsWith("en"))
-  );
+    voices.find((v) => v.lang.startsWith("en"));
+}
+
+function isEnglishLang(lang = "en-US") {
+  return lang.toLowerCase().startsWith("en");
+}
+
+function missingCloudVoiceMessage(lang = "en-US") {
+  const label = lang.startsWith("ja")
+    ? "日文"
+    : lang.startsWith("ko")
+    ? "韓文"
+    : lang.startsWith("it")
+    ? "義大利文"
+    : "此語言";
+  return `${label}語音需要 OpenAI TTS key；目前本機未讀到 key 或瀏覽器沒有${label}語音。`;
 }
 
 function stopAudio() {
@@ -79,14 +98,14 @@ function stopAudio() {
   endPlayback?.();
 }
 
-function speakNow(text: string, opts?: SpeakOptions) {
+function speakNow(text: string, opts?: SpeakOptions, voices = window.speechSynthesis.getVoices()) {
   const lang = opts?.lang ?? "en-US";
   const utter = new SpeechSynthesisUtterance(text);
   utter.lang = lang;
   utter.rate = opts?.rate ?? 0.95;
   utter.pitch = 1;
   utter.volume = 1;
-  const voice = pickVoice(window.speechSynthesis.getVoices(), lang, opts?.voiceKeywords ?? []);
+  const voice = pickVoice(voices, lang, opts?.voiceKeywords ?? []);
   if (voice) utter.voice = voice;
   currentPlaybackEnd = opts?.onEnd ?? null;
   utter.onstart = () => opts?.onStart?.();
@@ -204,25 +223,51 @@ export const speechService = {
   },
 
   speak(text: string, opts?: SpeakOptions): { ok: boolean; message?: string } {
-    if (!this.isSupported()) {
+    const canUseCloud = Boolean(opts?.ttsVoice && typeof fetch !== "undefined" && typeof Audio !== "undefined");
+    if (!this.isSupported() && !canUseCloud) {
       return { ok: false, message: "您的瀏覽器不支援語音播放，請改用 Chrome 或 Safari。" };
     }
     const clean = text.trim();
     if (!clean) return { ok: true };
     try {
       stopAudio();
-      window.speechSynthesis.cancel();
-      if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+      if (supported()) {
+        window.speechSynthesis.cancel();
+        if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+      }
       if (opts?.ttsVoice) {
-        void speakWithOpenAi(clean, opts).then((played) => {
-          if (played || !supported()) return;
-          if (window.speechSynthesis.getVoices().length === 0) void loadVoices();
-          speakNow(clean, opts);
+        void speakWithOpenAi(clean, opts).then(async (played) => {
+          if (played) return;
+          if (!supported()) {
+            opts.onError?.(missingCloudVoiceMessage(opts.lang));
+            opts.onEnd?.();
+            return;
+          }
+          const voices = window.speechSynthesis.getVoices().length
+            ? window.speechSynthesis.getVoices()
+            : await loadVoices();
+          const voice = pickVoice(voices, opts.lang, opts.voiceKeywords ?? []);
+          if (!voice && opts.lang && !isEnglishLang(opts.lang)) {
+            opts.onError?.(missingCloudVoiceMessage(opts.lang));
+            opts.onEnd?.();
+            return;
+          }
+          speakNow(clean, opts, voices);
         });
         return { ok: true };
       }
-      if (window.speechSynthesis.getVoices().length === 0) void loadVoices();
-      speakNow(clean, opts);
+      void (async () => {
+        const voices = window.speechSynthesis.getVoices().length
+          ? window.speechSynthesis.getVoices()
+          : await loadVoices();
+        const voice = pickVoice(voices, opts?.lang, opts?.voiceKeywords ?? []);
+        if (!voice && opts?.lang && !isEnglishLang(opts.lang)) {
+          opts.onError?.(missingCloudVoiceMessage(opts.lang));
+          opts.onEnd?.();
+          return;
+        }
+        speakNow(clean, opts, voices);
+      })();
       return { ok: true };
     } catch {
       return { ok: false, message: "語音播放發生問題，請稍後再試。" };
@@ -244,6 +289,7 @@ export const speechService = {
   // Starts listening for English speech. Returns a stop() function, or null if
   // unsupported. onResult fires with the recognized transcript.
   listen(handlers: {
+    lang?: string;
     onResult: (text: string) => void;
     onError?: (message: string) => void;
     onEnd?: () => void;
@@ -262,7 +308,7 @@ export const speechService = {
       return null;
     }
     const rec = new Ctor();
-    rec.lang = "en-US";
+    rec.lang = handlers.lang || "en-US";
     rec.interimResults = false;
     rec.maxAlternatives = 1;
     rec.continuous = false;

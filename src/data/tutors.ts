@@ -1,8 +1,11 @@
+import type { LearningLanguageCode } from "@/types";
+
 export interface TutorProfile {
   id: string;
   name: string;
   gender: "male" | "female";
-  accent: "american" | "british" | "chinese";
+  targetLanguage: LearningLanguageCode;
+  accent: "american" | "british" | "chinese" | "japanese" | "korean" | "italian";
   accentLabel: string;
   flag: string;
   lang: string;
@@ -22,6 +25,7 @@ export const TUTORS: TutorProfile[] = [
     id: "jake",
     name: "Jake",
     gender: "male",
+    targetLanguage: "en",
     accent: "american",
     accentLabel: "美式英語",
     flag: "🇺🇸",
@@ -40,6 +44,7 @@ export const TUTORS: TutorProfile[] = [
     id: "william",
     name: "William",
     gender: "male",
+    targetLanguage: "en",
     accent: "british",
     accentLabel: "英式英語",
     flag: "🇬🇧",
@@ -58,6 +63,7 @@ export const TUTORS: TutorProfile[] = [
     id: "emma",
     name: "Emma",
     gender: "female",
+    targetLanguage: "en",
     accent: "american",
     accentLabel: "美式英語",
     flag: "🇺🇸",
@@ -76,6 +82,7 @@ export const TUTORS: TutorProfile[] = [
     id: "amy",
     name: "Amy",
     gender: "female",
+    targetLanguage: "en",
     accent: "american",
     accentLabel: "美式英語",
     flag: "🇺🇸",
@@ -94,6 +101,7 @@ export const TUTORS: TutorProfile[] = [
     id: "sophie",
     name: "Sophie",
     gender: "female",
+    targetLanguage: "en",
     accent: "british",
     accentLabel: "英式英語",
     flag: "🇬🇧",
@@ -112,6 +120,7 @@ export const TUTORS: TutorProfile[] = [
     id: "lily",
     name: "Lily",
     gender: "female",
+    targetLanguage: "en",
     accent: "chinese",
     accentLabel: "中式英文",
     flag: "🇨🇳",
@@ -126,10 +135,131 @@ export const TUTORS: TutorProfile[] = [
     photoUrl: "/assets/tutors/lily-asian-tutor.jpg",
     sampleLine: "Hi, I'm Lily. I'll help you speak English clearly and confidently.",
   },
+  {
+    id: "haruto",
+    name: "Haruto",
+    gender: "male",
+    targetLanguage: "ja",
+    accent: "japanese",
+    accentLabel: "標準日文",
+    flag: "🇯🇵",
+    lang: "ja-JP",
+    voiceKeywords: ["kyoko", "otoya", "ja-jp", "japanese"],
+    ttsVoice: "echo",
+    ttsInstructions: "Speak as a native Japanese male tutor from Tokyo. Use natural standard Japanese, crisp pronunciation, gentle teacher energy, and strong clean volume. Do not use an English accent.",
+    ttsVolumeGain: 1.58,
+    description: "日本籍男老師，語速穩定，適合情境對話與發音練習",
+    avatarSeed: "Haruto",
+    avatarBg: "#DBEAFE",
+    photoUrl: "https://source.unsplash.com/featured/420x420/?japanese,man,teacher,portrait",
+    sampleLine: "こんにちは。はるとです。いっしょに自然な日本語を練習しましょう。",
+  },
+  {
+    id: "yui",
+    name: "Yui",
+    gender: "female",
+    targetLanguage: "ja",
+    accent: "japanese",
+    accentLabel: "標準日文",
+    flag: "🇯🇵",
+    lang: "ja-JP",
+    voiceKeywords: ["kyoko", "sayaka", "ja-jp", "japanese"],
+    ttsVoice: "nova",
+    ttsInstructions: "Speak as a native Japanese female tutor from Tokyo. Use natural standard Japanese, a sweet clear voice, friendly pacing, and strong clean volume. Do not use an English accent.",
+    ttsVolumeGain: 1.6,
+    description: "日本籍女老師，聲音清楚甜美，適合初學者開口練習",
+    avatarSeed: "Yui",
+    avatarBg: "#FFE4E6",
+    photoUrl: "https://source.unsplash.com/featured/420x420/?japanese,woman,teacher,portrait",
+    sampleLine: "こんにちは。ゆいです。今日は楽しく日本語を話しましょう。",
+  },
+  {
+    id: "minjun",
+    name: "Minjun",
+    gender: "male",
+    targetLanguage: "ko",
+    accent: "korean",
+    accentLabel: "標準韓文",
+    flag: "🇰🇷",
+    lang: "ko-KR",
+    voiceKeywords: ["yuna", "ko-kr", "korean"],
+    ttsVoice: "ash",
+    ttsInstructions: "Speak as a native Korean male tutor from Seoul. Use natural Korean, clear Seoul pronunciation, friendly pacing, and strong clean volume. Do not use an English accent.",
+    ttsVolumeGain: 1.58,
+    description: "韓國籍男老師，發音清晰，適合日常與旅遊對話",
+    avatarSeed: "Minjun",
+    avatarBg: "#E0F2FE",
+    photoUrl: "https://source.unsplash.com/featured/420x420/?korean,man,teacher,portrait",
+    sampleLine: "안녕하세요. 민준입니다. 자연스러운 한국어를 같이 연습해 봐요.",
+  },
+  {
+    id: "seoyeon",
+    name: "Seoyeon",
+    gender: "female",
+    targetLanguage: "ko",
+    accent: "korean",
+    accentLabel: "標準韓文",
+    flag: "🇰🇷",
+    lang: "ko-KR",
+    voiceKeywords: ["yuna", "ko-kr", "korean"],
+    ttsVoice: "coral",
+    ttsInstructions: "Speak as a native Korean female tutor from Seoul. Use natural Korean, a sweet clear voice, Seoul-style pronunciation, and strong volume. Do not use an English accent.",
+    ttsVolumeGain: 1.6,
+    description: "韓國籍女老師，語氣親切，適合從基礎句慢慢練",
+    avatarSeed: "Seoyeon",
+    avatarBg: "#FCE7F3",
+    photoUrl: "https://source.unsplash.com/featured/420x420/?korean,woman,teacher,portrait",
+    sampleLine: "안녕하세요. 서연입니다. 오늘도 편하게 한국어로 말해 봐요.",
+  },
+  {
+    id: "marco",
+    name: "Marco",
+    gender: "male",
+    targetLanguage: "it",
+    accent: "italian",
+    accentLabel: "標準義大利文",
+    flag: "🇮🇹",
+    lang: "it-IT",
+    voiceKeywords: ["luca", "it-it", "italian"],
+    ttsVoice: "onyx",
+    ttsInstructions: "Speak as a native Italian male tutor from Rome. Use natural standard Italian, clear pronunciation, warm teacher energy, expressive Italian rhythm, and strong clean volume.",
+    ttsVolumeGain: 1.58,
+    description: "義大利籍男老師，語調自然，適合餐廳與旅行情境",
+    avatarSeed: "Marco",
+    avatarBg: "#DCFCE7",
+    photoUrl: "https://source.unsplash.com/featured/420x420/?italian,man,teacher,portrait",
+    sampleLine: "Ciao, sono Marco. Oggi pratichiamo l'italiano in modo naturale.",
+  },
+  {
+    id: "giulia",
+    name: "Giulia",
+    gender: "female",
+    targetLanguage: "it",
+    accent: "italian",
+    accentLabel: "標準義大利文",
+    flag: "🇮🇹",
+    lang: "it-IT",
+    voiceKeywords: ["alice", "it-it", "italian"],
+    ttsVoice: "shimmer",
+    ttsInstructions: "Speak as a native Italian female tutor from Milan. Use natural standard Italian, a sweet clear voice, warm energy, expressive Italian rhythm, and strong volume.",
+    ttsVolumeGain: 1.6,
+    description: "義大利籍女老師，聲音明亮，適合生活會話練習",
+    avatarSeed: "Giulia",
+    avatarBg: "#FEF3C7",
+    photoUrl: "https://source.unsplash.com/featured/420x420/?italian,woman,teacher,portrait",
+    sampleLine: "Ciao, sono Giulia. Parliamo insieme in italiano, passo dopo passo.",
+  },
 ];
 
 export const DEFAULT_TUTOR_ID = "emma";
 
-export function getTutorById(id: string): TutorProfile {
-  return TUTORS.find((t) => t.id === id) ?? TUTORS.find((t) => t.id === DEFAULT_TUTOR_ID)!;
+export function getDefaultTutorId(language: LearningLanguageCode = "en") {
+  return TUTORS.find((t) => t.targetLanguage === language)?.id ?? DEFAULT_TUTOR_ID;
+}
+
+export function getTutorById(id: string, language: LearningLanguageCode = "en"): TutorProfile {
+  return TUTORS.find((t) => t.id === id && t.targetLanguage === language)
+    ?? TUTORS.find((t) => t.id === id)
+    ?? TUTORS.find((t) => t.id === getDefaultTutorId(language))
+    ?? TUTORS.find((t) => t.id === DEFAULT_TUTOR_ID)!;
 }

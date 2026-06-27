@@ -83,7 +83,6 @@ export default function DictionaryPage() {
             {entry.synonyms?.length ? <Block label="Synonyms 同義詞" value={entry.synonyms.join(", ")} /> : null}
             {entry.antonyms?.length ? <Block label="Antonyms 反義詞" value={entry.antonyms.join(", ")} /> : null}
             {entry.related?.length ? <Block label="Related 相關單字" value={entry.related.join(", ")} /> : null}
-            {fromFallback && <p className="text-xs text-peachDeep mt-2">＊使用本地 fallback 資料（未串接遠端 API）</p>}
 
             <div className="mt-4 flex gap-3">
               <button onClick={() => setSaved(vocabularyService.toggleSave(entry, "字典"))} className={`flex-1 rounded-3xl py-3 font-bold flex items-center justify-center gap-2 ${saved ? "bg-peachDeep text-white" : "bg-peach text-ink"}`}>

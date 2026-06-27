@@ -101,9 +101,6 @@ export default function WordSheet({
                   {entry.antonyms?.length ? (
                     <Block label="反義詞" value={entry.antonyms.join(", ")} />
                   ) : null}
-                  {result.fromFallback && (
-                    <p className="text-xs text-peachDeep">＊使用本地 fallback 資料</p>
-                  )}
                 </div>
 
                 <div className="mt-5 flex gap-3">

@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import type { ChineseSetting } from "@/types";
+import type { ChineseSetting, LearningLanguageCode } from "@/types";
 import { learningService } from "@/services/learningService";
 import { authService } from "@/services/authService";
+import { getLearningLanguage } from "@/data/learningLanguages";
 import { ProgressBar } from "@/components/ui";
 
 const steps = [
@@ -13,7 +14,7 @@ const steps = [
     key: "language",
     title: "想學習哪種語言？",
     multi: false,
-    options: ["English（英文）", "其他語言（即將推出）"],
+    options: ["English（英文）", "Japanese（日文）", "Korean（韓文）", "Italian（義大利文）"],
   },
   {
     key: "learningGoal",
@@ -48,6 +49,13 @@ const chineseMap: Record<string, ChineseSetting> = {
   "複習時顯示中文": "review-only",
 };
 
+function languageCodeFromOption(option = "English（英文）"): LearningLanguageCode {
+  if (option.includes("Japanese") || option.includes("日文")) return "ja";
+  if (option.includes("Korean") || option.includes("韓文")) return "ko";
+  if (option.includes("Italian") || option.includes("義大利")) return "it";
+  return "en";
+}
+
 export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState(0);
@@ -78,13 +86,17 @@ export default function OnboardingPage() {
       return;
     }
     // save profile
+    const targetLanguage = languageCodeFromOption(single["language"]);
+    const language = getLearningLanguage(targetLanguage);
     learningService.saveProfile({
-      language: "English",
+      language: language.label,
       learningGoal: single["learningGoal"] || "日常會話",
       interests,
       dailyGoalMinutes: parseInt(single["dailyGoalMinutes"]) || 15,
       chineseSetting: chineseMap[single["chineseSetting"]] || "always",
     });
+    const user = authService.getCurrentUser();
+    learningService.setCurrentLanguage(targetLanguage, user?.id || undefined);
     router.replace("/level-test");
   }
 

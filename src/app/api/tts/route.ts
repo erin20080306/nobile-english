@@ -32,6 +32,39 @@ function clampSpeed(speed?: number) {
   return Math.max(0.75, Math.min(1.25, Number(speed)));
 }
 
+async function requestSpeech({
+  apiKey,
+  model,
+  voice,
+  input,
+  instructions,
+  speed,
+}: {
+  apiKey: string;
+  model: string;
+  voice: string;
+  input: string;
+  instructions?: string;
+  speed?: number;
+}) {
+  const body: Record<string, unknown> = {
+    model,
+    voice,
+    input: input.slice(0, 3600),
+    response_format: "mp3",
+    speed: clampSpeed(speed),
+  };
+  if (instructions && model.includes("gpt-4o")) body.instructions = instructions.slice(0, 600);
+  return fetch(OPENAI_SPEECH_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+}
+
 export async function POST(req: Request) {
   let body: TtsRequest;
   try {
@@ -50,21 +83,24 @@ export async function POST(req: Request) {
   const voice = VOICES.has(requestedVoice) ? requestedVoice : "nova";
 
   try {
-    const response = await fetch(OPENAI_SPEECH_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        voice,
-        input: input.slice(0, 3600),
-        instructions: body.instructions?.slice(0, 600),
-        response_format: "mp3",
-        speed: clampSpeed(body.speed),
-      }),
+    let response = await requestSpeech({
+      apiKey,
+      model: MODEL,
+      voice,
+      input,
+      instructions: body.instructions,
+      speed: body.speed,
     });
+
+    if (!response.ok && MODEL !== "tts-1") {
+      response = await requestSpeech({
+        apiKey,
+        model: "tts-1",
+        voice,
+        input,
+        speed: body.speed,
+      });
+    }
 
     if (!response.ok) {
       return NextResponse.json({ error: "TTS request failed" }, { status: 502 });

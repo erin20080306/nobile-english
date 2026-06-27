@@ -14,6 +14,7 @@ import { vocabularyService } from "@/services/vocabularyService";
 import { examService } from "@/services/examService";
 import { sceneService } from "@/services/sceneService";
 import { sceneCardStyle } from "@/data/sceneVisuals";
+import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
 import CheerImage from "@/components/CheerImage";
 import BottomNav from "@/components/BottomNav";
 import { LevelBadge, ProgressBar, Toggle } from "@/components/ui";
@@ -72,11 +73,19 @@ export default function Dashboard() {
   const examResults = examService.getResults();
   const lastExam = examResults[0];
   const recs = recByLevel[user.level] || recByLevel.Beginner;
+  const currentLanguage = getLearningLanguage(settings.targetLanguage);
 
   function updateSetting(patch: Partial<UserSettings>) {
     const next = { ...settings!, ...patch };
     setSettings(next);
     learningService.saveSettings(next);
+  }
+
+  function changeLanguage(code: UserSettings["targetLanguage"]) {
+    const next = { ...settings!, targetLanguage: code };
+    setSettings(next);
+    learningService.saveSettings(next);
+    learningService.saveProfile({ language: getLearningLanguage(code).label });
   }
 
   const levelStyle: Record<string, string> = {
@@ -129,6 +138,29 @@ export default function Dashboard() {
           <p className="text-xs font-bold text-inkSoft">今日一句英文</p>
           <p className="text-lg font-extrabold text-ink mt-1">{sentence.en}</p>
           {settings.showChineseGlobal && <p className="text-inkSoft">{sentence.zh}</p>}
+        </div>
+      </div>
+
+      <div className="px-5 mt-4">
+        <div className="card !p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold text-inkSoft">目前學習語言</p>
+              <p className="font-extrabold text-ink">{currentLanguage.flag} {currentLanguage.zhName}</p>
+            </div>
+            <button className="chip bg-lilac text-lilacDeep" onClick={() => router.push("/settings")}>設定</button>
+          </div>
+          <div className="mt-3 flex gap-2 overflow-x-auto no-scrollbar pb-1">
+            {LEARNING_LANGUAGES.map((lang) => (
+              <button
+                key={lang.code}
+                onClick={() => changeLanguage(lang.code)}
+                className={`chip whitespace-nowrap ${settings.targetLanguage === lang.code ? "bg-lilacDeep text-white" : "bg-cream text-ink"}`}
+              >
+                {lang.flag} {lang.zhName}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

@@ -1,21 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Check, Volume2 } from "lucide-react";
-import { TUTORS, getTutorById, DEFAULT_TUTOR_ID, type TutorProfile } from "@/data/tutors";
+import { TUTORS, getTutorById, getDefaultTutorId, type TutorProfile } from "@/data/tutors";
+import type { LearningLanguageCode } from "@/types";
 import { storageService } from "@/services/storageService";
 import { speechService } from "@/services/speechService";
+import { learningService } from "@/services/learningService";
 
 const TUTOR_KEY = "selected_tutor_id";
 
-export function getSelectedTutor(): TutorProfile {
-  const id = storageService.get<string>(TUTOR_KEY, DEFAULT_TUTOR_ID);
-  return getTutorById(id);
+function tutorKey(language: LearningLanguageCode) {
+  return `${TUTOR_KEY}_${language}`;
 }
 
-export function saveSelectedTutor(id: string) {
-  storageService.set(TUTOR_KEY, id);
+export function getSelectedTutor(language: LearningLanguageCode = learningService.getCurrentLanguage()): TutorProfile {
+  const fallback = getDefaultTutorId(language);
+  const id = storageService.get<string>(tutorKey(language), storageService.get<string>(TUTOR_KEY, fallback));
+  const tutor = getTutorById(id, language);
+  return tutor.targetLanguage === language ? tutor : getTutorById(fallback, language);
+}
+
+export function saveSelectedTutor(id: string, language: LearningLanguageCode = learningService.getCurrentLanguage()) {
+  storageService.set(tutorKey(language), id);
+  if (language === "en") storageService.set(TUTOR_KEY, id);
 }
 
 function TutorAvatar({ tutor, size = 72 }: { tutor: TutorProfile; size?: number }) {
@@ -32,25 +41,31 @@ function TutorAvatar({ tutor, size = 72 }: { tutor: TutorProfile; size?: number 
 export default function TutorSelector({
   onSelect,
   compact = false,
+  targetLanguage,
 }: {
   onSelect?: (tutor: TutorProfile) => void;
   compact?: boolean;
+  targetLanguage?: LearningLanguageCode;
 }) {
-  const [selected, setSelected] = useState<string>(() =>
-    storageService.get<string>(TUTOR_KEY, DEFAULT_TUTOR_ID)
-  );
+  const language = targetLanguage || learningService.getCurrentLanguage();
+  const [selected, setSelected] = useState<string>(() => getSelectedTutor(language).id);
+
+  useEffect(() => {
+    setSelected(getSelectedTutor(language).id);
+  }, [language]);
 
   function pick(tutor: TutorProfile) {
     setSelected(tutor.id);
-    saveSelectedTutor(tutor.id);
+    saveSelectedTutor(tutor.id, language);
     onSelect?.(tutor);
   }
 
-  const males = TUTORS.filter((t) => t.gender === "male");
-  const females = TUTORS.filter((t) => t.gender === "female");
+  const visibleTutors = TUTORS.filter((t) => t.targetLanguage === language);
+  const males = visibleTutors.filter((t) => t.gender === "male");
+  const females = visibleTutors.filter((t) => t.gender === "female");
 
   if (compact) {
-    const current = getTutorById(selected);
+    const current = getTutorById(selected, language);
     return (
       <div className="flex items-center gap-2 bg-white rounded-2xl px-3 py-2 shadow-softer">
         <TutorAvatar tutor={current} size={36} />
@@ -97,6 +112,7 @@ function TutorCard({
       ttsVoice: tutor.ttsVoice,
       ttsInstructions: tutor.ttsInstructions,
       volumeGain: tutor.ttsVolumeGain,
+      onError: (message) => alert(message),
     });
   }
 

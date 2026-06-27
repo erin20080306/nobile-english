@@ -6,7 +6,9 @@ import { motion } from "framer-motion";
 import { Wand2, Play, Volume2 } from "lucide-react";
 import type { CustomScene, EnglishLevel } from "@/types";
 import { sceneService } from "@/services/sceneService";
+import { learningService } from "@/services/learningService";
 import { speechService } from "@/services/speechService";
+import { getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
 import { LevelBadge, Toggle } from "@/components/ui";
 
@@ -32,6 +34,8 @@ export default function CustomScenePage() {
     rounds: 4,
   });
   const [created, setCreated] = useState<CustomScene | null>(null);
+  const targetLanguage = learningService.getCurrentLanguage();
+  const languageInfo = getLearningLanguage(targetLanguage);
 
   function set<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -42,7 +46,7 @@ export default function CustomScenePage() {
       alert("請至少描述想練習的情境");
       return;
     }
-    const c = sceneService.createCustomScene(form);
+    const c = sceneService.createCustomScene({ ...form, targetLanguage });
     setCreated(c);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -89,7 +93,12 @@ export default function CustomScenePage() {
             <div className="space-y-2">
               {s.keyPatterns.map((p, i) => (
                 <div key={i} className="rounded-3xl bg-cream p-3 flex items-start gap-2">
-                  <button onClick={() => speechService.speak(p.en)} className="text-lilacDeep mt-0.5"><Volume2 size={16} /></button>
+                    <button
+                      onClick={() => speechService.speak(p.en, { ...voiceForLanguage(created.targetLanguage || targetLanguage), onError: (message) => alert(message) })}
+                      className="text-lilacDeep mt-0.5"
+                    >
+                      <Volume2 size={16} />
+                    </button>
                   <div><p className="text-ink font-semibold">{p.en}</p>{created.showChinese && <p className="text-sm text-inkSoft">{p.zh}</p>}</div>
                 </div>
               ))}
@@ -118,7 +127,7 @@ export default function CustomScenePage() {
 
   return (
     <div className="min-h-[100dvh] pb-10">
-      <AppHeader title="自訂場景練習" subtitle="輸入主題，自動產生階段式情境" back={true} />
+      <AppHeader title="自訂場景練習" subtitle={`目前語言：${languageInfo.flag} ${languageInfo.zhName}`} back={true} />
       <div className="px-5 space-y-4">
         <div className="card bg-gradient-to-br from-lilac to-sky">
           <p className="text-sm text-ink">試試這些例子：</p>

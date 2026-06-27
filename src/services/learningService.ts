@@ -7,8 +7,10 @@ import type {
   LearningPlan,
   EnglishLevel,
   CEFRLevel,
+  LearningLanguageCode,
 } from "@/types";
 import { storageService, KEYS } from "./storageService";
+import { getLearningLanguage, languageFromLabel } from "@/data/learningLanguages";
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -41,8 +43,9 @@ export const learningService = {
 
   // ---- Settings ----
   getSettings(userId: string): UserSettings {
-    return storageService.get<UserSettings>(KEYS.settings, {
+    const defaults: UserSettings = {
       userId,
+      targetLanguage: "en",
       pronunciationOn: true,
       showChineseGlobal: true,
       sceneChinese: true,
@@ -50,10 +53,22 @@ export const learningService = {
       wordReviewChinese: true,
       sentenceReviewChinese: true,
       examChinese: true,
-    });
+    };
+    const stored = storageService.get<Partial<UserSettings>>(KEYS.settings, {});
+    return { ...defaults, ...stored, userId };
   },
   saveSettings(settings: UserSettings) {
     storageService.set(KEYS.settings, settings);
+  },
+  getCurrentLanguage(): LearningLanguageCode {
+    const stored = storageService.get<Partial<UserSettings>>(KEYS.settings, {});
+    if (stored.targetLanguage) return stored.targetLanguage;
+    return languageFromLabel(this.getProfile().language);
+  },
+  setCurrentLanguage(code: LearningLanguageCode, userId = storageService.get<string>(KEYS.session, "")) {
+    const settings = this.getSettings(userId);
+    this.saveSettings({ ...settings, targetLanguage: code });
+    this.saveProfile({ language: getLearningLanguage(code).label });
   },
 
   // ---- Stats / streak / xp ----
@@ -96,6 +111,7 @@ export const learningService = {
     const records = this.getRecords();
     const full: LearningRecord = {
       ...rec,
+      targetLanguage: rec.targetLanguage || this.getCurrentLanguage(),
       id: Math.random().toString(36).slice(2),
       date: new Date().toISOString(),
     };

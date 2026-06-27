@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { Scene, TutorFeedback } from "@/types";
 import { mockAiTutorService } from "@/services/mockAiTutorService";
+import { getLearningLanguage } from "@/data/learningLanguages";
 
 export const runtime = "nodejs";
 
@@ -93,6 +94,7 @@ function safeJson(text: string) {
 }
 
 function buildPrompt({ scene, userInput, turn, history = [] }: TutorRequest, persona: string) {
+  const targetLanguage = getLearningLanguage(scene.targetLanguage || "en");
   const recent = history.slice(-4).join(" | ");
   const patterns = scene.keyPatterns.slice(0, 3).map((p) => p.en).join(" | ");
   const tutorLines = scene.dialogue
@@ -103,6 +105,10 @@ function buildPrompt({ scene, userInput, turn, history = [] }: TutorRequest, per
 
   return [
     `You are ${persona}, playing the NON-LEARNER role in scene: "${scene.name}".`,
+    `Target learning language: ${targetLanguage.label} / ${targetLanguage.nativeName}.`,
+    targetLanguage.code === "en"
+      ? "Use natural English for reply and betterWay."
+      : `Use natural ${targetLanguage.nativeName} for reply and betterWay. Do not answer in English unless the learner explicitly asks for an English translation.`,
     sceneRoleGuide(scene),
     `IMPORTANT: You are the ${persona} (staff/host/interviewer). The learner is the customer/guest/applicant. NEVER say lines that belong to the learner's role.`,
     `Your job: respond naturally as ${persona} to what the learner said, then continue the exact scene forward.`,
@@ -113,7 +119,7 @@ function buildPrompt({ scene, userInput, turn, history = [] }: TutorRequest, per
     `Turn ${turn}/7. Learner just said: "${userInput}"`,
     ``,
     `Return ONLY valid JSON (no extra text):`,
-    `{"reply":"your natural in-character English response, 2 short sentences, 18-32 words","replyZh":"Traditional Chinese translation","naturalness":50-99,"grammarTip":"短中文文法建議","betterWay":"more natural version of learner sentence in English","zhExplain":"短中文解釋","encouragement":"短鼓勵中文+English"}`,
+    `{"reply":"your natural in-character ${targetLanguage.nativeName} response, 2 short sentences","replyZh":"Traditional Chinese translation","naturalness":50-99,"grammarTip":"短中文文法建議","betterWay":"more natural version of learner sentence in ${targetLanguage.nativeName}","zhExplain":"短中文解釋","encouragement":"短鼓勵繁中，可加一句${targetLanguage.nativeName}"}`,
   ].filter(Boolean).join("\n");
 }
 

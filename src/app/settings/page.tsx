@@ -7,6 +7,7 @@ import type { User, UserSettings, OnboardingProfile } from "@/types";
 import { useUser } from "@/hooks/useUser";
 import { learningService } from "@/services/learningService";
 import { authService } from "@/services/authService";
+import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import { Toggle, LevelBadge } from "@/components/ui";
@@ -33,11 +34,22 @@ export default function SettingsPage() {
   const deviceInfo = authService.getDeviceInfo(shownUser);
   const profiles = shownUser.profiles || [];
   const activeProfileId = shownUser.activeProfileId || profiles[0]?.id;
+  const currentLanguage = getLearningLanguage(settings.targetLanguage);
 
   function update(patch: Partial<UserSettings>) {
     const next = { ...settings!, ...patch };
     setSettings(next);
     learningService.saveSettings(next);
+  }
+
+  function updateLanguage(code: UserSettings["targetLanguage"]) {
+    const language = getLearningLanguage(code);
+    const next = { ...settings!, targetLanguage: code };
+    setSettings(next);
+    learningService.saveSettings(next);
+    const nextProfile = { ...profile, language: language.label };
+    setProfile(nextProfile);
+    learningService.saveProfile(nextProfile);
   }
 
   function addProfile() {
@@ -118,15 +130,34 @@ export default function SettingsPage() {
 
         <div className="card">
           <p className="font-bold text-ink mb-2">學習資料</p>
-          <Row label="學習語言" value={profile.language || "English"} />
+          <Row label="學習語言" value={`${currentLanguage.flag} ${currentLanguage.zhName}`} />
           <Row label="學習目標" value={profile.learningGoal || "—"} />
           <Row label="每日目標" value={`${profile.dailyGoalMinutes || 15} 分鐘`} />
           <Row label="興趣" value={(profile.interests || []).join("、") || "—"} />
         </div>
 
+        <div className="card">
+          <p className="font-bold text-ink flex items-center gap-2"><Globe size={18} className="text-mintDeep" /> 切換學習語言</p>
+          <p className="mt-1 text-xs text-inkSoft">英文、日文、韓文、義大利文可自由切換；舊紀錄會保留在學習紀錄中。</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {LEARNING_LANGUAGES.map((lang) => (
+              <button
+                key={lang.code}
+                onClick={() => updateLanguage(lang.code)}
+                className={`rounded-2xl px-3 py-3 text-left font-extrabold transition active:scale-95 ${
+                  settings.targetLanguage === lang.code ? "bg-lilacDeep text-white shadow-soft" : "bg-cream text-ink"
+                }`}
+              >
+                <span className="block text-base">{lang.flag} {lang.zhName}</span>
+                <span className={`block text-xs ${settings.targetLanguage === lang.code ? "text-white/75" : "text-inkSoft"}`}>{lang.nativeName}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="card space-y-4">
           <p className="font-bold text-ink flex items-center gap-2"><Volume2 size={18} className="text-lilacDeep" /> 一般</p>
-          <Toggle label="發音功能（美式優先）" checked={settings.pronunciationOn} onChange={(v) => update({ pronunciationOn: v })} />
+          <Toggle label={`${currentLanguage.zhName}發音功能`} checked={settings.pronunciationOn} onChange={(v) => update({ pronunciationOn: v })} />
           <Toggle label="全域中文輔助" checked={settings.showChineseGlobal} onChange={(v) => update({ showChineseGlobal: v })} />
         </div>
 
