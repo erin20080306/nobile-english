@@ -50,7 +50,7 @@ export default function CustomScenePage() {
     const s = created.scene;
     return (
       <div className="min-h-[100dvh] pb-10">
-        <AppHeader title="專屬練習卡" subtitle="已為你產生完整內容" />
+        <AppHeader title="專屬練習卡" subtitle="已為你產生完整內容" back={true} />
         <div className="px-5 space-y-4">
           <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="card bg-gradient-to-br from-peach to-lilac">
             <div className="flex items-center gap-2"><Wand2 className="text-peachDeep" /><p className="font-extrabold text-ink">{s.name}</p></div>
@@ -99,7 +99,7 @@ export default function CustomScenePage() {
 
   return (
     <div className="min-h-[100dvh] pb-10">
-      <AppHeader title="建立我的場景" subtitle="輸入需求，自動產生練習" back={false} />
+      <AppHeader title="建立我的場景" subtitle="輸入需求，自動產生練習" back={true} />
       <div className="px-5 space-y-4">
         <div className="card bg-gradient-to-br from-lilac to-sky">
           <p className="text-sm text-ink">試試這些例子：</p>
