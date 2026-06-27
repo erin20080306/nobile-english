@@ -258,6 +258,13 @@ export interface DialogueSuggestion {
   example?: string;
 }
 
+export interface DialogueReview {
+  grammarPoints: string[];
+  vocabularyUsed: string[];
+  strengthenAreas: string[];
+  nativeRewrites: string[];
+}
+
 export interface DialogueResult {
   total: number;
   vocab: number;
@@ -268,5 +275,6 @@ export interface DialogueResult {
   newWords: string[];
   conversationWords: string[];
   suggestions: DialogueSuggestion[];
+  dialogueReview: DialogueReview;
   nextSceneId?: string;
 }

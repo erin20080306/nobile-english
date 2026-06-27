@@ -71,6 +71,12 @@ export default function ConversationPractice({
   const userTurnsRef = useRef<string[]>([]);
   const feedbacksRef = useRef<TutorFeedback[]>([]);
   const finishedRef = useRef(false);
+  const speechOptions = {
+    lang: selectedTutor.lang,
+    voiceKeywords: selectedTutor.voiceKeywords,
+    ttsVoice: selectedTutor.ttsVoice,
+    ttsInstructions: selectedTutor.ttsInstructions,
+  };
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -80,8 +86,8 @@ export default function ConversationPractice({
   useEffect(() => {
     let openingTimer: number | undefined;
     if (autoSpeak) {
-      speechService.warmUp();
-      openingTimer = window.setTimeout(() => speechService.speak(firstTutor.en), 220);
+      speechService.warmUp(speechOptions);
+      openingTimer = window.setTimeout(() => speechService.speak(firstTutor.en, speechOptions), 650);
     }
     return () => {
       if (openingTimer) window.clearTimeout(openingTimer);
@@ -97,7 +103,7 @@ export default function ConversationPractice({
   }
 
   function speak(text: string) {
-    const r = speechService.speak(text, { lang: selectedTutor.lang, voiceKeywords: selectedTutor.voiceKeywords });
+    const r = speechService.speak(text, speechOptions);
     if (!r.ok) flashToast(r.message || "無法播放發音");
   }
 

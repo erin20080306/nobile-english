@@ -205,6 +205,7 @@ function Chat({ scene, onExit }: { scene: Scene; onExit: () => void }) {
       reviewSentences: result.reviewSentences,
       conversationWords: result.conversationWords,
       suggestions: result.suggestions,
+      dialogueReview: result.dialogueReview,
       nextHref: "/dialogue",
     });
     router.push("/results");
@@ -274,6 +275,7 @@ function FreeChat({ onExit }: { onExit: () => void }) {
       reviewSentences: result.reviewSentences,
       conversationWords: result.conversationWords,
       suggestions: result.suggestions,
+      dialogueReview: result.dialogueReview,
       nextHref: "/dialogue",
     });
     router.push("/results");

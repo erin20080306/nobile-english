@@ -121,6 +121,9 @@ export default function ScenePracticePage() {
       ],
       newWords: scene!.keyWords,
       reviewSentences: scene!.keyPatterns.map((p) => p.en),
+      conversationWords: result.conversationWords,
+      suggestions: result.suggestions,
+      dialogueReview: result.dialogueReview,
       nextHref: "/scenes",
     });
     router.push("/results");

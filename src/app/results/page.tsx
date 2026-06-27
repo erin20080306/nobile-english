@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Flame, Award, ArrowRight, Home, TrendingUp, BookOpen, MessageSquare } from "lucide-react";
-import type { DialogueSuggestion } from "@/types";
+import { Flame, Award, ArrowRight, Home, TrendingUp, BookOpen, MessageSquare, ClipboardCheck, Sparkles } from "lucide-react";
+import type { DialogueSuggestion, DialogueReview } from "@/types";
 import { storageService, KEYS } from "@/services/storageService";
 import { learningService } from "@/services/learningService";
 import { rewardImageForScore } from "@/data/rewardImages";
@@ -21,6 +21,7 @@ interface LastResult {
   reviewSentences: string[];
   conversationWords?: string[];
   suggestions?: DialogueSuggestion[];
+  dialogueReview?: DialogueReview;
   nextHref: string;
 }
 
@@ -123,6 +124,37 @@ export default function ResultsPage() {
         </div>
       )}
 
+      {data.dialogueReview && (
+        <div className="card mt-3">
+          <div className="flex items-center gap-2 mb-3">
+            <ClipboardCheck size={17} className="text-lilacDeep" />
+            <p className="font-extrabold text-ink">對話評論</p>
+          </div>
+          <ReviewBlock title="文法提醒" items={data.dialogueReview.grammarPoints} tone="lilac" />
+          <ReviewBlock title="建議加強" items={data.dialogueReview.strengthenAreas} tone="peach" />
+          <div className="mt-3">
+            <p className="text-sm font-bold text-inkSoft mb-2">本次用到的單字</p>
+            <div className="flex flex-wrap gap-2">
+              {data.dialogueReview.vocabularyUsed.map((w) => (
+                <span key={w} className="chip bg-mint text-mintDeep">{w}</span>
+              ))}
+            </div>
+          </div>
+          <div className="mt-3">
+            <p className="text-sm font-bold text-inkSoft mb-2 flex items-center gap-1">
+              <Sparkles size={14} className="text-peachDeep" /> 更道地可以這樣說
+            </p>
+            <ul className="space-y-2">
+              {data.dialogueReview.nativeRewrites.map((s) => (
+                <li key={s} className="rounded-2xl bg-cream px-3 py-2 text-sm font-semibold text-ink leading-relaxed">
+                  {s}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
       {data.suggestions && data.suggestions.length > 0 && (
         <div className="card mt-3">
           <div className="flex items-center gap-2 mb-3">
@@ -161,6 +193,22 @@ export default function ResultsPage() {
         <button className="btn-secondary w-full flex items-center justify-center gap-2" onClick={() => router.push("/dashboard")}>
           <Home size={18} /> 回到首頁
         </button>
+      </div>
+    </div>
+  );
+}
+
+function ReviewBlock({ title, items, tone }: { title: string; items: string[]; tone: "lilac" | "peach" }) {
+  const chipClass = tone === "lilac" ? "bg-lilac text-lilacDeep" : "bg-peach text-peachDeep";
+  return (
+    <div className="mt-3">
+      <p className="text-sm font-bold text-inkSoft mb-2">{title}</p>
+      <div className="space-y-2">
+        {items.map((item) => (
+          <div key={item} className={`rounded-2xl px-3 py-2 text-sm font-semibold leading-relaxed ${chipClass}`}>
+            {item}
+          </div>
+        ))}
       </div>
     </div>
   );

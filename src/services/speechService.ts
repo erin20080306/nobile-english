@@ -2,6 +2,15 @@
 // Designed so a future cloud TTS (e.g. Google/Azure) can replace the impl.
 
 let voicesReady: Promise<SpeechSynthesisVoice[]> | null = null;
+let currentAudio: HTMLAudioElement | null = null;
+
+interface SpeakOptions {
+  rate?: number;
+  lang?: string;
+  voiceKeywords?: string[];
+  ttsVoice?: string;
+  ttsInstructions?: string;
+}
 
 function supported() {
   return typeof window !== "undefined" && "speechSynthesis" in window;
@@ -40,7 +49,18 @@ function pickVoice(voices: SpeechSynthesisVoice[], lang = "en-US", keywords: str
   );
 }
 
-function speakNow(text: string, opts?: { rate?: number; lang?: string; voiceKeywords?: string[] }) {
+function stopAudio() {
+  if (!currentAudio) return;
+  try {
+    currentAudio.pause();
+    currentAudio.src = "";
+  } catch {
+    /* ignore */
+  }
+  currentAudio = null;
+}
+
+function speakNow(text: string, opts?: SpeakOptions) {
   const lang = opts?.lang ?? "en-US";
   const utter = new SpeechSynthesisUtterance(text);
   utter.lang = lang;
@@ -53,12 +73,46 @@ function speakNow(text: string, opts?: { rate?: number; lang?: string; voiceKeyw
   window.speechSynthesis.speak(utter);
 }
 
+async function speakWithOpenAi(text: string, opts?: SpeakOptions) {
+  if (!opts?.ttsVoice || typeof fetch === "undefined" || typeof Audio === "undefined") return false;
+  try {
+    const response = await fetch("/api/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        input: text,
+        voice: opts.ttsVoice,
+        instructions: opts.ttsInstructions,
+        speed: opts.rate ?? 1,
+      }),
+    });
+    if (!response.ok) return false;
+    const blob = await response.blob();
+    if (!blob.size) return false;
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    currentAudio = audio;
+    audio.onended = () => {
+      URL.revokeObjectURL(url);
+      if (currentAudio === audio) currentAudio = null;
+    };
+    audio.onerror = () => {
+      URL.revokeObjectURL(url);
+      if (currentAudio === audio) currentAudio = null;
+    };
+    await audio.play();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const speechService = {
   isSupported(): boolean {
     return supported();
   },
 
-  warmUp(): void {
+  warmUp(opts?: SpeakOptions): void {
     if (!this.isSupported()) return;
     void loadVoices().then((voices) => {
       try {
@@ -69,8 +123,8 @@ export const speechService = {
         const primer = new SpeechSynthesisUtterance(" ");
         primer.volume = 0;
         primer.rate = 1;
-        primer.lang = "en-US";
-        const voice = pickVoice(voices);
+        primer.lang = opts?.lang ?? "en-US";
+        const voice = pickVoice(voices, opts?.lang, opts?.voiceKeywords ?? []);
         if (voice) primer.voice = voice;
         window.speechSynthesis.speak(primer);
       } catch {
@@ -79,15 +133,24 @@ export const speechService = {
     });
   },
 
-  speak(text: string, opts?: { rate?: number; lang?: string; voiceKeywords?: string[] }): { ok: boolean; message?: string } {
+  speak(text: string, opts?: SpeakOptions): { ok: boolean; message?: string } {
     if (!this.isSupported()) {
       return { ok: false, message: "您的瀏覽器不支援語音播放，請改用 Chrome 或 Safari。" };
     }
     const clean = text.trim();
     if (!clean) return { ok: true };
     try {
+      stopAudio();
       window.speechSynthesis.cancel();
       if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+      if (opts?.ttsVoice) {
+        void speakWithOpenAi(clean, opts).then((played) => {
+          if (played || !supported()) return;
+          if (window.speechSynthesis.getVoices().length === 0) void loadVoices();
+          speakNow(clean, opts);
+        });
+        return { ok: true };
+      }
       if (window.speechSynthesis.getVoices().length === 0) void loadVoices();
       speakNow(clean, opts);
       return { ok: true };
@@ -97,6 +160,7 @@ export const speechService = {
   },
 
   stop() {
+    stopAudio();
     if (this.isSupported()) window.speechSynthesis.cancel();
   },
 

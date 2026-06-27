@@ -154,11 +154,11 @@ export default function SettingsPage() {
           <Row label="免費 MVP" value="本機規則 + 內容題庫" />
           <Row label="真人對話" value="OpenAI Realtime / LLM" />
           <Row label="語音輸入" value="Whisper / Google STT" />
-          <Row label="自然發音" value="Google / Azure / ElevenLabs TTS" />
+          <Row label="自然發音" value="OpenAI TTS 已支援；可再升級 ElevenLabs" />
           <Row label="登入綁定" value="Firebase / Supabase Auth" />
           <Row label="錯誤日誌" value="Sentry / Firebase Crashlytics" />
           <p className="text-xs text-inkSoft leading-relaxed">
-            正式真人 AI 會產生 API 費用；目前版本先保留免 API 的本機智能回覆，之後可用服務層升級。
+            已有 OpenAI key 時會優先使用 LLM 與高品質 TTS；沒有 key 時會自動退回本機回覆與系統語音。
           </p>
         </div>
 

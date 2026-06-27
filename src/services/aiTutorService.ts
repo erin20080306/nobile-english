@@ -1,4 +1,4 @@
-import type { Scene, TutorFeedback, DialogueResult, DialogueSuggestion } from "@/types";
+import type { Scene, TutorFeedback, DialogueResult, DialogueSuggestion, DialogueReview } from "@/types";
 import { mockAiTutorService } from "./mockAiTutorService";
 
 // Facade over the AI tutor. The browser calls our Next.js API route; the route
@@ -98,6 +98,24 @@ export const aiTutorService = {
       suggestions.push({ area: "句型練習", tip: "嘗試在對話中使用更多場景句型：" + scene.keyPatterns.slice(0, 2).map(p => p.en).join(" / ") });
     }
 
+    const nativeRewrites = Array.from(
+      new Set(feedbacks.map((f) => f.betterWay).filter((s) => s && s.length > 3))
+    ).slice(0, 5);
+    const grammarPoints = Array.from(
+      new Set(feedbacks.map((f) => f.grammarTip).filter((s) => s && s.length > 5))
+    ).slice(0, 4);
+    const strengthenAreas = [
+      grammar < 75 ? "文法完整度：回答時留意時態、冠詞和句尾標點。" : "文法穩定度：維持完整句，下一步可以加更自然的轉折詞。",
+      fluency < 75 ? "流暢度：避免只回答 yes/no，試著補一句原因或細節。" : "流暢度不錯：可以練習更像真人聊天的接話與反問。",
+      vocab < 75 ? "單字運用：多使用本場景關鍵字，讓回答更貼近情境。" : "單字量足夠：下一步挑戰更精準的動詞和片語。",
+    ];
+    const dialogueReview: DialogueReview = {
+      grammarPoints: grammarPoints.length ? grammarPoints : ["這次文法大致可理解，建議持續練習完整句與自然標點。"],
+      vocabularyUsed: conversationWords.length ? conversationWords : scene.keyWords.slice(0, 6),
+      strengthenAreas,
+      nativeRewrites: nativeRewrites.length ? nativeRewrites : scene.keyPatterns.map((p) => p.en).slice(0, 3),
+    };
+
     return {
       total,
       vocab,
@@ -108,6 +126,7 @@ export const aiTutorService = {
       newWords: scene.keyWords.slice(0, 5),
       conversationWords,
       suggestions: suggestions.slice(0, 4),
+      dialogueReview,
       nextSceneId: undefined,
     };
   },

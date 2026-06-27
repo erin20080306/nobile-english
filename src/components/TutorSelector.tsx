@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Check } from "lucide-react";
+import { Check, Volume2 } from "lucide-react";
 import { TUTORS, getTutorById, DEFAULT_TUTOR_ID, type TutorProfile } from "@/data/tutors";
 import { storageService } from "@/services/storageService";
+import { speechService } from "@/services/speechService";
 
 const TUTOR_KEY = "selected_tutor_id";
 
@@ -18,13 +19,12 @@ export function saveSelectedTutor(id: string) {
 }
 
 function TutorAvatar({ tutor, size = 72 }: { tutor: TutorProfile; size?: number }) {
-  const src = `https://api.dicebear.com/9.x/lorelei/svg?seed=${tutor.avatarSeed}&backgroundColor=${tutor.avatarBg.replace("#", "")}`;
   return (
     <div
       className="rounded-full overflow-hidden flex items-center justify-center border-2 border-white shadow-soft shrink-0"
       style={{ width: size, height: size, background: tutor.avatarBg }}
     >
-      <img src={src} alt={tutor.name} width={size} height={size} className="object-cover" />
+      <img src={tutor.photoUrl} alt={tutor.name} width={size} height={size} className="h-full w-full object-cover" />
     </div>
   );
 }
@@ -90,10 +90,17 @@ function TutorCard({
   selected: boolean;
   onPick: (t: TutorProfile) => void;
 }) {
+  function previewVoice() {
+    speechService.speak(tutor.sampleLine, {
+      lang: tutor.lang,
+      voiceKeywords: tutor.voiceKeywords,
+      ttsVoice: tutor.ttsVoice,
+      ttsInstructions: tutor.ttsInstructions,
+    });
+  }
+
   return (
-    <motion.button
-      whileTap={{ scale: 0.96 }}
-      onClick={() => onPick(tutor)}
+    <motion.div
       className={`relative rounded-3xl p-3 text-left transition border-2 ${
         selected ? "border-lilacDeep shadow-soft" : "border-transparent bg-white shadow-softer"
       }`}
@@ -104,15 +111,22 @@ function TutorCard({
           <Check size={11} className="text-white" />
         </span>
       )}
-      <div className="flex flex-col items-center gap-2">
+      <button type="button" onClick={() => onPick(tutor)} className="w-full flex flex-col items-center gap-2 active:scale-[0.98] transition">
         <TutorAvatar tutor={tutor} size={68} />
         <div className="text-center">
           <p className="font-extrabold text-ink text-sm">{tutor.name} {tutor.flag}</p>
           <p className="text-xs text-inkSoft">{tutor.accentLabel}</p>
           <p className="text-xs text-inkSoft mt-0.5 leading-tight">{tutor.description}</p>
         </div>
-      </div>
-    </motion.button>
+      </button>
+      <button
+        type="button"
+        onClick={previewVoice}
+        className="mt-3 w-full rounded-2xl bg-white/80 text-lilacDeep text-xs font-extrabold py-2 flex items-center justify-center gap-1 active:scale-95 transition"
+      >
+        <Volume2 size={13} /> 試聽聲音
+      </button>
+    </motion.div>
   );
 }
 
