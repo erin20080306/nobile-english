@@ -6,6 +6,7 @@ import type { EnglishLevel } from "@/types";
 import { authService } from "@/services/authService";
 import { Toggle } from "@/components/ui";
 import AppHeader from "@/components/AppHeader";
+import { ShieldCheck } from "lucide-react";
 
 const goals = ["旅遊英文", "職場英文", "日常會話", "面試英文", "考試英文"];
 const levels: EnglishLevel[] = ["Beginner", "Elementary", "Intermediate", "Upper-Intermediate", "Advanced"];
@@ -60,6 +61,19 @@ export default function RegisterPage() {
     <div className="min-h-[100dvh] flex flex-col pb-8">
       <AppHeader title="建立帳號" subtitle="填寫基本資料開始學習" />
       <div className="px-5 space-y-4">
+        <button
+          onClick={() => router.push("/login")}
+          className="card !py-4 w-full text-left flex items-center gap-3 active:scale-[0.99] transition"
+        >
+          <span className="h-11 w-11 rounded-2xl bg-mint flex items-center justify-center text-mintDeep">
+            <ShieldCheck size={20} />
+          </span>
+          <span className="flex-1">
+            <span className="block font-extrabold text-ink">建議使用 Google 帳號綁定</span>
+            <span className="block text-sm text-inkSoft">一個帳號只綁定 1 支手機，同手機可切換多位學習者。</span>
+          </span>
+        </button>
+
         <Input label="姓名" value={form.name} onChange={(v) => set("name", v)} />
         <Input label="Email" type="email" value={form.email} onChange={(v) => set("email", v)} />
         <Input label="密碼" type="password" value={form.password} onChange={(v) => set("password", v)} />

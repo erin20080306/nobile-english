@@ -6,13 +6,14 @@ import { motion } from "framer-motion";
 import { GraduationCap, ChevronRight, History } from "lucide-react";
 import type { ExamType, ExamResult } from "@/types";
 import { examService } from "@/services/examService";
+import { examBlueprints } from "@/data/examBlueprints";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 
-const exams: { type: ExamType; color: string; desc: string }[] = [
-  { type: "TOEIC", color: "from-lilac to-sky", desc: "職場與日常英文能力測驗" },
-  { type: "IELTS", color: "from-mint to-sky", desc: "留學與移民學術英文" },
-  { type: "TOEFL", color: "from-peach to-lilac", desc: "北美學術英文檢定" },
+const exams: { type: ExamType; color: string }[] = [
+  { type: "TOEIC", color: "from-lilac to-sky" },
+  { type: "IELTS", color: "from-mint to-sky" },
+  { type: "TOEFL", color: "from-peach to-lilac" },
 ];
 
 export default function ExamHub() {
@@ -29,6 +30,7 @@ export default function ExamHub() {
       <div className="px-5 space-y-4">
         {exams.map((e, i) => {
           const c = examService.countByExam(e.type);
+          const blueprint = examBlueprints[e.type];
           return (
             <motion.button
               key={e.type}
@@ -42,11 +44,12 @@ export default function ExamHub() {
                 <GraduationCap className="text-ink" />
                 <div className="flex-1">
                   <p className="text-xl font-extrabold text-ink">{e.type}</p>
-                  <p className="text-sm text-ink/70">{e.desc}</p>
+                  <p className="text-sm text-ink/70">{blueprint.focus}</p>
                 </div>
                 <ChevronRight className="text-ink/60" />
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
+                <Tag>{blueprint.minutes} 分鐘專業練習</Tag>
                 <Tag>共 {c.total} 題</Tag>
                 <Tag>單字 {c.vocabulary}</Tag>
                 <Tag>文法 {c.grammar}</Tag>

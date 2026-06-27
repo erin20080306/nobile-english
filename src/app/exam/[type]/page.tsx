@@ -8,6 +8,7 @@ import type { ExamType, ExamQuestion, ExamResult } from "@/types";
 import { examService } from "@/services/examService";
 import { learningService } from "@/services/learningService";
 import { authService } from "@/services/authService";
+import { examBlueprints, examSectionLabel } from "@/data/examBlueprints";
 import AppHeader from "@/components/AppHeader";
 import ScoreRing from "@/components/ScoreRing";
 import { ProgressBar } from "@/components/ui";
@@ -35,6 +36,7 @@ export default function ExamRunPage() {
   }
 
   const q = questions[idx];
+  const blueprint = examBlueprints[type];
 
   function next() {
     if (picked === null) return;
@@ -111,14 +113,26 @@ export default function ExamRunPage() {
 
   return (
     <div className="min-h-[100dvh] flex flex-col pb-8">
-      <AppHeader title={`${type} 測驗`} subtitle={`${idx + 1} / ${questions.length}`} />
+      <AppHeader title={`${type} 測驗`} subtitle={`${idx + 1} / ${questions.length} · ${blueprint.minutes} 分鐘專業練習`} />
       <div className="px-5">
         <ProgressBar value={((idx + 1) / questions.length) * 100} />
+      </div>
+      <div className="px-5 mt-3">
+        <div className="rounded-3xl bg-white/80 px-4 py-3 shadow-softer">
+          <p className="text-sm font-extrabold text-ink">{blueprint.title}</p>
+          <p className="text-xs text-inkSoft mt-0.5">{blueprint.focus}</p>
+          <div className="mt-2 flex gap-2 overflow-x-auto no-scrollbar">
+            {blueprint.sections.map((section) => (
+              <span key={section} className="chip bg-cream text-ink text-[11px] whitespace-nowrap">{section}</span>
+            ))}
+          </div>
+        </div>
       </div>
       <AnimatePresence mode="wait">
         <motion.div key={q.id} initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }} className="px-5 mt-5 flex-1">
           <div className="flex gap-2 mb-3">
             <span className="chip bg-lilac text-lilacDeep text-xs">{catLabel(q.category)}</span>
+            <span className="chip bg-mint text-mintDeep text-xs">{examSectionLabel(type, q.category, idx)}</span>
           </div>
           {q.passage && <div className="card bg-cream mb-3 text-ink leading-relaxed text-sm">{q.passage}</div>}
           <h2 className="text-lg font-extrabold text-ink mb-4">{q.question}</h2>

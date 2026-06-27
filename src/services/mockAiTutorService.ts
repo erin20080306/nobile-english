@@ -119,10 +119,45 @@ function withArticle(item: string) {
   return /^[aeiou]/i.test(clean) ? `an ${clean}` : `a ${clean}`;
 }
 
-function nativeRewrite(scene: Scene, raw: string, corrected: string): string | null {
+function isGuidedScene(scene: Scene) {
+  return scene.themeId !== "free" && scene.id !== "free-chat" && scene.dialogue.length > 0;
+}
+
+function scriptedTutorReply(scene: Scene, turn: number): { en: string; zh: string } | null {
+  if (!isGuidedScene(scene)) return null;
+  const tutorLines = scene.dialogue.filter((line) => line.speaker === "tutor");
+  const line = tutorLines[turn];
+  return line ? { en: line.en, zh: line.zh } : null;
+}
+
+function expectedUserReply(scene: Scene, turn: number): string | null {
+  if (!isGuidedScene(scene)) return null;
+  const userLines = scene.dialogue.filter((line) => line.speaker === "user");
+  return userLines[Math.max(0, turn - 1)]?.en || null;
+}
+
+function isLearningQuestion(text: string) {
+  return (
+    /\?$/.test(text.trim()) &&
+    /\b(what does|what is|how do i say|how can i say|meaning|mean|translate|grammar|pronounce)\b/i.test(text)
+  );
+}
+
+function nativeRewrite(scene: Scene, raw: string, corrected: string, turn = 1): string | null {
   const lower = raw.toLowerCase();
   const cleaned = corrected.replace(/[.?!]+$/, "").trim();
   const item = extractRequestItem(raw);
+  const expected = expectedUserReply(scene, turn);
+
+  if (
+    expected &&
+    !isLearningQuestion(raw) &&
+    (/^(yes|yeah|yep|ok|okay|sure)\b/.test(lower) ||
+      /\b(thanks|thank you)\b/.test(lower) ||
+      countWords(raw) <= 4)
+  ) {
+    return expected;
+  }
 
   if (/^(yes|yeah|yep|ok|okay|sure)\b/.test(lower)) return "Yes, that works for me.";
   if (/^(no|nope)\b/.test(lower)) return "No, that's okay for now, thank you.";
@@ -382,6 +417,162 @@ function sceneSpecificReply(ctx: ReplyCtx): { en: string; zh: string } | null {
   return null;
 }
 
+function adaptiveRoleplayReply(
+  ctx: ReplyCtx,
+  scripted: { en: string; zh: string } | null
+): { en: string; zh: string } | null {
+  const { scene, userInput, turn } = ctx;
+  if (!isGuidedScene(scene) || isLearningQuestion(userInput)) return null;
+
+  const lower = userInput.toLowerCase();
+  const seed = turn + userInput.length;
+
+  if (hasAny(lower, ["sorry", "repeat", "again", "what do you mean", "don't understand", "not understand"])) {
+    return {
+      en: `No problem. Let me say it another way: ${scripted?.en || "Can you tell me a little more?"}`,
+      zh: `沒問題。我換個方式說：${scripted?.zh || "可以多告訴我一點嗎？"}`,
+    };
+  }
+
+  if (scene.themeId === "daily") {
+    if (hasAny(lower, ["lost", "hard to find", "couldn't find", "office", "directions"])) {
+      return { en: "That happens a lot in this building. Did someone at the front desk help you?", zh: "這棟樓很多人第一次都會找不到。櫃台有人協助你嗎？" };
+    }
+    if (hasAny(lower, ["busy", "rushed", "late", "errands", "work"])) {
+      return { en: "No worries. We can keep this quick. What's the most important thing on your schedule today?", zh: "沒關係，我們可以簡短一點。你今天行程裡最重要的是什麼？" };
+    }
+    if (/^(yes|yeah|yep|sure|ok|okay)\b/.test(lower) || hasAny(lower, ["thank", "clear"])) {
+      return scripted || { en: "Great. Tell me a little more about your day.", zh: "很好。多跟我說說你今天的狀況。" };
+    }
+    if (hasAny(lower, ["friend", "family", "movie", "music", "weekend", "hobby"])) {
+      return { en: "That sounds nice. Do you usually do that alone or with other people?", zh: "聽起來不錯。你通常自己做，還是和別人一起？" };
+    }
+  }
+
+  if (scene.themeId === "cafe") {
+    if (hasAny(lower, ["latte", "coffee", "tea", "drink", "order", "want", "like"])) {
+      return pick(
+        [
+          { en: "Sure. What size would you like?", zh: "好的。你想要什麼尺寸？" },
+          { en: "Of course. Would you like that hot or iced?", zh: "當然。你要熱的還是冰的？" },
+          { en: "Great choice. Would you like it for here or to go?", zh: "好選擇。內用還是外帶？" },
+        ],
+        seed
+      );
+    }
+    if (hasAny(lower, ["sugar", "sweet", "ice", "hot", "iced"])) {
+      return { en: "Got it. I'll make a note of that on your order.", zh: "了解，我會在你的訂單上註記。" };
+    }
+    if (hasAny(lower, ["allergy", "nuts", "ingredient"])) {
+      return { en: "Thanks for telling me. I'll check with the kitchen before we place the order.", zh: "謝謝你告訴我。我會先跟廚房確認再下單。" };
+    }
+    if (hasAny(lower, ["bill", "pay", "card", "cash", "receipt"])) {
+      return { en: "Of course. You can pay by card, and I'll bring the receipt to you.", zh: "當然，可以刷卡，我也會把收據給你。" };
+    }
+  }
+
+  if (scene.themeId === "travel") {
+    if (hasAny(lower, ["lost", "station", "street", "map", "direction", "where", "how do i get"])) {
+      return { en: "You're close. Go straight for two blocks, then turn right at the pharmacy.", zh: "你很近了。直走兩個街區，然後在藥局右轉。" };
+    }
+    if (hasAny(lower, ["walk", "bus", "taxi", "far", "long"])) {
+      return { en: "Walking is easiest from here. It should take about ten minutes.", zh: "從這裡走路最方便，大約十分鐘。" };
+    }
+    if (hasAny(lower, ["ticket", "machine", "buy"])) {
+      return { en: "You can buy a ticket at the machine. There is an English menu on the screen.", zh: "你可以在售票機買票。螢幕上有英文選單。" };
+    }
+  }
+
+  if (scene.themeId === "airport") {
+    if (hasAny(lower, ["passport", "confirmation", "booking", "email"])) {
+      return { en: "Thank you. Are you checking any luggage today?", zh: "謝謝。今天有行李要託運嗎？" };
+    }
+    if (hasAny(lower, ["luggage", "suitcase", "bag", "check"])) {
+      return { en: "Please place it on the scale. You're still within the weight limit.", zh: "請放到秤上。重量仍在限制內。" };
+    }
+    if (hasAny(lower, ["gate", "boarding", "security", "seat"])) {
+      return { en: "Boarding starts at gate B6, and security is straight ahead.", zh: "B6 登機門開始登機，安檢在前方直走。" };
+    }
+  }
+
+  if (scene.themeId === "shopping") {
+    if (hasAny(lower, ["small", "large", "medium", "size", "fit"])) {
+      return { en: "I can check another size for you. What size do you usually wear?", zh: "我可以幫你查其他尺寸。你平常穿什麼尺寸？" };
+    }
+    if (hasAny(lower, ["try", "fitting", "room"])) {
+      return { en: "The fitting room is right behind the mirror. I'll bring the size to you.", zh: "試衣間就在鏡子後面。我拿尺寸給你。" };
+    }
+    if (hasAny(lower, ["sale", "discount", "price", "expensive"])) {
+      return { en: "Yes, it's twenty percent off today if you use a member account.", zh: "有，今天使用會員帳號可以打八折。" };
+    }
+  }
+
+  if (scene.themeId === "work") {
+    if (hasAny(lower, ["report", "draft", "update", "finished"])) {
+      return { en: "Great. What's the biggest issue we should flag for the client?", zh: "很好。我們應該提醒客戶最大的問題是什麼？" };
+    }
+    if (hasAny(lower, ["deadline", "schedule", "timeline", "late", "delay"])) {
+      return { en: "Can we still send the proposal by Friday if design finishes tomorrow?", zh: "如果設計明天完成，我們週五前還能寄出提案嗎？" };
+    }
+    if (hasAny(lower, ["client", "risk", "proposal", "meeting"])) {
+      return { en: "Please add one short risk note, then share it with the team.", zh: "請加一段簡短風險說明，然後分享給團隊。" };
+    }
+  }
+
+  if (scene.themeId === "interview") {
+    if (hasAny(lower, ["found", "directions", "clear", "office", "thank"])) {
+      return { en: "Great. Could you start by telling me a little about yourself?", zh: "很好。可以先簡單介紹一下自己嗎？" };
+    }
+    if (hasAny(lower, ["experience", "customer", "service", "worked", "years"])) {
+      return { en: "That sounds relevant. What kind of customers did you usually support?", zh: "這很相關。你通常協助哪類客戶？" };
+    }
+    if (hasAny(lower, ["strength", "calm", "communicat", "skill"])) {
+      return { en: "Can you give me a quick example of a time you used that strength?", zh: "可以舉一個你使用這個優勢的簡短例子嗎？" };
+    }
+    if (hasAny(lower, ["role", "company", "position", "grow", "team"])) {
+      return { en: "Thank you. That's a strong answer, and it connects well to the role.", zh: "謝謝。這是很有力的回答，也和職位連結得很好。" };
+    }
+  }
+
+  if (scene.themeId === "social") {
+    if (hasAny(lower, ["nice", "meet", "name", "i'm", "i am"])) {
+      return { en: "Nice to meet you too. How do you know everyone here?", zh: "我也很高興認識你。你怎麼認識這裡的人？" };
+    }
+    if (hasAny(lower, ["work", "school", "cafe", "friend"])) {
+      return { en: "Oh, that's fun. Do you still see them often?", zh: "喔，那很有趣。你現在還常見到他們嗎？" };
+    }
+    if (hasAny(lower, ["movie", "music", "restaurant", "weekend", "hobby"])) {
+      return { en: "Same here. There's a live music night downtown this Friday.", zh: "我也是。市中心這週五有現場音樂夜。" };
+    }
+  }
+
+  if (scene.themeId === "phone") {
+    if (hasAny(lower, ["appointment", "book", "schedule"])) {
+      return { en: "Of course. Is this for a routine visit or a specific problem?", zh: "當然。是例行預約還是有特定問題？" };
+    }
+    if (hasAny(lower, ["toothache", "pain", "problem", "soon"])) {
+      return { en: "I'm sorry to hear that. Are you available tomorrow afternoon?", zh: "很抱歉聽到這樣。你明天下午有空嗎？" };
+    }
+    if (hasAny(lower, ["number", "name", "spell", "call back", "message"])) {
+      return { en: "Thanks. Could you repeat your phone number one more time?", zh: "謝謝。可以再重複一次你的電話號碼嗎？" };
+    }
+  }
+
+  if (scene.themeId === "exam") {
+    if (hasAny(lower, ["main idea", "topic", "first sentence"])) {
+      return { en: "Good. Now check which answer choice is too broad or too narrow.", zh: "很好。現在檢查哪個選項太廣或太窄。" };
+    }
+    if (hasAny(lower, ["choice", "answer", "c", "b", "a", "d"])) {
+      return { en: "Before you choose, match it with one detail from the passage.", zh: "選之前，先把它和文章中的一個細節對上。" };
+    }
+    if (hasAny(lower, ["grammar", "vocabulary", "word", "negative"])) {
+      return { en: "Exactly. Watch for small words because they can change the answer.", zh: "沒錯。注意小字，因為它們可能改變答案。" };
+    }
+  }
+
+  return scripted;
+}
+
 // Context-aware reply generation. Detects intent and responds to whatever the
 // user actually says, while gently steering back to the scene topic.
 function generateReply(ctx: ReplyCtx): { en: string; zh: string } {
@@ -390,6 +581,10 @@ function generateReply(ctx: ReplyCtx): { en: string; zh: string } {
   const allText = [...history, userInput].join(" ");
   const name = extractName(allText);
   const who = name ? `, ${name}` : "";
+  const scripted = scriptedTutorReply(scene, turn);
+
+  const roleplayReply = adaptiveRoleplayReply(ctx, scripted);
+  if (roleplayReply) return roleplayReply;
 
   // 1) Greeting
   if (/^(hi|hello|hey|good (morning|afternoon|evening)|yo)\b/.test(lower)) {
@@ -560,7 +755,7 @@ export const mockAiTutorService = {
     if (polite) naturalness += 6;
     naturalness = Math.max(45, Math.min(99, naturalness));
 
-    const native = nativeRewrite(scene, userInput, corrected);
+    const native = nativeRewrite(scene, userInput, corrected, turn);
     const better = politeRequest(corrected);
     const betterWay = native || better || corrected;
 

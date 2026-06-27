@@ -18,7 +18,7 @@ interface Msg {
 }
 
 const MIN_PRACTICE_TURNS = 5;
-const RECOMMENDED_PRACTICE_TURNS = 6;
+const MAX_PRACTICE_TURNS = 7;
 
 export default function ConversationPractice({
   scene,
@@ -48,6 +48,9 @@ export default function ConversationPractice({
   const endRef = useRef<HTMLDivElement>(null);
   const stopListenRef = useRef<(() => void) | null>(null);
   const historyRef = useRef<string[]>([]);
+  const userTurnsRef = useRef<string[]>([]);
+  const feedbacksRef = useRef<TutorFeedback[]>([]);
+  const finishedRef = useRef(false);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -55,8 +58,13 @@ export default function ConversationPractice({
 
   // Speak the opening tutor line once.
   useEffect(() => {
-    if (autoSpeak) speechService.speak(firstTutor.en);
+    let openingTimer: number | undefined;
+    if (autoSpeak) {
+      speechService.warmUp();
+      openingTimer = window.setTimeout(() => speechService.speak(firstTutor.en), 220);
+    }
     return () => {
+      if (openingTimer) window.clearTimeout(openingTimer);
       speechService.stop();
       stopListenRef.current?.();
     };
@@ -75,7 +83,7 @@ export default function ConversationPractice({
 
   async function handleSend(text: string) {
     const trimmed = text.trim();
-    if (!trimmed || busy) return;
+    if (!trimmed || busy || finishedRef.current) return;
     setBusy(true);
     setInput("");
 
@@ -83,18 +91,29 @@ export default function ConversationPractice({
 
     const history = [...historyRef.current];
     historyRef.current.push(trimmed);
+    userTurnsRef.current = [...userTurnsRef.current, trimmed];
 
     const fb = await aiTutorService.feedback(scene, trimmed, turn + 1, history);
+    feedbacksRef.current = [...feedbacksRef.current, fb];
+    const reachedMax = userTurnsRef.current.length >= MAX_PRACTICE_TURNS;
 
     setMsgs((m) => {
       const copy = [...m];
       const lastUser = [...copy].reverse().find((x) => x.role === "user" && !x.feedback);
       if (lastUser) lastUser.feedback = fb;
-      copy.push({ role: "tutor", en: fb.reply, zh: fb.replyZh });
+      if (!reachedMax) copy.push({ role: "tutor", en: fb.reply, zh: fb.replyZh });
       return [...copy];
     });
     setTurn((t) => t + 1);
     setBusy(false);
+    if (reachedMax) {
+      finishedRef.current = true;
+      speechService.stop();
+      stopListenRef.current?.();
+      flashToast("已完成 7 句，正在產生成績");
+      window.setTimeout(() => finishWith(userTurnsRef.current, feedbacksRef.current, true), 550);
+      return;
+    }
     if (autoSpeak) speak(fb.reply);
   }
 
@@ -128,17 +147,25 @@ export default function ConversationPractice({
     }
   }
 
-  function finish() {
-    const userTurns = msgs.filter((m) => m.role === "user").map((m) => m.en);
-    if (userTurns.length < MIN_PRACTICE_TURNS) {
+  function finishWith(userTurns: string[], feedbacks: TutorFeedback[], force = false) {
+    if (!force && userTurns.length < MIN_PRACTICE_TURNS) {
       flashToast(`請至少練習 ${MIN_PRACTICE_TURNS} 句對話再結束`);
       return;
     }
-    const feedbacks = msgs.filter((m) => m.feedback).map((m) => m.feedback!) as TutorFeedback[];
     const result = aiTutorService.summarize(scene, feedbacks, userTurns);
     speechService.stop();
     stopListenRef.current?.();
     onFinish(result, userTurns, feedbacks);
+  }
+
+  function finish() {
+    const userTurns = userTurnsRef.current.length
+      ? userTurnsRef.current
+      : msgs.filter((m) => m.role === "user").map((m) => m.en);
+    const feedbacks = feedbacksRef.current.length
+      ? feedbacksRef.current
+      : (msgs.filter((m) => m.feedback).map((m) => m.feedback!) as TutorFeedback[]);
+    finishWith(userTurns, feedbacks);
   }
 
   const recSupported = speechService.isRecognitionSupported();
@@ -189,7 +216,7 @@ export default function ConversationPractice({
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] p-3 bg-cream/95 backdrop-blur space-y-2">
         <div className="flex items-center justify-between gap-2 px-1 flex-wrap">
           <span className="text-xs font-bold text-inkSoft">
-            已練習 {userTurnCount}/{RECOMMENDED_PRACTICE_TURNS} 句
+            已練習 {Math.min(userTurnCount, MAX_PRACTICE_TURNS)}/{MAX_PRACTICE_TURNS} 句
           </span>
           <button onClick={() => setAutoSpeak((v) => !v)} className="flex items-center gap-1 text-xs font-bold text-inkSoft">
             {autoSpeak ? <Volume2 size={14} className="text-lilacDeep" /> : <VolumeX size={14} />}
@@ -198,7 +225,7 @@ export default function ConversationPractice({
         </div>
         <div className="flex items-center justify-between gap-2 px-1 flex-wrap">
           <span className="text-xs font-bold text-mintDeep">
-            {userTurnCount >= MIN_PRACTICE_TURNS ? "可結束，也可練到 6 句更完整" : "至少完成 5 句"}
+            {userTurnCount >= MIN_PRACTICE_TURNS ? "可結束；第 7 句會自動評分" : "至少完成 5 句，最多 7 句"}
           </span>
           <button className="text-xs font-bold text-peachDeep" onClick={finish}>{finishLabel}</button>
         </div>
@@ -212,7 +239,7 @@ export default function ConversationPractice({
         <div className="flex items-center gap-2 bg-white rounded-3xl px-3 py-2 shadow-softer">
           <button
             onClick={toggleMic}
-            disabled={busy}
+            disabled={busy || finishedRef.current}
             title={recSupported ? "語音輸入" : "此瀏覽器不支援語音輸入"}
             className={`h-10 w-10 rounded-2xl flex items-center justify-center active:scale-90 transition shrink-0 ${
               listening ? "bg-peachDeep text-white animate-pulse" : recSupported ? "bg-mint text-mintDeep" : "bg-cream text-inkSoft"
@@ -225,9 +252,10 @@ export default function ConversationPractice({
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSend(input)}
             placeholder="用語音或打字回覆…"
+            disabled={finishedRef.current}
             className="flex-1 bg-transparent outline-none text-ink min-w-0"
           />
-          <button onClick={() => handleSend(input)} disabled={busy || !input.trim()} className="h-10 w-10 rounded-2xl bg-lilacDeep text-white flex items-center justify-center active:scale-90 transition disabled:opacity-50 shrink-0">
+          <button onClick={() => handleSend(input)} disabled={busy || !input.trim() || finishedRef.current} className="h-10 w-10 rounded-2xl bg-lilacDeep text-white flex items-center justify-center active:scale-90 transition disabled:opacity-50 shrink-0">
             <Send size={18} />
           </button>
         </div>

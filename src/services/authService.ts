@@ -1,10 +1,69 @@
-import type { User, OnboardingProfile, UserSettings } from "@/types";
+import type { AccountProfile, User, OnboardingProfile, UserSettings } from "@/types";
 import { storageService, KEYS } from "./storageService";
 
 const DEMO_EMAIL = "erin20080306@gmail.com";
+const MAX_BOUND_DEVICES = 1;
 
 function uid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+function now() {
+  return new Date().toISOString();
+}
+
+function deviceName() {
+  if (typeof navigator === "undefined") return "目前手機";
+  const ua = navigator.userAgent;
+  if (/iPhone/i.test(ua)) return "iPhone";
+  if (/iPad/i.test(ua)) return "iPad";
+  if (/Android/i.test(ua)) return "Android 手機";
+  if (/Macintosh/i.test(ua)) return "Mac";
+  if (/Windows/i.test(ua)) return "Windows 裝置";
+  return "目前裝置";
+}
+
+function currentDeviceId() {
+  let id = storageService.get<string | null>(KEYS.deviceId, null);
+  if (!id) {
+    id = `phone-${uid()}`;
+    storageService.set(KEYS.deviceId, id);
+  }
+  return id;
+}
+
+function profileFor(name: string): AccountProfile {
+  return { id: `profile-${uid()}`, name: name.trim() || "學習者", createdAt: now() };
+}
+
+function ensureProfiles(user: User): User {
+  if (user.profiles?.length) return user;
+  const profile = profileFor(user.name || "Erin");
+  return { ...user, profiles: [profile], activeProfileId: profile.id };
+}
+
+function bindCurrentDevice(user: User): { ok: boolean; error?: string; user?: User } {
+  const id = currentDeviceId();
+  const name = deviceName();
+  const prepared = ensureProfiles(user);
+
+  if (prepared.deviceId && prepared.deviceId !== id) {
+    return {
+      ok: false,
+      error: "此帳戶已綁定另一支手機。為了保護學習資料，同一帳戶只能綁定 1 支手機。",
+    };
+  }
+
+  return {
+    ok: true,
+    user: {
+      ...prepared,
+      deviceId: prepared.deviceId || id,
+      deviceName: prepared.deviceName || name,
+      deviceBoundAt: prepared.deviceBoundAt || now(),
+      lastDeviceSeenAt: now(),
+    },
+  };
 }
 
 function defaultSettings(userId: string): UserSettings {
@@ -22,6 +81,7 @@ function defaultSettings(userId: string): UserSettings {
 
 export const authService = {
   DEMO_EMAIL,
+  MAX_BOUND_DEVICES,
 
   getUsers(): User[] {
     return storageService.get<User[]>(KEYS.users, []);
@@ -51,13 +111,18 @@ export const authService = {
       name: input.name,
       email: input.email,
       password: input.password,
+      provider: "local",
+      deviceId: currentDeviceId(),
+      deviceName: deviceName(),
+      deviceBoundAt: now(),
+      lastDeviceSeenAt: now(),
       level: input.selfRatedLevel,
       cefrLevel: "A2",
-      createdAt: new Date().toISOString(),
+      createdAt: now(),
       isDemo: false,
       onboarded: false,
     };
-    users.push(user);
+    users.push(ensureProfiles(user));
     storageService.set(KEYS.users, users);
 
     // seed onboarding partial + settings
@@ -76,14 +141,21 @@ export const authService = {
   },
 
   login(email: string, password: string): { ok: boolean; error?: string; user?: User } {
-    const user = this.getUsers().find((u) => u.email.toLowerCase() === email.toLowerCase());
+    const users = this.getUsers();
+    const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
     if (!user) return { ok: false, error: "找不到此帳號，請先註冊" };
     if (user.password !== password) return { ok: false, error: "密碼錯誤" };
-    storageService.set(KEYS.session, user.id);
-    return { ok: true, user };
+    const bound = bindCurrentDevice({ ...user, provider: user.provider || "local" });
+    if (!bound.ok || !bound.user) return { ok: false, error: bound.error };
+    storageService.set(
+      KEYS.users,
+      users.map((u) => (u.id === user.id ? bound.user! : u))
+    );
+    storageService.set(KEYS.session, bound.user.id);
+    return { ok: true, user: bound.user };
   },
 
-  loginDemo(): User {
+  loginWithGoogle(): { ok: boolean; error?: string; user?: User } {
     let users = this.getUsers();
     let demo = users.find((u) => u.email.toLowerCase() === DEMO_EMAIL);
     if (!demo) {
@@ -92,14 +164,14 @@ export const authService = {
         name: "Erin",
         email: DEMO_EMAIL,
         password: "demo",
+        provider: "google",
         level: "Beginner",
         cefrLevel: "A2",
-        createdAt: new Date().toISOString(),
+        createdAt: now(),
         isDemo: true,
         onboarded: true,
       };
       users.push(demo);
-      storageService.set(KEYS.users, users);
 
       const profile: OnboardingProfile = {
         userId: demo.id,
@@ -113,8 +185,18 @@ export const authService = {
       storageService.set(KEYS.onboarding, profile);
       storageService.set(KEYS.settings, defaultSettings(demo.id));
     }
-    storageService.set(KEYS.session, demo.id);
-    return demo;
+    const bound = bindCurrentDevice({ ...demo, provider: "google" });
+    if (!bound.ok || !bound.user) return { ok: false, error: bound.error };
+    users = users.map((u) => (u.id === bound.user!.id ? bound.user! : u));
+    storageService.set(KEYS.users, users);
+    storageService.set(KEYS.session, bound.user.id);
+    return { ok: true, user: bound.user };
+  },
+
+  loginDemo(): User {
+    const result = this.loginWithGoogle();
+    if (result.ok && result.user) return result.user;
+    throw new Error(result.error || "登入失敗");
   },
 
   logout() {
@@ -135,5 +217,46 @@ export const authService = {
       u.id === user.id ? { ...u, level, cefrLevel: cefr } : u
     );
     storageService.set(KEYS.users, users);
+  },
+
+  getDeviceInfo(user?: User | null) {
+    const targetUser = user ?? this.getCurrentUser();
+    const id = currentDeviceId();
+    return {
+      currentDeviceId: id,
+      shortId: id.slice(-8).toUpperCase(),
+      currentDeviceName: deviceName(),
+      boundDeviceId: targetUser?.deviceId || "",
+      boundDeviceName: targetUser?.deviceName || "",
+      isBoundHere: !targetUser?.deviceId || targetUser.deviceId === id,
+      maxDevices: MAX_BOUND_DEVICES,
+    };
+  },
+
+  addProfile(name: string): { ok: boolean; error?: string; user?: User } {
+    const clean = name.trim();
+    if (clean.length < 2) return { ok: false, error: "請輸入至少 2 個字的學習者名稱" };
+    const user = this.getCurrentUser();
+    if (!user) return { ok: false, error: "尚未登入" };
+    const nextProfile = profileFor(clean);
+    const next = ensureProfiles({
+      ...user,
+      profiles: [...(user.profiles || []), nextProfile],
+      activeProfileId: nextProfile.id,
+    });
+    const users = this.getUsers().map((u) => (u.id === user.id ? next : u));
+    storageService.set(KEYS.users, users);
+    return { ok: true, user: next };
+  },
+
+  switchProfile(profileId: string): { ok: boolean; error?: string; user?: User } {
+    const user = this.getCurrentUser();
+    if (!user) return { ok: false, error: "尚未登入" };
+    const prepared = ensureProfiles(user);
+    if (!prepared.profiles?.some((p) => p.id === profileId)) return { ok: false, error: "找不到此學習者" };
+    const next = { ...prepared, activeProfileId: profileId };
+    const users = this.getUsers().map((u) => (u.id === user.id ? next : u));
+    storageService.set(KEYS.users, users);
+    return { ok: true, user: next };
   },
 };

@@ -129,7 +129,7 @@ src/
 
 ## 🔌 未來串接位置（不可將 Key 放前端）
 
-- **OpenAI（真實 AI 導師）**：`src/services/aiTutorService.ts` 內 `USE_REMOTE` 設為 `true`，並新增 server route（如 `app/api/tutor/route.ts`）使用 `process.env.OPENAI_API_KEY` 呼叫模型。
+- **OpenAI（真實 AI 導師）**：已串接 `app/api/tutor/route.ts`。在 `.env.local` 加入 `OPENAI_API_KEY` 後，對話會走 OpenAI；沒有 key 會自動 fallback 到本機智能。
 - **Supabase / Firebase（雲端帳號與同步）**：替換 `src/services/storageService.ts` 的讀寫實作；env 見 `.env.example`。
 - **免費字典 API**：`src/services/dictionaryService.ts` 的 `lookupRemote()`，base URL 見 `.env.example` 的 `DICTIONARY_API_BASE_URL`，本地資料作為離線 fallback。
 - **語音 API**：`src/services/speechService.ts` 目前用瀏覽器 SpeechSynthesis，可替換為雲端 TTS。

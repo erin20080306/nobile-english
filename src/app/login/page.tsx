@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Sparkles, Mail, Lock } from "lucide-react";
+import { Mail, Lock, ShieldCheck } from "lucide-react";
 import { authService } from "@/services/authService";
 import CheerImage from "@/components/CheerImage";
 
@@ -26,9 +26,13 @@ export default function LoginPage() {
     go(res.user!);
   }
 
-  function handleDemo() {
-    const user = authService.loginDemo();
-    go(user);
+  function handleGoogle() {
+    const res = authService.loginWithGoogle();
+    if (!res.ok || !res.user) {
+      setError(res.error || "Google 登入失敗");
+      return;
+    }
+    go(res.user);
   }
 
   return (
@@ -44,19 +48,19 @@ export default function LoginPage() {
       <motion.button
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        onClick={handleDemo}
+        onClick={handleGoogle}
         className="mt-6 w-full rounded-3xl bg-gradient-to-r from-lilacDeep to-peachDeep text-white font-bold py-4 shadow-soft flex items-center justify-center gap-2 active:scale-95 transition"
       >
-        <Sparkles size={20} />
-        使用示範帳號快速登入
+        <ShieldCheck size={20} />
+        使用 Google 帳號登入並綁定本手機
       </motion.button>
       <p className="text-center text-xs text-inkSoft mt-2">
-        Demo：erin20080306@gmail.com（免密碼）
+        一個 Google 帳號只能綁定 1 支手機；同一支手機可切換多位學習者。
       </p>
 
       <div className="flex items-center gap-3 my-5">
         <div className="flex-1 h-px bg-lilac" />
-        <span className="text-xs text-inkSoft">或使用帳號登入</span>
+        <span className="text-xs text-inkSoft">或使用本機帳密登入</span>
         <div className="flex-1 h-px bg-lilac" />
       </div>
 

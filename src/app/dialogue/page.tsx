@@ -2,15 +2,15 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Sparkles, RotateCcw } from "lucide-react";
-import type { Scene, TutorFeedback, DialogueResult } from "@/types";
+import { Home, RotateCcw } from "lucide-react";
+import type { Scene, TutorFeedback, DialogueResult, DialogueTranscriptLine } from "@/types";
 import { sceneService } from "@/services/sceneService";
 import { learningService } from "@/services/learningService";
 import { authService } from "@/services/authService";
 import { storageService, KEYS } from "@/services/storageService";
+import { sceneCardStyle } from "@/data/sceneVisuals";
 import AppHeader from "@/components/AppHeader";
 import ConversationPractice from "@/components/ConversationPractice";
-import { LevelBadge } from "@/components/ui";
 
 export default function DialoguePage() {
   return (
@@ -27,7 +27,12 @@ function DialogueInner() {
   const [scene, setScene] = useState<Scene | null>(null);
   const [isFreeMode, setIsFreeMode] = useState(false);
 
-  if (!scene) return <ScenerPicker onPick={setScene} preset={preset} onFreeMode={() => setIsFreeMode(true)} router={router} />;
+  function startFreeMode() {
+    setIsFreeMode(true);
+    setScene(buildFreeScene());
+  }
+
+  if (!scene) return <ScenerPicker onPick={setScene} preset={preset} onFreeMode={startFreeMode} router={router} />;
   if (isFreeMode) return <FreeChat onExit={() => { setScene(null); setIsFreeMode(false); }} />;
   return <Chat scene={scene} onExit={() => setScene(null)} />;
 }
@@ -54,12 +59,17 @@ function ScenerPicker({
   const themes = sceneService.getThemes();
   return (
     <div className="min-h-[100dvh] pb-10">
-      <AppHeader title="對話學習" subtitle="選一個情境開始與 AI 導師對話" back={false} />
+      <AppHeader
+        title="對話學習"
+        subtitle="選一個情境開始語音或打字對話"
+        back={false}
+        right={
+          <button onClick={() => router.push("/dashboard")} className="chip bg-white text-inkSoft shadow-softer flex items-center gap-1">
+            <Home size={14} /> 首頁
+          </button>
+        }
+      />
       <div className="px-5">
-        <div className="card bg-gradient-to-br from-lilac to-sky mb-4 flex items-center gap-3">
-          <Sparkles className="text-lilacDeep" />
-          <p className="text-sm text-ink">本地 AI 導師已啟用，無需 API Key 即可練習！</p>
-        </div>
         <button onClick={onFreeMode} className="w-full card !p-4 text-left active:scale-95 transition mb-4 bg-gradient-to-r from-peach to-peachDeep text-white">
           <p className="font-bold">自由對話</p>
           <p className="text-xs opacity-90">無特定情境，支援語音或手動輸入練習</p>
@@ -69,12 +79,21 @@ function ScenerPicker({
           return (
             <div key={t.id} className="mb-4">
               <p className="font-bold text-ink mb-2">{t.emoji} {t.name}</p>
-              <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {scenes.map((s) => (
-                  <button key={s.id} onClick={() => onPick(s)} className="min-w-[150px] card !p-4 text-left active:scale-95 transition">
-                    <p className="font-bold text-ink">{s.name}</p>
-                    <p className="text-xs text-inkSoft">{s.enName}</p>
-                    <LevelBadge level={s.difficulty} />
+                  <button
+                    key={s.id}
+                    onClick={() => onPick(s)}
+                    className="relative h-36 rounded-3xl p-4 text-left active:scale-95 transition overflow-hidden shadow-soft flex flex-col justify-between"
+                    style={sceneCardStyle(t.color, 0.16, t.id)}
+                  >
+                    <div className="relative z-10 min-w-0">
+                      <p className="text-lg leading-tight font-extrabold text-ink break-words">{s.name}</p>
+                      <p className="mt-1 text-xs font-semibold text-inkSoft truncate">{s.enName}</p>
+                    </div>
+                    <span className="relative z-10 self-start rounded-full bg-white/85 px-3 py-1.5 text-xs font-extrabold text-lilacDeep shadow-softer">
+                      {s.difficulty}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -84,6 +103,34 @@ function ScenerPicker({
       </div>
     </div>
   );
+}
+
+function buildTranscript(userTurns: string[], feedbacks: TutorFeedback[]): DialogueTranscriptLine[] {
+  const transcript: DialogueTranscriptLine[] = [];
+  feedbacks.forEach((fb, index) => {
+    const userLine = userTurns[index]?.trim();
+    if (userLine) {
+      transcript.push({
+        role: "user",
+        en: userLine,
+        naturalness: fb.naturalness,
+        betterWay: fb.betterWay,
+        grammarTip: fb.grammarTip,
+        zhExplain: fb.zhExplain,
+      });
+    }
+    if (fb.reply) {
+      transcript.push({
+        role: "tutor",
+        en: fb.reply,
+        zh: fb.replyZh,
+      });
+    }
+  });
+  if (transcript.length === 0) {
+    return userTurns.filter(Boolean).map((en) => ({ role: "user", en }));
+  }
+  return transcript;
 }
 
 function Chat({ scene, onExit }: { scene: Scene; onExit: () => void }) {
@@ -96,6 +143,7 @@ function Chat({ scene, onExit }: { scene: Scene; onExit: () => void }) {
   const pron = settings ? settings.pronunciationOn : true;
 
   function handleFinish(result: DialogueResult, userTurns: string[], feedbacks: TutorFeedback[]) {
+    const transcript = buildTranscript(userTurns, feedbacks);
     learningService.addDialogue();
     learningService.touchActivity(8, 30);
     learningService.addRecord({
@@ -106,6 +154,7 @@ function Chat({ scene, onExit }: { scene: Scene; onExit: () => void }) {
       zhContent: "",
       userAnswer: userTurns.join(" / "),
       suggestion: feedbacks[feedbacks.length - 1]?.betterWay || "持續練習，注意禮貌用語。",
+      transcript,
       score: result.total,
       completed: true,
       minutes: 8,
@@ -134,7 +183,7 @@ function Chat({ scene, onExit }: { scene: Scene; onExit: () => void }) {
         subtitle="AI 語音對話練習"
         right={
           <button onClick={onExit} className="chip bg-white text-inkSoft shadow-softer flex items-center gap-1">
-            <RotateCcw size={14} /> 換情境
+            <RotateCcw size={14} /> 回選單
           </button>
         }
       />
@@ -158,40 +207,10 @@ function FreeChat({ onExit }: { onExit: () => void }) {
   const showZh = settings ? settings.dialogueChinese : true;
   const pron = settings ? settings.pronunciationOn : true;
 
-  // Generic free conversation scene
-  const freeScene: Scene = {
-    id: "free-chat",
-    themeId: "free",
-    name: "自由對話",
-    enName: "Free Conversation",
-    difficulty: "Intermediate",
-    minutes: 10,
-    intro: "沒有特定情境，隨意聊聊任何你想練習的主題。",
-    goals: ["自由表達", "流暢對話", "日常聊天"],
-    keyWords: ["chat", "talk", "share", "express", "practice"],
-    keyPatterns: [
-      { en: "What do you like to do?", zh: "你喜歡做什麼？" },
-      { en: "Tell me more about that.", zh: "多告訴我一點關於那件事。" },
-      { en: "That's interesting!", zh: "那很有趣！" },
-    ],
-    dialogue: [
-      { speaker: "tutor", en: "Hi! What would you like to talk about today?", zh: "嗨！今天想聊什麼呢？" },
-      { speaker: "user", en: "I'd like to practice English.", zh: "我想練習英文。" },
-      { speaker: "tutor", en: "Great! Let's start with something simple. How are you?", zh: "太好了！我們從簡單的開始。你好嗎？" },
-      { speaker: "user", en: "I'm doing well, thank you.", zh: "我過得不錯，謝謝。" },
-      { speaker: "tutor", en: "What did you do today?", zh: "你今天做了什麼？" },
-      { speaker: "user", en: "I worked and studied English for a while.", zh: "我工作了一下，也讀了一會兒英文。" },
-      { speaker: "tutor", en: "Nice. What do you like to do for fun?", zh: "不錯。你平常喜歡做什麼？" },
-      { speaker: "user", en: "I like watching movies and listening to music.", zh: "我喜歡看電影和聽音樂。" },
-      { speaker: "tutor", en: "That sounds fun. Tell me more about your favorite movie.", zh: "聽起來很有趣。多說說你最喜歡的電影。" },
-      { speaker: "user", en: "My favorite movie is exciting and easy to understand.", zh: "我最喜歡的電影很刺激，也容易理解。" },
-      { speaker: "tutor", en: "Great. What topic would you like to practice next?", zh: "很好。接下來想練什麼主題？" },
-      { speaker: "user", en: "I'd like to practice travel English next.", zh: "接下來我想練旅遊英文。" },
-    ],
-    quiz: [],
-  };
+  const freeScene = buildFreeScene();
 
   function handleFinish(result: DialogueResult, userTurns: string[], feedbacks: TutorFeedback[]) {
+    const transcript = buildTranscript(userTurns, feedbacks);
     learningService.addDialogue();
     learningService.touchActivity(10, 30);
     learningService.addRecord({
@@ -202,6 +221,7 @@ function FreeChat({ onExit }: { onExit: () => void }) {
       zhContent: "",
       userAnswer: userTurns.join(" / "),
       suggestion: feedbacks[feedbacks.length - 1]?.betterWay || "持續練習，保持對話流暢。",
+      transcript,
       score: result.total,
       completed: true,
       minutes: 10,
@@ -243,4 +263,34 @@ function FreeChat({ onExit }: { onExit: () => void }) {
       />
     </div>
   );
+}
+
+function buildFreeScene(): Scene {
+  return {
+    id: "free-chat",
+    themeId: "free",
+    name: "自由對話",
+    enName: "Free Conversation",
+    difficulty: "Intermediate",
+    minutes: 10,
+    intro: "沒有特定情境，隨意聊聊任何你想練習的主題。",
+    goals: ["自由表達", "流暢對話", "日常聊天"],
+    keyWords: ["chat", "talk", "share", "express", "practice"],
+    keyPatterns: [
+      { en: "What do you like to do?", zh: "你喜歡做什麼？" },
+      { en: "Tell me more about that.", zh: "多告訴我一點關於那件事。" },
+      { en: "That's interesting!", zh: "那很有趣！" },
+    ],
+    dialogue: [
+      { speaker: "tutor", en: "Hi! What would you like to talk about today?", zh: "嗨！今天想聊什麼呢？" },
+      { speaker: "user", en: "I'd like to practice English.", zh: "我想練習英文。" },
+      { speaker: "tutor", en: "Great. Tell me about something that happened today.", zh: "很好。跟我說說今天發生的一件事。" },
+      { speaker: "user", en: "I worked and studied English for a while.", zh: "我工作了一下，也讀了一會兒英文。" },
+      { speaker: "tutor", en: "Nice. How did you feel about that?", zh: "不錯。你對那件事感覺如何？" },
+      { speaker: "user", en: "I felt a little tired, but I was happy to practice.", zh: "我有點累，但很開心有練習。" },
+      { speaker: "tutor", en: "That sounds honest. What topic do you want next?", zh: "這聽起來很真實。你接下來想聊什麼主題？" },
+      { speaker: "user", en: "I'd like to practice travel English next.", zh: "接下來我想練旅遊英文。" },
+    ],
+    quiz: [],
+  };
 }

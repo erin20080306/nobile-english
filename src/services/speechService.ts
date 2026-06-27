@@ -1,27 +1,78 @@
 // Browser SpeechSynthesis wrapper. Prefers US English voice.
 // Designed so a future cloud TTS (e.g. Google/Azure) can replace the impl.
 
+let voicesReady: Promise<SpeechSynthesisVoice[]> | null = null;
+
+function supported() {
+  return typeof window !== "undefined" && "speechSynthesis" in window;
+}
+
+function loadVoices(): Promise<SpeechSynthesisVoice[]> {
+  if (!supported()) return Promise.resolve([]);
+  const voices = window.speechSynthesis.getVoices();
+  if (voices.length > 0) return Promise.resolve(voices);
+  if (voicesReady) return voicesReady;
+
+  voicesReady = new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      resolve(window.speechSynthesis.getVoices());
+    };
+    window.speechSynthesis.onvoiceschanged = finish;
+    window.setTimeout(finish, 450);
+  });
+  return voicesReady;
+}
+
+function pickVoice(voices: SpeechSynthesisVoice[]) {
+  return (
+    voices.find((v) => v.lang === "en-US" && /female|samantha|google|natural/i.test(v.name)) ||
+    voices.find((v) => v.lang === "en-US") ||
+    voices.find((v) => v.lang.startsWith("en"))
+  );
+}
+
+function speakNow(text: string, opts?: { rate?: number }) {
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = "en-US";
+  utter.rate = opts?.rate ?? 0.95;
+  utter.pitch = 1;
+  utter.volume = 1;
+  const voice = pickVoice(window.speechSynthesis.getVoices());
+  if (voice) utter.voice = voice;
+  window.speechSynthesis.resume();
+  window.speechSynthesis.speak(utter);
+}
+
 export const speechService = {
   isSupported(): boolean {
-    return typeof window !== "undefined" && "speechSynthesis" in window;
+    return supported();
+  },
+
+  warmUp(): void {
+    if (!this.isSupported()) return;
+    void loadVoices().then(() => {
+      try {
+        window.speechSynthesis.resume();
+      } catch {
+        /* ignore */
+      }
+    });
   },
 
   speak(text: string, opts?: { rate?: number }): { ok: boolean; message?: string } {
     if (!this.isSupported()) {
       return { ok: false, message: "您的瀏覽器不支援語音播放，請改用 Chrome 或 Safari。" };
     }
+    const clean = text.trim();
+    if (!clean) return { ok: true };
     try {
       window.speechSynthesis.cancel();
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = "en-US";
-      utter.rate = opts?.rate ?? 0.95;
-      const voices = window.speechSynthesis.getVoices();
-      const us =
-        voices.find((v) => v.lang === "en-US" && /female|samantha|google/i.test(v.name)) ||
-        voices.find((v) => v.lang === "en-US") ||
-        voices.find((v) => v.lang.startsWith("en"));
-      if (us) utter.voice = us;
-      window.speechSynthesis.speak(utter);
+      if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+      if (window.speechSynthesis.getVoices().length === 0) void loadVoices();
+      speakNow(clean, opts);
       return { ok: true };
     } catch {
       return { ok: false, message: "語音播放發生問題，請稍後再試。" };

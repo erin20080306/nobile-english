@@ -1,6 +1,7 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Home, LayoutGrid, MessagesSquare, BookText, User } from "lucide-react";
 
 const items = [
@@ -13,7 +14,6 @@ const items = [
 
 export default function BottomNav() {
   const pathname = usePathname();
-  const router = useRouter();
   return (
     <nav className="sticky bottom-0 z-30 mt-4">
       <div className="mx-3 mb-3 rounded-3xl bg-white/95 backdrop-blur shadow-soft flex justify-around py-2">
@@ -21,9 +21,9 @@ export default function BottomNav() {
           const active = pathname === it.href || pathname.startsWith(it.href + "/");
           const Icon = it.icon;
           return (
-            <button
+            <Link
               key={it.href}
-              onClick={() => router.push(it.href)}
+              href={it.href}
               className="flex flex-col items-center gap-0.5 px-3 py-1 active:scale-90 transition"
             >
               <span
@@ -36,7 +36,7 @@ export default function BottomNav() {
               <span className={`text-[10px] font-bold ${active ? "text-lilacDeep" : "text-inkSoft"}`}>
                 {it.label}
               </span>
-            </button>
+            </Link>
           );
         })}
       </div>

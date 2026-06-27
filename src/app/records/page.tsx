@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Volume2, Star } from "lucide-react";
+import { MessageSquare, Volume2, Star, X } from "lucide-react";
 import type { SavedWord, SavedSentence, LearningRecord, ExamResult, ExamQuestion } from "@/types";
 import { vocabularyService } from "@/services/vocabularyService";
 import { dictionaryService } from "@/services/dictionaryService";
@@ -39,6 +39,7 @@ function RecordsInner() {
   const [records, setRecords] = useState<LearningRecord[]>([]);
   const [examResults, setExamResults] = useState<ExamResult[]>([]);
   const [wrong, setWrong] = useState<ExamQuestion[]>([]);
+  const [activeRecord, setActiveRecord] = useState<LearningRecord | null>(null);
 
   function reload() {
     setWords(vocabularyService.getSaved());
@@ -89,8 +90,8 @@ function RecordsInner() {
           </div>
         )) : <Empty text="尚未收藏句子。" />)}
 
-        {tab === "dialogue" && <RecordList items={records.filter((r) => r.type === "dialogue")} />}
-        {tab === "scene" && <RecordList items={records.filter((r) => r.type === "scene" || r.type === "custom")} />}
+        {tab === "dialogue" && <RecordList items={records.filter((r) => r.type === "dialogue")} onOpen={setActiveRecord} />}
+        {tab === "scene" && <RecordList items={records.filter((r) => r.type === "scene" || r.type === "custom")} onOpen={setActiveRecord} />}
 
         {tab === "exam" && (examResults.length ? examResults.map((r) => (
           <div key={r.id} className="card !p-4 flex items-center justify-between">
@@ -126,17 +127,18 @@ function RecordsInner() {
           )) : <Empty text="複習清單是空的，加入單字開始複習吧。" />;
         })()}
       </div>
+      {activeRecord && <RecordDetail record={activeRecord} onClose={() => setActiveRecord(null)} />}
       <BottomNav />
     </div>
   );
 }
 
-function RecordList({ items }: { items: LearningRecord[] }) {
+function RecordList({ items, onOpen }: { items: LearningRecord[]; onOpen: (record: LearningRecord) => void }) {
   if (!items.length) return <Empty text="尚無紀錄。" />;
   return (
     <>
       {items.map((r) => (
-        <div key={r.id} className="card !p-4">
+        <button key={r.id} onClick={() => onOpen(r)} className="card !p-4 w-full text-left active:scale-[0.99] transition">
           <div className="flex items-center justify-between">
             <p className="font-bold text-ink">{r.title}</p>
             <span className="chip bg-lilac text-lilacDeep text-xs">{r.score} 分</span>
@@ -144,9 +146,71 @@ function RecordList({ items }: { items: LearningRecord[] }) {
           <p className="text-xs text-inkSoft">{new Date(r.date).toLocaleString()} · {r.minutes} 分鐘</p>
           {r.userAnswer && <p className="text-sm text-ink mt-1">你的回答：{r.userAnswer}</p>}
           {r.suggestion && <p className="text-sm text-inkSoft mt-1">建議：{r.suggestion}</p>}
-        </div>
+          <p className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-lilacDeep">
+            <MessageSquare size={13} /> 查看完整對話紀錄
+          </p>
+        </button>
       ))}
     </>
+  );
+}
+
+function RecordDetail({ record, onClose }: { record: LearningRecord; onClose: () => void }) {
+  const fallbackLines = (record.userAnswer || "")
+    .split(" / ")
+    .map((en) => en.trim())
+    .filter(Boolean)
+    .map((en) => ({ role: "user" as const, en }));
+  const lines: NonNullable<LearningRecord["transcript"]> = record.transcript?.length ? record.transcript : fallbackLines;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-cream/95 backdrop-blur overflow-y-auto">
+      <div className="min-h-full px-5 py-6 pb-24">
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-bold text-inkSoft">完整對話紀錄</p>
+            <h2 className="text-2xl font-black text-ink break-words">{record.title}</h2>
+            <p className="text-sm text-inkSoft">{new Date(record.date).toLocaleString()} · {record.score} 分</p>
+          </div>
+          <button onClick={onClose} className="h-11 w-11 rounded-2xl bg-white shadow-softer text-inkSoft flex items-center justify-center">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="mt-5 space-y-3">
+          {lines.length ? lines.map((line, index) => {
+            const isUser = line.role === "user";
+            return (
+              <div key={`${line.role}-${index}`} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-[88%] rounded-3xl p-3 ${isUser ? "bg-lilacDeep text-white" : "bg-white text-ink shadow-softer"}`}>
+                  <p className="font-semibold leading-relaxed break-words">{line.en}</p>
+                  {line.zh && <p className={`mt-1 text-sm ${isUser ? "text-white/80" : "text-inkSoft"}`}>{line.zh}</p>}
+                  {isUser && (line.betterWay || line.grammarTip) && (
+                    <div className="mt-3 rounded-2xl bg-white/95 p-3 text-sm text-ink">
+                      {typeof line.naturalness === "number" && <p className="font-bold text-mintDeep">自然度 {line.naturalness}</p>}
+                      {line.betterWay && <p className="mt-1">更道地：{line.betterWay}</p>}
+                      {line.grammarTip && <p className="mt-1 text-inkSoft">修正：{line.grammarTip}</p>}
+                      {line.zhExplain && <p className="mt-1 text-inkSoft">{line.zhExplain}</p>}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          }) : (
+            <div className="card !p-5 text-center text-inkSoft">
+              這筆舊紀錄沒有完整逐句資料，只保留摘要。
+            </div>
+          )}
+        </div>
+
+        {record.suggestion && (
+          <div className="mt-5 card !p-4">
+            <p className="text-xs font-bold text-inkSoft">最後建議</p>
+            <p className="mt-1 text-ink font-semibold">{record.suggestion}</p>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

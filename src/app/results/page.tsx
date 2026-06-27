@@ -58,8 +58,12 @@ export default function ResultsPage() {
       </motion.div>
 
       <div className="flex justify-center my-4">
-        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="animate-float">
-          <CheerImage size={210} src={rewardImage} alt={cheerText} />
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="animate-float rounded-[32px] bg-[#fff8ef] px-5 py-4 shadow-soft border border-white/80"
+        >
+          <CheerImage size={210} src={rewardImage} alt={cheerText} className="rounded-[24px]" />
         </motion.div>
       </div>
       <p className="text-center text-lg font-extrabold text-peachDeep">{cheerText}</p>

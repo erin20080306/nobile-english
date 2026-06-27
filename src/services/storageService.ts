@@ -57,4 +57,6 @@ export const KEYS = {
   sceneProgress: "sceneProgress",
   customScenes: "customScenes",
   lastResult: "lastResult",
+  feedbackReports: "feedbackReports",
+  deviceId: "deviceId",
 } as const;

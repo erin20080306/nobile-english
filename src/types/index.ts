@@ -25,11 +25,24 @@ export type PartOfSpeech =
   | "pron.";
 export type ChineseSetting = "always" | "on-demand" | "practice-hide" | "review-only";
 
+export interface AccountProfile {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
 export interface User {
   id: string;
   name: string;
   email: string;
   password?: string;
+  provider?: "local" | "google";
+  deviceId?: string;
+  deviceName?: string;
+  deviceBoundAt?: string;
+  lastDeviceSeenAt?: string;
+  profiles?: AccountProfile[];
+  activeProfileId?: string;
   level: EnglishLevel;
   cefrLevel: CEFRLevel;
   createdAt: string;
@@ -169,6 +182,16 @@ export interface SavedSentence {
   source?: string;
 }
 
+export interface DialogueTranscriptLine {
+  role: "tutor" | "user";
+  en: string;
+  zh?: string;
+  naturalness?: number;
+  betterWay?: string;
+  grammarTip?: string;
+  zhExplain?: string;
+}
+
 export interface LearningRecord {
   id: string;
   type: "scene" | "dialogue" | "exam" | "custom";
@@ -178,6 +201,7 @@ export interface LearningRecord {
   zhContent?: string;
   userAnswer?: string;
   suggestion?: string;
+  transcript?: DialogueTranscriptLine[];
   score: number;
   completed: boolean;
   minutes: number;

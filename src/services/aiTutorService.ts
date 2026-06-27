@@ -1,12 +1,11 @@
 import type { Scene, TutorFeedback, DialogueResult } from "@/types";
 import { mockAiTutorService } from "./mockAiTutorService";
 
-// Facade over the AI tutor. Today it delegates to the local mock service so the
-// app works with NO API key. To enable a real model later, implement a server
-// route (e.g. /app/api/tutor/route.ts) that calls OpenAI with process.env.OPENAI_API_KEY
-// and switch `USE_REMOTE` to true. The API key must stay on the server.
+// Facade over the AI tutor. The browser calls our Next.js API route; the route
+// uses OpenAI when OPENAI_API_KEY exists, otherwise it falls back to local logic.
+// The API key stays server-side and is never exposed to the client bundle.
 
-const USE_REMOTE = false;
+const USE_REMOTE = true;
 
 export const aiTutorService = {
   isRemoteEnabled() {
@@ -14,11 +13,26 @@ export const aiTutorService = {
   },
 
   async reply(scene: Scene, userInput: string, turn: number, history: string[] = []): Promise<{ en: string; zh: string }> {
-    // if (USE_REMOTE) return fetch("/api/tutor", { ... })
-    return mockAiTutorService.reply(scene, userInput, turn, history);
+    const feedback = await this.feedback(scene, userInput, turn, history);
+    return { en: feedback.reply, zh: feedback.replyZh };
   },
 
   async feedback(scene: Scene, userInput: string, turn: number, history: string[] = []): Promise<TutorFeedback> {
+    if (USE_REMOTE && typeof window !== "undefined") {
+      try {
+        const res = await fetch("/api/tutor", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ scene, userInput, turn, history }),
+        });
+        if (res.ok) {
+          const data = (await res.json()) as { feedback?: TutorFeedback };
+          if (data.feedback) return data.feedback;
+        }
+      } catch {
+        // Local fallback below keeps the practice usable offline.
+      }
+    }
     return mockAiTutorService.feedback(scene, userInput, turn, history);
   },
 

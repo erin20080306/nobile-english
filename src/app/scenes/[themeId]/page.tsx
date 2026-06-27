@@ -39,7 +39,7 @@ export default function ThemeScenesPage() {
               transition={{ delay: i * 0.03 }}
               onClick={() => router.push(`/scenes/${themeId}/${s.id}`)}
               className="card text-left active:scale-[0.98] transition relative overflow-hidden"
-              style={sceneCardStyle(theme.color, 0.94)}
+              style={sceneCardStyle(theme.color, 0.24, themeId)}
             >
               {done && (
                 <CheckCircle2 className="absolute right-4 top-4 text-mintDeep" size={22} />

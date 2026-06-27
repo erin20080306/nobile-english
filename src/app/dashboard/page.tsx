@@ -160,7 +160,7 @@ export default function Dashboard() {
                 key={r.id}
                 onClick={() => router.push(`/scenes/${scene.themeId}/${scene.id}`)}
                 className="min-w-[160px] card !p-4 text-left active:scale-95 transition overflow-hidden"
-                style={sceneCardStyle(theme?.color || "#E8E1FF", 0.9)}
+                style={sceneCardStyle(theme?.color || "#E8E1FF", 0.22, scene.themeId)}
               >
                 <Sparkles className="text-lilacDeep" size={20} />
                 <p className="font-bold text-ink mt-2">{scene.name}</p>

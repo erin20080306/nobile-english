@@ -48,6 +48,10 @@ const toeic: ExamQuestion[] = [
   q("TOEIC", "vocabulary", "vocabulary", "Sales have increased ___ 20% this quarter.", ["by", "of", "on", "in"], 0, "increase by + 數值。", { reviewWords: ["increase", "quarter"] }),
   q("TOEIC", "grammar", "reorder", "Reorder: please / the invoice / send / to me", ["Please send the invoice to me.", "Send please me to invoice.", "The invoice me send please.", "To me please send invoice."], 0, "祈使句：Please + 動詞 + 受詞。"),
   q("TOEIC", "reading", "reading", "What does the customer want?", ["A refund", "A discount", "A new size", "A receipt"], 2, "顧客說 the size is too small, can I exchange → 想換尺寸。", { passage: "Hi, the shirt I bought is too small. Can I exchange it for a larger size?" }),
+  q("TOEIC", "listening", "situational", "[Conversation] Where will the speakers probably meet?", ["At the front desk", "In the warehouse", "At the airport gate", "In a restaurant kitchen"], 0, "對話提到 visitor badge 和 lobby，因此最可能在櫃台或大廳碰面。", { passage: "Man: I just arrived for the 10 a.m. meeting. Woman: Great. Please pick up your visitor badge at the front desk, and I'll meet you in the lobby.", reviewWords: ["badge", "lobby"] }),
+  q("TOEIC", "reading", "reading", "What is implied about the delivery?", ["It may arrive later than planned", "It has already been returned", "It was sent to the wrong country", "It contains damaged items"], 0, "信件說 warehouse is experiencing delays，可推論配送可能延遲。", { passage: "Due to a high volume of orders, our warehouse is experiencing delays. We apologize and will send tracking information as soon as your package ships.", reviewWords: ["imply", "delay", "tracking"] }),
+  q("TOEIC", "grammar", "fill-blank", "The training session is mandatory for employees ___ joined after March 1.", ["who", "which", "where", "whose"], 0, "先行詞 employees 是人，關係代名詞用 who。"),
+  q("TOEIC", "vocabulary", "vocabulary", "The client asked for a more ___ estimate before approving the budget.", ["detailed", "detailing", "details", "detail"], 0, "estimate 前需要形容詞 detailed。", { reviewWords: ["estimate", "approve", "budget"] }),
 ];
 
 const ielts: ExamQuestion[] = [
@@ -71,6 +75,10 @@ const ielts: ExamQuestion[] = [
   q("IELTS", "grammar", "fill-blank", "Had I known earlier, I ___ have helped.", ["will", "would", "can", "may"], 1, "與過去事實相反假設 → would have。"),
   q("IELTS", "reading", "reading", "What is the purpose of paragraph 2?", ["To give examples", "To conclude", "To introduce", "To apologize"], 0, "第二段列舉例子支持論點。", { passage: "For example, cities like Copenhagen and Amsterdam have invested heavily in cycling infrastructure." }),
   q("IELTS", "vocabulary", "vocabulary", "The two theories are fundamentally ___.", ["different", "differ", "difference", "differently"], 0, "be 動詞後接形容詞 different。", { reviewWords: ["fundamentally", "theory"] }),
+  q("IELTS", "reading", "reading", "Which statement best matches the writer's view?", ["Public transport can reduce urban pollution", "Cars should be banned immediately", "Cycling is impossible in large cities", "Pollution is unrelated to transport"], 0, "作者支持公共運輸能降低都市污染，其他選項過度絕對或不符。", { passage: "Expanding public transport is unlikely to solve every urban problem, but it can reduce air pollution and make cities more accessible.", reviewWords: ["accessible", "pollution"] }),
+  q("IELTS", "vocabulary", "vocabulary", "The word 'substantial' is closest in meaning to ___.", ["considerable", "temporary", "minor", "uncertain"], 0, "substantial = 大量的、顯著的，接近 considerable。", { reviewWords: ["substantial", "considerable"] }),
+  q("IELTS", "grammar", "fill-blank", "The data ___ that students benefit from regular feedback.", ["suggests", "suggest", "suggesting", "to suggest"], 1, "IELTS/學術英文常把 data 視為複數，接 suggest。"),
+  q("IELTS", "listening", "situational", "In IELTS Speaking, which answer is the strongest?", ["Yes.", "I like it.", "Yes, especially because it helps me stay focused after a long day.", "Good."], 2, "口說高分回答需要延伸原因與細節，而不只短答。"),
 ];
 
 const toefl: ExamQuestion[] = [
@@ -94,6 +102,10 @@ const toefl: ExamQuestion[] = [
   q("TOEFL", "grammar", "fill-blank", "The results were surprising; ___, they were not published.", ["nevertheless", "therefore", "because", "so that"], 0, "nevertheless 表轉折（儘管如此）。"),
   q("TOEFL", "listening", "situational", "A professor says 'Let's table this discussion.' This means ___.", ["postpone it", "start it now", "vote on it", "write it down"], 0, "table this = 暫緩討論（美式）。"),
   q("TOEFL", "vocabulary", "vocabulary", "The ancient ruins were remarkably well ___.", ["preserved", "presented", "pressured", "presumed"], 0, "preserve = 保存。", { reviewWords: ["preserve", "ancient"] }),
+  q("TOEFL", "listening", "reading", "Why does the professor mention tree rings?", ["To provide evidence for past climate patterns", "To explain how to plant trees", "To compare two campus buildings", "To introduce a homework policy"], 0, "教授提到 tree rings 是為了說明過去氣候模式的證據。", { passage: "[Lecture] Tree rings can reveal periods of drought and rainfall, giving scientists evidence about past climate conditions.", reviewWords: ["evidence", "climate", "drought"] }),
+  q("TOEFL", "reading", "reading", "What can be inferred from the passage?", ["The species adapted to a colder environment", "The species disappeared immediately", "The habitat never changed", "Researchers rejected all fossil evidence"], 0, "文章提到 thicker fur and smaller ears，表示物種適應較冷環境。", { passage: "Fossil evidence suggests that over many generations, the animal developed thicker fur and smaller ears, traits commonly associated with colder climates.", reviewWords: ["infer", "adapt", "fossil"] }),
+  q("TOEFL", "vocabulary", "vocabulary", "The word 'plausible' is closest in meaning to ___.", ["reasonable", "impossible", "ancient", "brief"], 0, "plausible = 合理可信的。", { reviewWords: ["plausible", "reasonable"] }),
+  q("TOEFL", "grammar", "fill-blank", "The committee recommended that the proposal ___ revised before approval.", ["be", "is", "was", "being"], 0, "recommend that + 主詞 + 原形動詞，正式英文用 be revised。"),
 ];
 
 export const examQuestions: ExamQuestion[] = [...toeic, ...ielts, ...toefl];

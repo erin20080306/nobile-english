@@ -14,7 +14,35 @@ import ClickableText from "@/components/ClickableText";
 import WordSheet from "@/components/WordSheet";
 import ConversationPractice from "@/components/ConversationPractice";
 import { LevelBadge } from "@/components/ui";
-import type { DialogueResult, TutorFeedback } from "@/types";
+import type { DialogueResult, TutorFeedback, DialogueTranscriptLine } from "@/types";
+
+function buildTranscript(userTurns: string[], feedbacks: TutorFeedback[]): DialogueTranscriptLine[] {
+  const transcript: DialogueTranscriptLine[] = [];
+  feedbacks.forEach((fb, index) => {
+    const userLine = userTurns[index]?.trim();
+    if (userLine) {
+      transcript.push({
+        role: "user",
+        en: userLine,
+        naturalness: fb.naturalness,
+        betterWay: fb.betterWay,
+        grammarTip: fb.grammarTip,
+        zhExplain: fb.zhExplain,
+      });
+    }
+    if (fb.reply) {
+      transcript.push({
+        role: "tutor",
+        en: fb.reply,
+        zh: fb.replyZh,
+      });
+    }
+  });
+  if (transcript.length === 0) {
+    return userTurns.filter(Boolean).map((en) => ({ role: "user", en }));
+  }
+  return transcript;
+}
 
 export default function ScenePracticePage() {
   const router = useRouter();
@@ -77,6 +105,7 @@ export default function ScenePracticePage() {
       zhContent: scene!.dialogue.map((d) => d.zh).join(" / "),
       userAnswer: userTurns.join(" / "),
       suggestion: feedbacks.length > 0 ? feedbacks[feedbacks.length - 1].betterWay : "持續練習關鍵句型，注意禮貌用語。",
+      transcript: buildTranscript(userTurns, feedbacks),
       score,
       completed: true,
       minutes: scene!.minutes,
