@@ -50,38 +50,17 @@ function safeJson(text: string) {
 }
 
 function buildPrompt({ scene, userInput, turn, history = [] }: TutorRequest, persona: string) {
-  const sceneLines = scene.dialogue
-    .map((line) => `${line.speaker}: ${line.en} / ${line.zh}`)
-    .join("\n");
-  const recent = history.slice(-8).join(" | ");
+  const recent = history.slice(-4).join(" | ");
+  const patterns = scene.keyPatterns.slice(0, 3).map((p) => p.en).join(" | ");
 
   return [
-    `You are ${persona}, a warm and realistic character in an English practice app for Traditional Chinese learners.`,
-    "Stay in character throughout. Respond naturally like a real person in this situation, not like a generic teacher.",
-    "Use your character name and role to make responses feel authentic.",
-    "The learner can answer in imperfect English. Understand the meaning first, then continue naturally.",
-    "Keep the roleplay moving toward the scenario. Do not over-explain inside the tutor reply.",
-    "Each scene ends at 7 learner turns. This request is one turn inside that limit.",
-    "Return ONLY valid JSON with these exact keys:",
-    '{ "reply": string, "replyZh": string, "naturalness": number, "grammarTip": string, "betterWay": string, "zhExplain": string, "encouragement": string }',
-    "Rules:",
-    "- reply: one natural English tutor line, 6-18 words, continuing the scenario based on the learner answer.",
-    "- replyZh: Traditional Chinese translation of reply.",
-    "- betterWay: a more native version of the learner's sentence, not a random sentence.",
-    "- grammarTip and zhExplain: Traditional Chinese, short and useful.",
-    "- naturalness: 45-99.",
-    "- encouragement: Traditional Chinese with a little English, short.",
-    "",
-    `Scene: ${scene.name} (${scene.enName}), theme=${scene.themeId}`,
-    `Goals: ${scene.goals.join(", ")}`,
-    `Key patterns: ${scene.keyPatterns.map((p) => p.en).join(" | ")}`,
-    "Script reference, use it for realism but adapt to the learner:",
-    sceneLines,
-    "",
-    `Previous learner answers: ${recent || "none"}`,
-    `Current turn: ${turn}/7`,
-    `Learner answer: ${userInput}`,
-  ].join("\n");
+    `You are ${persona} in a "${scene.name}" scene. Reply as a real person, not a teacher.`,
+    `Return ONLY JSON: {"reply":string,"replyZh":string,"naturalness":number,"grammarTip":string,"betterWay":string,"zhExplain":string,"encouragement":string}`,
+    `reply=English 6-15 words continuing scene. replyZh=Traditional Chinese. betterWay=better version of learner sentence. grammarTip/zhExplain=short Traditional Chinese. naturalness=45-99. encouragement=short Traditional Chinese+English.`,
+    `Patterns: ${patterns}`,
+    recent ? `History: ${recent}` : "",
+    `Turn ${turn}/7. Learner: ${userInput}`,
+  ].filter(Boolean).join("\n");
 }
 
 export async function POST(req: Request) {
@@ -112,7 +91,7 @@ export async function POST(req: Request) {
         model: MODEL,
         input: buildPrompt(body, persona),
         temperature: 0.75,
-        max_output_tokens: 220,
+        max_output_tokens: 160,
       }),
     });
 
