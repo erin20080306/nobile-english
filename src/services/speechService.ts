@@ -53,9 +53,19 @@ export const speechService = {
 
   warmUp(): void {
     if (!this.isSupported()) return;
-    void loadVoices().then(() => {
+    void loadVoices().then((voices) => {
       try {
+        window.speechSynthesis.cancel();
         window.speechSynthesis.resume();
+        // Speak a silent utterance to prime the audio engine and avoid
+        // the static/noise burst that occurs on the very first real speak.
+        const primer = new SpeechSynthesisUtterance(" ");
+        primer.volume = 0;
+        primer.rate = 1;
+        primer.lang = "en-US";
+        const voice = pickVoice(voices);
+        if (voice) primer.voice = voice;
+        window.speechSynthesis.speak(primer);
       } catch {
         /* ignore */
       }
