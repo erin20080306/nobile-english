@@ -6,7 +6,7 @@ import { Send, Volume2, Star, Mic, MicOff, VolumeX } from "lucide-react";
 import type { Scene, TutorFeedback, DialogueResult } from "@/types";
 import { aiTutorService } from "@/services/aiTutorService";
 import { dictionaryService } from "@/services/dictionaryService";
-import { speechService } from "@/services/speechService";
+import { speechService, type SpeakOptions } from "@/services/speechService";
 import ClickableText from "@/components/ClickableText";
 import WordSheet from "@/components/WordSheet";
 import { getSelectedTutor } from "@/components/TutorSelector";
@@ -66,11 +66,14 @@ export default function ConversationPractice({
   const [autoSpeak, setAutoSpeak] = useState(pronunciationOn);
   const [activeWord, setActiveWord] = useState<string | null>(null);
   const [toast, setToast] = useState("");
+  const [tutorSpeaking, setTutorSpeaking] = useState(false);
   const [persona] = useState(() => pickPersona(scene));
   const [selectedTutor] = useState(() => getSelectedTutor());
   const tutorName = selectedTutor.name;
 
   const endRef = useRef<HTMLDivElement>(null);
+  const mountedRef = useRef(true);
+  const voiceQueueRef = useRef<Promise<void>>(Promise.resolve());
   const stopListenRef = useRef<(() => void) | null>(null);
   const historyRef = useRef<string[]>([]);
   const userTurnsRef = useRef<string[]>([]);
@@ -93,9 +96,10 @@ export default function ConversationPractice({
     let openingTimer: number | undefined;
     if (autoSpeak) {
       speechService.warmUp(speechOptions);
-      openingTimer = window.setTimeout(() => speechService.speak(firstTutor.en, speechOptions), 650);
+      openingTimer = window.setTimeout(() => queueSpeak(firstTutor.en), 650);
     }
     return () => {
+      mountedRef.current = false;
       if (openingTimer) window.clearTimeout(openingTimer);
       speechService.stop();
       stopListenRef.current?.();
@@ -108,9 +112,59 @@ export default function ConversationPractice({
     setTimeout(() => setToast(""), 2500);
   }
 
-  function speak(text: string) {
-    const r = speechService.speak(text, speechOptions);
+  function setTutorVoiceActive(active: boolean) {
+    if (mountedRef.current) setTutorSpeaking(active);
+  }
+
+  function tutorSpeechOptions(extra?: Partial<SpeakOptions>): SpeakOptions {
+    return {
+      ...speechOptions,
+      ...extra,
+      onStart: () => {
+        setTutorVoiceActive(true);
+        extra?.onStart?.();
+      },
+      onEnd: () => {
+        setTutorVoiceActive(false);
+        extra?.onEnd?.();
+      },
+    };
+  }
+
+  function speak(text: string, animateTutor = true) {
+    const r = speechService.speak(text, animateTutor ? tutorSpeechOptions() : speechOptions);
+    if (!r.ok) setTutorVoiceActive(false);
     if (!r.ok) flashToast(r.message || "無法播放發音");
+  }
+
+  function queueSpeak(text: string, animateTutor = true, extra?: Partial<SpeakOptions>): Promise<void> {
+    const clean = text.trim();
+    if (!clean) return Promise.resolve();
+
+    const previous = voiceQueueRef.current.catch(() => undefined);
+    voiceQueueRef.current = previous.then(() => new Promise<void>((resolve) => {
+      let settled = false;
+      const fallbackMs = Math.max(3500, Math.min(18000, clean.length * 95 + 4500));
+      const timer = window.setTimeout(done, fallbackMs);
+
+      function done() {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        if (animateTutor) setTutorVoiceActive(false);
+        resolve();
+      }
+
+      const options: SpeakOptions = animateTutor
+        ? tutorSpeechOptions({ ...extra, onEnd: done })
+        : { ...speechOptions, ...extra, onEnd: done };
+      const r = speechService.speak(clean, options);
+      if (!r.ok) {
+        flashToast(r.message || "無法播放發音");
+        done();
+      }
+    }));
+    return voiceQueueRef.current;
   }
 
   async function handleSend(text: string) {
@@ -120,13 +174,11 @@ export default function ConversationPractice({
     setInput("");
 
     setMsgs((m) => [...m, { role: "user", en: trimmed, zh: "" }]);
+    let learnerSpeechDone = Promise.resolve();
     if (autoSpeak) {
-      window.setTimeout(() => {
-        speechService.speak(trimmed, {
-          ...speechOptions,
-          ttsInstructions: "Repeat the learner's English sentence clearly and naturally for listening practice. Use strong clear volume.",
-        });
-      }, 80);
+      learnerSpeechDone = queueSpeak(trimmed, false, {
+        ttsInstructions: "Repeat the learner's English sentence clearly and naturally for listening practice. Use strong clear volume.",
+      });
     }
 
     const history = [...historyRef.current];
@@ -136,6 +188,8 @@ export default function ConversationPractice({
     const fb = await aiTutorService.feedback(scene, trimmed, turn + 1, history, persona);
     feedbacksRef.current = [...feedbacksRef.current, fb];
     const reachedMax = userTurnsRef.current.length >= MAX_PRACTICE_TURNS;
+    await learnerSpeechDone;
+    if (!mountedRef.current) return;
 
     setMsgs((m) => {
       const copy = [...m];
@@ -154,7 +208,7 @@ export default function ConversationPractice({
       window.setTimeout(() => finishWith(userTurnsRef.current, feedbacksRef.current, true), 550);
       return;
     }
-    if (autoSpeak) speak(fb.reply);
+    if (autoSpeak) queueSpeak(fb.reply);
   }
 
   function toggleMic() {
@@ -214,14 +268,33 @@ export default function ConversationPractice({
   return (
     <div className="flex flex-col min-h-0 flex-1">
       <div className="px-4 pb-3 shrink-0">
-        <div className="relative h-52 overflow-hidden rounded-[30px] bg-ink shadow-soft">
+        <div className={`relative h-52 overflow-hidden rounded-[30px] bg-ink shadow-soft transition-all duration-300 ${tutorSpeaking ? "ring-4 ring-mint/70" : ""}`}>
           <img src={selectedTutor.photoUrl} alt="" className="absolute inset-0 h-full w-full scale-110 object-cover blur-lg opacity-50" />
-          <img src={selectedTutor.photoUrl} alt={selectedTutor.name} className="relative h-full w-full object-contain object-center" />
+          <motion.img
+            src={selectedTutor.photoUrl}
+            alt={selectedTutor.name}
+            animate={tutorSpeaking ? { scale: [1, 1.025, 1.01], y: [0, -3, 0] } : { scale: 1, y: 0 }}
+            transition={tutorSpeaking ? { duration: 1.15, repeat: Infinity, ease: "easeInOut" } : { duration: 0.25 }}
+            className={`relative h-full w-full object-contain object-center transition-[filter] duration-300 ${tutorSpeaking ? "drop-shadow-[0_0_24px_rgba(167,139,250,0.55)]" : ""}`}
+          />
           <div className="absolute inset-0 bg-gradient-to-t from-ink/85 via-ink/10 to-white/10" />
           <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-black/35 px-3 py-1.5 text-xs font-extrabold text-white backdrop-blur">
-            <span className="h-2 w-2 rounded-full bg-mintDeep shadow-[0_0_12px_rgba(86,211,145,0.9)]" />
+            <span className={`h-2 w-2 rounded-full bg-mintDeep shadow-[0_0_12px_rgba(86,211,145,0.9)] ${tutorSpeaking ? "animate-ping" : ""}`} />
             LIVE
           </div>
+          {tutorSpeaking && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="absolute right-16 top-4 flex h-10 items-center gap-1 rounded-2xl bg-white/90 px-3 shadow-softer"
+              aria-hidden="true"
+            >
+              <span className="h-3 w-1 rounded-full bg-lilacDeep animate-bounce" style={{ animationDelay: "0ms" }} />
+              <span className="h-5 w-1 rounded-full bg-lilacDeep animate-bounce" style={{ animationDelay: "120ms" }} />
+              <span className="h-4 w-1 rounded-full bg-lilacDeep animate-bounce" style={{ animationDelay: "240ms" }} />
+              <span className="h-6 w-1 rounded-full bg-peachDeep animate-bounce" style={{ animationDelay: "360ms" }} />
+            </motion.div>
+          )}
           <button
             onClick={() => speak(selectedTutor.sampleLine)}
             className="absolute right-4 top-4 h-10 w-10 rounded-2xl bg-white/90 text-lilacDeep flex items-center justify-center shadow-softer active:scale-90 transition"
@@ -244,7 +317,7 @@ export default function ConversationPractice({
                 <ClickableText text={m.en} onWord={setActiveWord} className={m.role === "user" ? "text-white" : "text-ink"} />
                 {showZh && m.zh && <p className={`text-sm mt-1 ${m.role === "user" ? "text-white/80" : "text-inkSoft"}`}>{m.zh}</p>}
                 <div className="mt-1 flex gap-3">
-                  <button onClick={() => speak(m.en)} className={m.role === "user" ? "text-white/90" : "text-lilacDeep"}><Volume2 size={15} /></button>
+                  <button onClick={() => speak(m.en, m.role === "tutor")} className={m.role === "user" ? "text-white/90" : "text-lilacDeep"}><Volume2 size={15} /></button>
                   <button onClick={() => { dictionaryService.toggleSentence(m.en, m.zh, scene.name); flashToast("已收藏句子"); }} className={m.role === "user" ? "text-white/90" : "text-peachDeep"}><Star size={15} /></button>
                 </div>
               </div>

@@ -4,14 +4,17 @@
 let voicesReady: Promise<SpeechSynthesisVoice[]> | null = null;
 let currentAudio: HTMLAudioElement | null = null;
 let currentAudioContext: AudioContext | null = null;
+let currentPlaybackEnd: (() => void) | null = null;
 
-interface SpeakOptions {
+export interface SpeakOptions {
   rate?: number;
   lang?: string;
   voiceKeywords?: string[];
   ttsVoice?: string;
   ttsInstructions?: string;
   volumeGain?: number;
+  onStart?: () => void;
+  onEnd?: () => void;
 }
 
 function supported() {
@@ -52,6 +55,8 @@ function pickVoice(voices: SpeechSynthesisVoice[], lang = "en-US", keywords: str
 }
 
 function stopAudio() {
+  const endPlayback = currentPlaybackEnd;
+  currentPlaybackEnd = null;
   if (!currentAudio) {
     try {
       void currentAudioContext?.close();
@@ -59,6 +64,7 @@ function stopAudio() {
       /* ignore */
     }
     currentAudioContext = null;
+    endPlayback?.();
     return;
   }
   try {
@@ -70,6 +76,7 @@ function stopAudio() {
   }
   currentAudio = null;
   currentAudioContext = null;
+  endPlayback?.();
 }
 
 function speakNow(text: string, opts?: SpeakOptions) {
@@ -81,6 +88,18 @@ function speakNow(text: string, opts?: SpeakOptions) {
   utter.volume = 1;
   const voice = pickVoice(window.speechSynthesis.getVoices(), lang, opts?.voiceKeywords ?? []);
   if (voice) utter.voice = voice;
+  currentPlaybackEnd = opts?.onEnd ?? null;
+  utter.onstart = () => opts?.onStart?.();
+  utter.onend = () => {
+    const endPlayback = currentPlaybackEnd;
+    currentPlaybackEnd = null;
+    endPlayback?.();
+  };
+  utter.onerror = () => {
+    const endPlayback = currentPlaybackEnd;
+    currentPlaybackEnd = null;
+    endPlayback?.();
+  };
   window.speechSynthesis.resume();
   window.speechSynthesis.speak(utter);
 }
@@ -104,11 +123,16 @@ async function speakWithOpenAi(text: string, opts?: SpeakOptions) {
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
     currentAudio = audio;
+    currentPlaybackEnd = opts?.onEnd ?? null;
     const cleanup = () => {
       URL.revokeObjectURL(url);
       if (currentAudio === audio) currentAudio = null;
       currentAudioContext = null;
+      const endPlayback = currentPlaybackEnd;
+      currentPlaybackEnd = null;
+      endPlayback?.();
     };
+    audio.onplay = () => opts?.onStart?.();
     audio.onended = cleanup;
     audio.onerror = cleanup;
     const playedWithBoost = await playWithGain(audio, opts?.volumeGain ?? 1.35, cleanup);

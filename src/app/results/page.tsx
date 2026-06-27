@@ -159,15 +159,19 @@ export default function ResultsPage() {
         <div className="card mt-3">
           <div className="flex items-center gap-2 mb-3">
             <TrendingUp size={16} className="text-peachDeep" />
-            <p className="font-bold text-ink">個人化練習建議</p>
+            <p className="text-lg font-extrabold text-ink">個人化練習建議</p>
           </div>
           <div className="space-y-3">
             {data.suggestions.map((s, i) => (
-              <div key={i} className="rounded-2xl bg-peach/30 p-3">
-                <span className="chip bg-peachDeep text-white text-xs mb-1">{s.area}</span>
-                <p className="text-sm text-ink mt-1">{s.tip}</p>
+              <div key={i} className="rounded-3xl bg-peach/30 p-4">
+                <div className="mb-3 flex items-center">
+                  <span className="inline-flex shrink-0 items-center rounded-2xl bg-peachDeep px-4 py-2 text-sm font-extrabold text-white shadow-softer">
+                    {s.area}
+                  </span>
+                </div>
+                <p className="text-base leading-relaxed text-ink">{s.tip}</p>
                 {s.example && (
-                  <p className="text-xs text-inkSoft mt-1 bg-white/60 rounded-xl px-2 py-1">
+                  <p className="mt-3 rounded-2xl bg-white/70 px-3 py-2 text-base font-semibold leading-relaxed text-ink">
                     ✨ {s.example}
                   </p>
                 )}
