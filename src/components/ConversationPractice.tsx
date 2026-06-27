@@ -20,6 +20,23 @@ interface Msg {
 const MIN_PRACTICE_TURNS = 5;
 const MAX_PRACTICE_TURNS = 7;
 
+const SCENE_PERSONAS: Record<string, string[]> = {
+  cafe:       ["Mia", "Leo", "Sophie"],
+  airport:    ["Jake", "Emma", "Ryan"],
+  hotel:      ["Olivia", "Liam", "Ava"],
+  shopping:   ["Noah", "Chloe", "Ethan"],
+  interview:  ["Dr. Carter", "Ms. Lee", "Mr. Brown"],
+  hospital:   ["Dr. Kim", "Nurse Lily", "Dr. Sam"],
+  restaurant: ["Lucas", "Isabella", "Mason"],
+  free:       ["Alex", "Jordan", "Taylor"],
+  default:    ["Alex", "Jordan", "Taylor", "Morgan"],
+};
+
+function pickPersona(themeId?: string): string {
+  const list = SCENE_PERSONAS[themeId ?? "default"] ?? SCENE_PERSONAS.default;
+  return list[Math.floor(Math.random() * list.length)];
+}
+
 export default function ConversationPractice({
   scene,
   showZh,
@@ -44,6 +61,7 @@ export default function ConversationPractice({
   const [autoSpeak, setAutoSpeak] = useState(pronunciationOn);
   const [activeWord, setActiveWord] = useState<string | null>(null);
   const [toast, setToast] = useState("");
+  const [persona] = useState(() => pickPersona(scene.themeId));
 
   const endRef = useRef<HTMLDivElement>(null);
   const stopListenRef = useRef<(() => void) | null>(null);
@@ -93,7 +111,7 @@ export default function ConversationPractice({
     historyRef.current.push(trimmed);
     userTurnsRef.current = [...userTurnsRef.current, trimmed];
 
-    const fb = await aiTutorService.feedback(scene, trimmed, turn + 1, history);
+    const fb = await aiTutorService.feedback(scene, trimmed, turn + 1, history, persona);
     feedbacksRef.current = [...feedbacksRef.current, fb];
     const reachedMax = userTurnsRef.current.length >= MAX_PRACTICE_TURNS;
 
@@ -176,7 +194,8 @@ export default function ConversationPractice({
       <div className="flex-1 px-4 pb-44 space-y-3 overflow-y-auto">
         {msgs.map((m, i) => (
           <div key={i}>
-            <div className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+            <div className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"}`}>
+              {m.role === "tutor" && <span className="text-xs font-bold text-inkSoft ml-1 mb-0.5">{persona}</span>}
               <div className={`max-w-[85%] rounded-3xl p-3 ${m.role === "user" ? "bg-lilacDeep text-white" : "bg-white text-ink shadow-softer"}`}>
                 <ClickableText text={m.en} onWord={setActiveWord} className={m.role === "user" ? "text-white" : "text-ink"} />
                 {showZh && m.zh && <p className={`text-sm mt-1 ${m.role === "user" ? "text-white/80" : "text-inkSoft"}`}>{m.zh}</p>}
@@ -199,8 +218,15 @@ export default function ConversationPractice({
           </div>
         ))}
         {busy && (
-          <div className="flex justify-start">
-            <div className="rounded-3xl bg-white shadow-softer px-4 py-3 text-inkSoft text-sm">導師思考中…</div>
+          <div className="flex justify-start flex-col gap-1">
+            <span className="text-xs font-bold text-inkSoft ml-1">{persona}</span>
+            <div className="rounded-3xl bg-white shadow-softer px-4 py-3 text-inkSoft text-sm flex items-center gap-2">
+              <span className="inline-flex gap-1">
+                <span className="h-2 w-2 rounded-full bg-lilacDeep/50 animate-bounce" style={{animationDelay:"0ms"}} />
+                <span className="h-2 w-2 rounded-full bg-lilacDeep/50 animate-bounce" style={{animationDelay:"150ms"}} />
+                <span className="h-2 w-2 rounded-full bg-lilacDeep/50 animate-bounce" style={{animationDelay:"300ms"}} />
+              </span>
+            </div>
           </div>
         )}
         <div ref={endRef} />
@@ -220,7 +246,7 @@ export default function ConversationPractice({
           </span>
           <button onClick={() => setAutoSpeak((v) => !v)} className="flex items-center gap-1 text-xs font-bold text-inkSoft">
             {autoSpeak ? <Volume2 size={14} className="text-lilacDeep" /> : <VolumeX size={14} />}
-            自動朗讀導師回覆：{autoSpeak ? "開" : "關"}
+            自動朗讀：{autoSpeak ? "開" : "關"}
           </button>
         </div>
         <div className="flex items-center justify-between gap-2 px-1 flex-wrap">

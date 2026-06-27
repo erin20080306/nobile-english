@@ -17,13 +17,13 @@ export const aiTutorService = {
     return { en: feedback.reply, zh: feedback.replyZh };
   },
 
-  async feedback(scene: Scene, userInput: string, turn: number, history: string[] = []): Promise<TutorFeedback> {
+  async feedback(scene: Scene, userInput: string, turn: number, history: string[] = [], persona?: string): Promise<TutorFeedback> {
     if (USE_REMOTE && typeof window !== "undefined") {
       try {
         const res = await fetch("/api/tutor", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ scene, userInput, turn, history }),
+          body: JSON.stringify({ scene, userInput, turn, history, persona }),
         });
         if (res.ok) {
           const data = (await res.json()) as { feedback?: TutorFeedback };

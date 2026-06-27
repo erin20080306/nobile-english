@@ -7,11 +7,29 @@ export const runtime = "nodejs";
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const MODEL = process.env.OPENAI_TUTOR_MODEL || "gpt-4o-mini";
 
+const PERSONAS: Record<string, string[]> = {
+  cafe:       ["Mia (barista)", "Leo (cafe owner)", "Sophie (barista)"],
+  airport:    ["Jake (check-in staff)", "Emma (gate agent)", "Ryan (airline rep)"],
+  hotel:      ["Olivia (front desk)", "Liam (concierge)", "Ava (receptionist)"],
+  shopping:   ["Noah (sales staff)", "Chloe (store clerk)", "Ethan (shopkeeper)"],
+  interview:  ["Dr. Carter (interviewer)", "Ms. Lee (HR manager)", "Mr. Brown (hiring manager)"],
+  hospital:   ["Dr. Kim (doctor)", "Nurse Lily (nurse)", "Dr. Sam (physician)"],
+  restaurant: ["Lucas (waiter)", "Isabella (server)", "Mason (host)"],
+  default:    ["Alex", "Jordan", "Taylor", "Morgan", "Riley"],
+};
+
+function getPersona(themeId?: string): string {
+  const key = themeId && PERSONAS[themeId] ? themeId : "default";
+  const list = PERSONAS[key];
+  return list[Math.floor(Math.random() * list.length)];
+}
+
 interface TutorRequest {
   scene: Scene;
   userInput: string;
   turn: number;
   history?: string[];
+  persona?: string;
 }
 
 function fallback(body: TutorRequest, status = 200) {
@@ -31,15 +49,16 @@ function safeJson(text: string) {
   return JSON.parse(raw);
 }
 
-function buildPrompt({ scene, userInput, turn, history = [] }: TutorRequest) {
+function buildPrompt({ scene, userInput, turn, history = [] }: TutorRequest, persona: string) {
   const sceneLines = scene.dialogue
     .map((line) => `${line.speaker}: ${line.en} / ${line.zh}`)
     .join("\n");
   const recent = history.slice(-8).join(" | ");
 
   return [
-    "You are a warm, realistic English speaking tutor in a mobile app for Traditional Chinese learners.",
-    "Continue the roleplay like a real person, not like a generic teacher.",
+    `You are ${persona}, a warm and realistic character in an English practice app for Traditional Chinese learners.`,
+    "Stay in character throughout. Respond naturally like a real person in this situation, not like a generic teacher.",
+    "Use your character name and role to make responses feel authentic.",
     "The learner can answer in imperfect English. Understand the meaning first, then continue naturally.",
     "Keep the roleplay moving toward the scenario. Do not over-explain inside the tutor reply.",
     "Each scene ends at 7 learner turns. This request is one turn inside that limit.",
@@ -80,6 +99,8 @@ export async function POST(req: Request) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return fallback(body);
 
+  const persona = body.persona || getPersona(body.scene?.themeId);
+
   try {
     const response = await fetch(OPENAI_RESPONSES_URL, {
       method: "POST",
@@ -89,9 +110,9 @@ export async function POST(req: Request) {
       },
       body: JSON.stringify({
         model: MODEL,
-        input: buildPrompt(body),
-        temperature: 0.8,
-        max_output_tokens: 420,
+        input: buildPrompt(body, persona),
+        temperature: 0.75,
+        max_output_tokens: 220,
       }),
     });
 
