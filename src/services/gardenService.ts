@@ -5,60 +5,68 @@ import type {
   GardenReviewCard,
   GardenState,
   LearningLanguageCode,
-  LearningRecord,
   SavedWord,
 } from "@/types";
-import { getLearningLanguage } from "@/data/learningLanguages";
 import { KEYS, storageService } from "./storageService";
 
 const PLOT_COUNT = 6;
 
 export const GARDEN_CROPS: GardenCrop[] = [
-  { id: "word-sprout", name: "單字芽", enName: "Word Sprout", emoji: "🌱", color: "from-mint to-[#F8FFF6]" },
-  { id: "sentence-tomato", name: "句型番茄", enName: "Sentence Tomato", emoji: "🍅", color: "from-peach to-[#FFF6F0]" },
-  { id: "dialogue-corn", name: "對話玉米", enName: "Dialogue Corn", emoji: "🌽", color: "from-[#FFE39C] to-[#FFF9E8]" },
-  { id: "voice-berry", name: "發音莓果", enName: "Voice Berry", emoji: "🫐", color: "from-sky to-[#F3FAFF]" },
-  { id: "review-carrot", name: "複習蘿蔔", enName: "Review Carrot", emoji: "🥕", color: "from-[#FFD4B8] to-[#FFF5EF]" },
-  { id: "exam-flower", name: "測驗花", enName: "Quiz Flower", emoji: "🌼", color: "from-lilac to-[#FBF8FF]" },
+  {
+    id: "word-sprout",
+    name: "單字芽",
+    enName: "Word Sprout",
+    emoji: "🌱",
+    color: "from-mint to-[#F8FFF6]",
+    description: "代表新學單字，字彙量像嫩芽一樣慢慢長大。",
+    rewardCoins: 8,
+  },
+  {
+    id: "sentence-tomato",
+    name: "句型番茄",
+    enName: "Sentence Tomato",
+    emoji: "🍅",
+    color: "from-peach to-[#FFF6F0]",
+    description: "代表句型練習，例如點餐、問路、打招呼常用句。",
+    rewardCoins: 12,
+  },
+  {
+    id: "dialogue-corn",
+    name: "對話玉米",
+    enName: "Dialogue Corn",
+    emoji: "🌽",
+    color: "from-[#FFE39C] to-[#FFF9E8]",
+    description: "代表完成一輪情境對話，一句一句累積口說反應。",
+    rewardCoins: 14,
+  },
+  {
+    id: "voice-berry",
+    name: "發音莓果",
+    enName: "Voice Berry",
+    emoji: "🫐",
+    color: "from-sky to-[#F3FAFF]",
+    description: "代表語音輸入、朗讀與發音細節，適合反覆練習。",
+    rewardCoins: 10,
+  },
+  {
+    id: "review-carrot",
+    name: "複習蘿蔔",
+    enName: "Review Carrot",
+    emoji: "🥕",
+    color: "from-[#FFD4B8] to-[#FFF5EF]",
+    description: "代表翻牌、填空、回顧練習，把學過內容重新想起來。",
+    rewardCoins: 11,
+  },
+  {
+    id: "exam-flower",
+    name: "測驗花",
+    enName: "Quiz Flower",
+    emoji: "🌼",
+    color: "from-lilac to-[#FBF8FF]",
+    description: "代表測驗成果，答題越穩，花就開得越漂亮。",
+    rewardCoins: 16,
+  },
 ];
-
-const fallbackCards: Record<LearningLanguageCode, GardenReviewCard[]> = {
-  en: [
-    { id: "en-order", word: "order", meaning: "點餐；訂購", language: "en" },
-    { id: "en-recommend", word: "recommend", meaning: "推薦", language: "en" },
-    { id: "en-nearby", word: "nearby", meaning: "附近的", language: "en" },
-    { id: "en-available", word: "available", meaning: "可取得的；有空的", language: "en" },
-    { id: "en-receipt", word: "receipt", meaning: "收據", language: "en" },
-  ],
-  ja: [
-    { id: "ja-yoyaku", word: "予約", meaning: "預約", language: "ja" },
-    { id: "ja-sumimasen", word: "すみません", meaning: "不好意思", language: "ja" },
-    { id: "ja-onegai", word: "お願いします", meaning: "麻煩您", language: "ja" },
-    { id: "ja-chikaku", word: "近く", meaning: "附近", language: "ja" },
-    { id: "ja-osusume", word: "おすすめ", meaning: "推薦", language: "ja" },
-  ],
-  ko: [
-    { id: "ko-yeyak", word: "예약", meaning: "預約", language: "ko" },
-    { id: "ko-eotteoyo", word: "어때요", meaning: "怎麼樣？", language: "ko" },
-    { id: "ko-juseyo", word: "주세요", meaning: "請給我", language: "ko" },
-    { id: "ko-gakkaun", word: "가까운", meaning: "附近的", language: "ko" },
-    { id: "ko-chucheon", word: "추천", meaning: "推薦", language: "ko" },
-  ],
-  it: [
-    { id: "it-prenotazione", word: "prenotazione", meaning: "預約", language: "it" },
-    { id: "it-consigliare", word: "consigliare", meaning: "建議；推薦", language: "it" },
-    { id: "it-vicino", word: "vicino", meaning: "附近的", language: "it" },
-    { id: "it-menu", word: "menù", meaning: "菜單", language: "it" },
-    { id: "it-conto", word: "conto", meaning: "帳單", language: "it" },
-  ],
-  es: [
-    { id: "es-reserva", word: "reserva", meaning: "預約", language: "es" },
-    { id: "es-recomendar", word: "recomendar", meaning: "推薦", language: "es" },
-    { id: "es-cerca", word: "cerca", meaning: "附近", language: "es" },
-    { id: "es-cuenta", word: "cuenta", meaning: "帳單", language: "es" },
-    { id: "es-disponible", word: "disponible", meaning: "可用的", language: "es" },
-  ],
-};
 
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
@@ -93,7 +101,9 @@ function normalizeState(raw: Partial<GardenState> | undefined, language: Learnin
     xp,
     water: raw?.water ?? 5,
     seeds: raw?.seeds ?? 3,
+    coins: raw?.coins ?? 0,
     harvests: raw?.harvests ?? 0,
+    harvestByCrop: raw?.harvestByCrop ?? {},
     lastDailyBonusAt: raw?.lastDailyBonusAt,
     plots: plots.map((plot, index) => ({
       id: index,
@@ -133,27 +143,20 @@ function uniqueCards(cards: GardenReviewCard[]) {
   });
 }
 
-function extractCardsFromRecords(language: LearningLanguageCode): GardenReviewCard[] {
-  const records = storageService.get<LearningRecord[]>(KEYS.records, []);
-  return records
-    .filter((record) => !record.targetLanguage || record.targetLanguage === language)
-    .flatMap((record) => {
-      const source = [
-        ...(record.conversationWords || []),
-        ...(record.enContent || "").split(/[\/,，。.!?\s]+/),
-        ...(record.userAnswer || "").split(/[\/,，。.!?\s]+/),
-      ];
-      return source
-        .map((word) => word.trim())
-        .filter((word) => word.length >= 2 && word.length <= 18)
-        .slice(0, 8)
-        .map((word) => ({
-          id: `${language}-${record.id}-${word}`,
-          word,
-          meaning: `${getLearningLanguage(language).zhName}練習詞`,
-          language,
-        }));
-    });
+function savedWordBelongsToLanguage(word: SavedWord, language: LearningLanguageCode) {
+  if (language === "en") return !word.language || word.language === "en";
+  return word.language === language;
+}
+
+function hasPreciseMeaning(word: SavedWord) {
+  const meaning = word.zh.trim();
+  return Boolean(
+    meaning &&
+      !meaning.includes("練習詞") &&
+      !meaning.includes("請搭配") &&
+      !meaning.includes("情境對話常見") &&
+      !meaning.includes("常見名詞或名稱")
+  );
 }
 
 export const gardenService = {
@@ -237,10 +240,14 @@ export const gardenService = {
     if (!plot?.cropId || !plot.harvestReady) return state;
     const crop = this.getCrop(plot.cropId);
     state.harvests += 1;
+    const cropId = crop?.id || plot.cropId;
+    const coinGain = crop?.rewardCoins ?? 10;
+    state.coins += coinGain;
+    if (cropId) state.harvestByCrop[cropId] = (state.harvestByCrop[cropId] || 0) + 1;
     state.seeds += 1;
     state.water += 1;
     state.xp += 18;
-    pushLog(state, "harvest", "收成完成", `收成「${crop?.name || "作物"}」，拿回 1 顆種子。`);
+    pushLog(state, "harvest", "收成完成", `收成「${crop?.name || "作物"}」，獲得 ${coinGain} 金幣、1 顆種子。`);
     plot.cropId = undefined;
     plot.growth = 0;
     plot.plantedAt = undefined;
@@ -262,6 +269,7 @@ export const gardenService = {
     const waterGain = Math.max(2, matchedPairs);
     state.water += waterGain;
     state.seeds += 1;
+    state.coins += Math.max(1, Math.ceil(matchedPairs / 2));
     state.xp += matchedPairs * 10;
     pushLog(state, "review", "翻牌複習完成", `配對 ${matchedPairs} 組，獲得 ${waterGain} 水滴、1 顆種子。`);
     return saveState(state);
@@ -269,15 +277,19 @@ export const gardenService = {
 
   getReviewCards(language: LearningLanguageCode, limit = 4): GardenReviewCard[] {
     const saved = storageService.get<SavedWord[]>(KEYS.savedWords, [])
-      .filter((word) => !word.language || word.language === language)
+      .filter((word) => savedWordBelongsToLanguage(word, language) && hasPreciseMeaning(word))
       .map((word) => ({
         id: `${language}-saved-${word.word}`,
         word: word.word,
         meaning: word.zh,
         language,
       }));
-    const cards = uniqueCards([...saved, ...extractCardsFromRecords(language), ...fallbackCards[language]]);
+    const cards = uniqueCards(saved);
     return cards.slice(0, limit);
+  },
+
+  getReviewCardCount(language: LearningLanguageCode): number {
+    return this.getReviewCards(language, 999).length;
   },
 
   getCrop(cropId?: string) {

@@ -7,6 +7,7 @@ import { Flame, Award, ArrowRight, Home, TrendingUp, BookOpen, MessageSquare, Cl
 import type { DialogueSuggestion, DialogueReview, SceneReviewCheck } from "@/types";
 import { storageService, KEYS } from "@/services/storageService";
 import { learningService } from "@/services/learningService";
+import { soundService } from "@/services/soundService";
 import { rewardImageForScore } from "@/data/rewardImages";
 import CheerImage from "@/components/CheerImage";
 import SceneReviewAssessment from "@/components/SceneReviewAssessment";
@@ -38,6 +39,7 @@ export default function ResultsPage() {
     const result = storageService.get<LastResult | null>(KEYS.lastResult, null);
     setData(result);
     setShowReview(Boolean(result?.sceneReview));
+    if (result) window.setTimeout(() => soundService.play("result"), 250);
     const s = learningService.getStats();
     setXp(s.xp);
     setStreak(s.streak);

@@ -7,18 +7,22 @@ import {
   ArrowLeft,
   Award,
   CheckCircle2,
+  Coins,
+  Crown,
   Gift,
   Home,
-  Languages,
+  Info,
+  Lock,
   RotateCcw,
   Sparkles,
   Star,
   Trophy,
 } from "lucide-react";
-import type { GardenPlot, GardenReviewCard, GardenState, LearningLanguageCode } from "@/types";
+import type { GardenPlot, GardenState, LearningLanguageCode } from "@/types";
 import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
 import { gardenService, GARDEN_CROPS } from "@/services/gardenService";
 import { learningService } from "@/services/learningService";
+import { soundService } from "@/services/soundService";
 import { useUser } from "@/hooks/useUser";
 import BottomNav from "@/components/BottomNav";
 import HorizontalScrollChips from "@/components/HorizontalScrollChips";
@@ -45,7 +49,7 @@ function nextLevelProgress(state: GardenState) {
 }
 
 function cropStage(plot: GardenPlot) {
-  if (!plot.cropId) return "🟫";
+  if (!plot.cropId) return "";
   if (plot.harvestReady) return "✨";
   if (plot.growth < 35) return "🌱";
   if (plot.growth < 70) return "🌿";
@@ -62,6 +66,7 @@ export default function GardenPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [matchedPairs, setMatchedPairs] = useState<string[]>([]);
   const [reviewClaimed, setReviewClaimed] = useState(false);
+  const [harvestToast, setHarvestToast] = useState<{ text: string; coins: number } | null>(null);
 
   useEffect(() => {
     const current = learningService.getCurrentLanguage();
@@ -73,6 +78,17 @@ export default function GardenPage() {
   const canClaim = garden ? gardenService.canClaimDailyBonus(language) : false;
   const advice = garden ? gardenService.getAdvice(garden) : "";
   const pairCount = useMemo(() => new Set(deck.map((card) => card.pairId)).size, [deck]);
+  const reviewCardCount = gardenService.getReviewCardCount(language);
+  const selectedCropInfo = gardenService.getCrop(selectedCrop) || GARDEN_CROPS[0];
+  const leaderboard = LEARNING_LANGUAGES
+    .map((lang) => {
+      const state = lang.code === language ? garden : gardenService.getState(lang.code);
+      return { lang, coins: state?.coins ?? 0, harvests: state?.harvests ?? 0 };
+    })
+    .sort((a, b) => b.coins - a.coins || b.harvests - a.harvests);
+  const harvestedCrops = GARDEN_CROPS
+    .map((crop) => ({ crop, count: garden?.harvestByCrop[crop.id] || 0 }))
+    .filter((item) => item.count > 0);
 
   function refresh(nextLanguage = language) {
     setGarden(gardenService.getState(nextLanguage));
@@ -89,34 +105,56 @@ export default function GardenPage() {
   }
 
   function claimDaily() {
+    soundService.play("review");
     setGarden(gardenService.claimDailyBonus(language));
   }
 
   function plant(plotId: number) {
+    soundService.play("plant");
     setGarden(gardenService.plantCrop(language, plotId, selectedCrop));
   }
 
   function water(plotId: number) {
+    soundService.play("water");
     setGarden(gardenService.waterPlot(language, plotId));
   }
 
   function waterAll() {
+    soundService.play("water");
     setGarden(gardenService.waterAll(language));
   }
 
   function harvest(plotId: number) {
+    const plot = garden?.plots.find((item) => item.id === plotId);
+    const crop = gardenService.getCrop(plot?.cropId);
+    soundService.play("harvest");
     setGarden(gardenService.harvestPlot(language, plotId));
+    if (crop) showHarvestToast(`收成 ${crop.name}`, crop.rewardCoins);
   }
 
   function harvestAll() {
+    const ready = garden?.plots
+      .filter((plot) => plot.cropId && plot.harvestReady)
+      .map((plot) => gardenService.getCrop(plot.cropId))
+      .filter(Boolean) || [];
+    const totalCoins = ready.reduce((sum, crop) => sum + (crop?.rewardCoins || 0), 0);
+    if (totalCoins > 0) soundService.play("harvest");
     setGarden(gardenService.harvestAll(language));
+    if (totalCoins > 0) showHarvestToast(`收成 ${ready.length} 個作物`, totalCoins);
   }
 
   function startReview() {
+    if (reviewCardCount < 4) return;
+    soundService.play("review");
     setDeck(buildDeck(language));
     setSelected([]);
     setMatchedPairs([]);
     setReviewClaimed(false);
+  }
+
+  function showHarvestToast(text: string, coins: number) {
+    setHarvestToast({ text, coins });
+    window.setTimeout(() => setHarvestToast(null), 1400);
   }
 
   function chooseCard(card: DeckCard) {
@@ -140,6 +178,7 @@ export default function GardenPage() {
 
   function claimReviewReward() {
     if (reviewClaimed || pairCount === 0) return;
+    soundService.play("harvest");
     setGarden(gardenService.completeReviewGame(language, pairCount));
     setReviewClaimed(true);
   }
@@ -150,6 +189,25 @@ export default function GardenPage() {
 
   return (
     <div className="min-h-[100dvh] flex flex-col pb-2">
+      {harvestToast && (
+        <motion.div
+          initial={{ opacity: 0, y: 18, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          className="fixed left-1/2 top-24 z-50 w-[min(360px,calc(100%-40px))] -translate-x-1/2 rounded-[28px] bg-white px-5 py-4 text-center shadow-soft border border-peach"
+        >
+          <motion.div
+            initial={{ rotate: -10 }}
+            animate={{ rotate: 8 }}
+            transition={{ repeat: 3, repeatType: "reverse", duration: 0.18 }}
+            className="text-4xl"
+          >
+            🪙
+          </motion.div>
+          <p className="mt-1 text-lg font-extrabold text-ink">{harvestToast.text}</p>
+          <p className="text-sm font-extrabold text-peachDeep">+{harvestToast.coins} 金幣</p>
+        </motion.div>
+      )}
+
       <div className="px-5 pt-8 pb-3 flex items-center justify-between">
         <button onClick={() => router.back()} className="h-12 w-12 rounded-3xl bg-white shadow-softer flex items-center justify-center text-ink">
           <ArrowLeft size={22} />
@@ -202,10 +260,10 @@ export default function GardenPage() {
       </div>
 
       <div className="px-5 mt-4 grid grid-cols-4 gap-2">
+        <GardenStat label="金幣" value={garden.coins} emoji="🪙" />
         <GardenStat label="水滴" value={garden.water} emoji="💧" />
         <GardenStat label="種子" value={garden.seeds} emoji="🌰" />
         <GardenStat label="收成" value={garden.harvests} emoji="🧺" />
-        <GardenStat label="等級" value={garden.level} emoji="⭐" />
       </div>
 
       <div className="px-5 mt-4 grid grid-cols-2 gap-3">
@@ -228,6 +286,26 @@ export default function GardenPage() {
         </button>
       </div>
 
+      <div className="px-5 mt-4">
+        <div className="rounded-[30px] bg-white p-4 shadow-soft">
+          <div className="flex items-center gap-2">
+            <Crown size={18} className="text-peachDeep" />
+            <h2 className="font-extrabold text-ink">金幣排行榜</h2>
+          </div>
+          <div className="mt-3 space-y-2">
+            {leaderboard.map((item, index) => (
+              <div key={item.lang.code} className="flex items-center gap-3 rounded-2xl bg-cream px-3 py-2">
+                <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-extrabold ${index === 0 ? "bg-peach text-peachDeep" : "bg-white text-inkSoft"}`}>
+                  {index + 1}
+                </span>
+                <span className="flex-1 text-sm font-extrabold text-ink">{item.lang.flag} {item.lang.zhName}</span>
+                <span className="text-sm font-extrabold text-peachDeep">🪙 {item.coins}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div className="px-5 mt-5">
         <div className="flex items-center justify-between gap-3">
           <h2 className="font-extrabold text-ink">選擇作物</h2>
@@ -246,6 +324,35 @@ export default function GardenPage() {
             </button>
           ))}
         </HorizontalScrollChips>
+        <div className="mt-3 rounded-[28px] bg-white p-4 shadow-softer">
+          <div className="flex items-start gap-3">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-cream text-2xl">
+              {selectedCropInfo.emoji}
+            </span>
+            <div>
+              <p className="font-extrabold text-ink">{selectedCropInfo.name}</p>
+              <p className="mt-1 text-sm leading-relaxed text-inkSoft">{selectedCropInfo.description}</p>
+              <p className="mt-2 text-xs font-extrabold text-peachDeep">收成可得 {selectedCropInfo.rewardCoins} 金幣</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-5 mt-4">
+        <div className="rounded-[30px] bg-white/90 p-4 shadow-softer">
+          <div className="flex items-center gap-2">
+            <Info size={17} className="text-lilacDeep" />
+            <h2 className="font-extrabold text-ink">作物代表什麼</h2>
+          </div>
+          <div className="mt-3 grid gap-2">
+            {GARDEN_CROPS.map((crop) => (
+              <div key={crop.id} className="rounded-2xl bg-cream px-3 py-2">
+                <p className="text-sm font-extrabold text-ink">{crop.emoji} {crop.name}</p>
+                <p className="text-xs leading-relaxed text-inkSoft">{crop.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="px-5 mt-4 grid grid-cols-2 gap-3">
@@ -268,13 +375,28 @@ export default function GardenPage() {
             <div>
               <p className="text-sm font-bold text-inkSoft">翻牌複習</p>
               <h2 className="text-xl font-extrabold text-ink">配對單字與意思</h2>
+              <p className="mt-1 text-xs font-bold text-inkSoft">目前可用 {reviewCardCount}/4 個精準單字</p>
             </div>
-            <button onClick={startReview} className="h-11 w-11 rounded-2xl bg-lilac text-lilacDeep flex items-center justify-center">
-              <RotateCcw size={18} />
+            <button
+              onClick={startReview}
+              disabled={reviewCardCount < 4}
+              className={`h-11 w-11 rounded-2xl flex items-center justify-center ${
+                reviewCardCount < 4 ? "bg-cream text-inkSoft" : "bg-lilac text-lilacDeep"
+              }`}
+            >
+              {reviewCardCount < 4 ? <Lock size={18} /> : <RotateCcw size={18} />}
             </button>
           </div>
 
-          {deck.length === 0 ? (
+          {reviewCardCount < 4 ? (
+            <div className="mt-4 rounded-[28px] bg-cream px-4 py-5 text-center">
+              <Lock className="mx-auto text-lilacDeep" size={28} />
+              <p className="mt-2 font-extrabold text-ink">單字量不足，暫時無法開啟翻牌遊戲</p>
+              <p className="mt-1 text-sm leading-relaxed text-inkSoft">
+                需要至少 4 個「{currentLanguage.zhName}」收藏單字或加入複習的單字。請先在場景句子中點單字並收藏，多多學習後再回來挑戰。
+              </p>
+            </div>
+          ) : deck.length === 0 ? (
             <button onClick={startReview} className="mt-4 btn-primary w-full flex items-center justify-center gap-2">
               <Star size={18} /> 開始翻牌
             </button>
@@ -344,6 +466,25 @@ export default function GardenPage() {
         </div>
       </div>
 
+      <div className="px-5 mt-5">
+        <div className="rounded-[30px] bg-white/80 p-4 shadow-softer">
+          <div className="flex items-center gap-2">
+            <Coins size={18} className="text-peachDeep" />
+            <p className="font-extrabold text-ink">收成明細</p>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {harvestedCrops.map(({ crop, count }) => (
+              <span key={crop.id} className="chip bg-mint text-mintDeep">
+                {crop.emoji} {crop.name} x {count}
+              </span>
+            ))}
+            {harvestedCrops.length === 0 && (
+              <p className="text-sm text-inkSoft">還沒有收成紀錄。種下作物並澆水成熟後，就會在這裡統計。</p>
+            )}
+          </div>
+        </div>
+      </div>
+
       <BottomNav />
     </div>
   );
@@ -380,9 +521,24 @@ function GardenPlotCard({
 
   return (
     <div className="rounded-[30px] bg-white p-3 shadow-soft">
-      <div className="rounded-[24px] bg-gradient-to-b from-[#fff8ef] to-[#e7f8e7] px-3 pt-4 pb-3 text-center">
+      <div className={`rounded-[24px] px-3 pt-4 pb-3 text-center ${
+        plot.cropId ? "bg-gradient-to-b from-[#fff8ef] to-[#e7f8e7]" : "bg-gradient-to-b from-[#fff8ef] via-[#f6eddf] to-[#e5f5de]"
+      }`}>
         <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white/80 text-4xl shadow-softer">
-          {plot.harvestReady ? crop?.emoji || "🌾" : cropStage(plot)}
+          {!plot.cropId ? (
+            <div className="relative h-14 w-14 rounded-[18px] bg-[#9b6539] shadow-inner">
+              <span className="absolute left-2 right-2 top-3 h-1 rounded-full bg-[#c58b57]" />
+              <span className="absolute left-2 right-2 top-6 h-1 rounded-full bg-[#c58b57]" />
+              <span className="absolute left-2 right-2 top-9 h-1 rounded-full bg-[#c58b57]" />
+              <span className="absolute -right-1 -top-1 text-lg">✨</span>
+            </div>
+          ) : plot.harvestReady ? (
+            <motion.span animate={{ y: [0, -5, 0], scale: [1, 1.08, 1] }} transition={{ repeat: Infinity, duration: 1.2 }}>
+              {crop?.emoji || "🌾"}
+            </motion.span>
+          ) : (
+            cropStage(plot)
+          )}
         </div>
         <p className="mt-2 min-h-[24px] text-sm font-extrabold text-ink">{crop?.name || "空田地"}</p>
         <div className="mt-2 h-2 overflow-hidden rounded-full bg-white">

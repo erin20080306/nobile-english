@@ -203,7 +203,7 @@ export default function Dashboard() {
               <p className="text-xs font-bold text-inkSoft">學習遊戲</p>
               <p className="text-lg font-extrabold text-ink">語言小農場</p>
               <p className="truncate text-sm font-semibold text-inkSoft">
-                💧 {garden?.water ?? 0} 水滴 · 🌰 {garden?.seeds ?? 0} 種子 · 🧺 {garden?.harvests ?? 0} 收成
+                🪙 {garden?.coins ?? 0} 金幣 · 💧 {garden?.water ?? 0} 水滴 · 🧺 {garden?.harvests ?? 0} 收成
               </p>
             </div>
             <ChevronRight className="relative text-inkSoft" />

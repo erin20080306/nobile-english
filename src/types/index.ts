@@ -241,6 +241,8 @@ export interface GardenCrop {
   enName: string;
   emoji: string;
   color: string;
+  description: string;
+  rewardCoins: number;
 }
 
 export interface GardenPlot {
@@ -266,7 +268,9 @@ export interface GardenState {
   xp: number;
   water: number;
   seeds: number;
+  coins: number;
   harvests: number;
+  harvestByCrop: Partial<Record<string, number>>;
   lastDailyBonusAt?: string;
   plots: GardenPlot[];
   log: GardenActivityLog[];
