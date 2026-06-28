@@ -55,6 +55,8 @@ export const KEYS = {
   examResults: "examResults",
   wrongQuestions: "wrongQuestions",
   sceneProgress: "sceneProgress",
+  sceneReviewCounter: "sceneReviewCounter",
+  gardenStates: "gardenStates",
   customScenes: "customScenes",
   lastResult: "lastResult",
   feedbackReports: "feedbackReports",

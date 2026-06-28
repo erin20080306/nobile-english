@@ -11,6 +11,7 @@ import type {
 } from "@/types";
 import { storageService, KEYS } from "./storageService";
 import { getLearningLanguage, languageFromLabel } from "@/data/learningLanguages";
+import { gardenService } from "./gardenService";
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -127,6 +128,7 @@ export const learningService = {
     stats.todayMinutes += minutes;
     stats.xp += xp;
     this.saveStats(stats);
+    gardenService.rewardForLearning(this.getCurrentLanguage(), minutes, xp);
     return stats;
   },
   addDialogue() {

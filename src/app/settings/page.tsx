@@ -43,6 +43,17 @@ export default function SettingsPage() {
     learningService.saveSettings(next);
   }
 
+  function updateChineseSupport(enabled: boolean) {
+    update({
+      showChineseGlobal: enabled,
+      sceneChinese: enabled,
+      dialogueChinese: enabled,
+      wordReviewChinese: enabled,
+      sentenceReviewChinese: enabled,
+      examChinese: enabled,
+    });
+  }
+
   function updateLanguage(code: UserSettings["targetLanguage"]) {
     const language = getLearningLanguage(code);
     const next = { ...settings!, targetLanguage: code };
@@ -187,7 +198,7 @@ export default function SettingsPage() {
               aria-label={`${currentLanguage.zhName}語速`}
             />
           </div>
-          <Toggle label="全域中文輔助" checked={settings.showChineseGlobal} onChange={(v) => update({ showChineseGlobal: v })} />
+          <Toggle label="全域中文輔助" checked={settings.showChineseGlobal} onChange={updateChineseSupport} />
         </div>
 
         <div className="card space-y-3">

@@ -10,19 +10,20 @@ import { learningService } from "@/services/learningService";
 import { LEARNING_LANGUAGES, getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
+import HorizontalScrollChips from "@/components/HorizontalScrollChips";
 
 const lengths = [2, 3, 4, 5];
 const defaultInput: Record<LearningLanguageCode, string> = {
   en: "light",
   ja: "ください",
   ko: "주세요",
-  it: "favore",
-  es: "favor",
+  it: "parlare",
+  es: "hablar",
 };
 
 export default function RhymePage() {
-  const [language, setLanguage] = useState<LearningLanguageCode>(() => learningService.getCurrentLanguage());
-  const [input, setInput] = useState(() => defaultInput[learningService.getCurrentLanguage()]);
+  const [language, setLanguage] = useState<LearningLanguageCode>("en");
+  const [input, setInput] = useState(defaultInput.en);
   const [len, setLen] = useState(3);
   const [results, setResults] = useState<Word[]>([]);
   const [searched, setSearched] = useState(false);
@@ -34,6 +35,10 @@ export default function RhymePage() {
     setResults([]);
     setSearched(false);
   }, [language]);
+
+  useEffect(() => {
+    setLanguage(learningService.getCurrentLanguage());
+  }, []);
 
   function changeLanguage(code: LearningLanguageCode) {
     learningService.setCurrentLanguage(code);
@@ -53,7 +58,7 @@ export default function RhymePage() {
     <div className="min-h-[100dvh] pb-4">
       <AppHeader title="同尾字單字" subtitle={`${languageInfo.zhName}本地字庫 ${vocabularyService.count(language)} 字`} back={false} />
       <div className="px-5 space-y-4">
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+        <HorizontalScrollChips>
           {LEARNING_LANGUAGES.map((lang) => (
             <button
               key={lang.code}
@@ -63,7 +68,7 @@ export default function RhymePage() {
               {lang.flag} {lang.zhName}
             </button>
           ))}
-        </div>
+        </HorizontalScrollChips>
 
         <div className="card">
           <div className="flex items-center gap-2 bg-cream rounded-3xl px-3 py-2">

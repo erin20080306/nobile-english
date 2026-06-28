@@ -7,9 +7,10 @@ import {
   Flame, Star, MessageSquare, Trophy, Volume2, Languages, ChevronRight,
   BookOpen, Sparkles, GraduationCap, Wand2, Search,
 } from "lucide-react";
-import type { Stats, UserSettings, EnglishLevel } from "@/types";
+import type { GardenState, Stats, UserSettings, EnglishLevel } from "@/types";
 import { useUser } from "@/hooks/useUser";
 import { learningService } from "@/services/learningService";
+import { gardenService } from "@/services/gardenService";
 import { vocabularyService } from "@/services/vocabularyService";
 import { examService } from "@/services/examService";
 import { sceneService } from "@/services/sceneService";
@@ -17,6 +18,7 @@ import { sceneCardStyle } from "@/data/sceneVisuals";
 import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
 import CheerImage from "@/components/CheerImage";
 import BottomNav from "@/components/BottomNav";
+import HorizontalScrollChips from "@/components/HorizontalScrollChips";
 import { LevelBadge, ProgressBar, Toggle } from "@/components/ui";
 
 const dailySentences = [
@@ -54,13 +56,16 @@ export default function Dashboard() {
   const router = useRouter();
   const [stats, setStats] = useState<Stats | null>(null);
   const [settings, setSettings] = useState<UserSettings | null>(null);
+  const [garden, setGarden] = useState<GardenState | null>(null);
   const [savedCount, setSavedCount] = useState(0);
   const sentence = dailySentences[new Date().getDate() % dailySentences.length];
 
   useEffect(() => {
     if (!user) return;
     setStats(learningService.getStats());
-    setSettings(learningService.getSettings(user.id));
+    const nextSettings = learningService.getSettings(user.id);
+    setSettings(nextSettings);
+    setGarden(gardenService.getState(nextSettings.targetLanguage));
     setSavedCount(vocabularyService.getSaved().length);
   }, [user]);
 
@@ -81,11 +86,23 @@ export default function Dashboard() {
     learningService.saveSettings(next);
   }
 
+  function updateChineseSupport(enabled: boolean) {
+    updateSetting({
+      showChineseGlobal: enabled,
+      sceneChinese: enabled,
+      dialogueChinese: enabled,
+      wordReviewChinese: enabled,
+      sentenceReviewChinese: enabled,
+      examChinese: enabled,
+    });
+  }
+
   function changeLanguage(code: UserSettings["targetLanguage"]) {
     const next = { ...settings!, targetLanguage: code };
     setSettings(next);
     learningService.saveSettings(next);
     learningService.saveProfile({ language: getLearningLanguage(code).label });
+    setGarden(gardenService.getState(code));
   }
 
   const levelStyle: Record<string, string> = {
@@ -142,26 +159,56 @@ export default function Dashboard() {
       </div>
 
       <div className="px-5 mt-4">
-        <div className="card !p-4">
+        <div className="relative overflow-hidden rounded-[30px] bg-white/95 p-4 shadow-soft border border-white/80">
+          <div className="absolute right-0 top-0 h-24 w-28 rounded-bl-[42px] bg-gradient-to-br from-lilac/70 to-mint/70" />
           <div className="flex items-center justify-between gap-3">
-            <div>
+            <div className="relative flex items-center gap-3 min-w-0">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-lilac text-lilacDeep">
+                <Languages size={22} />
+              </span>
+              <div className="min-w-0">
               <p className="text-xs font-bold text-inkSoft">目前學習語言</p>
               <p className="font-extrabold text-ink">{currentLanguage.flag} {currentLanguage.zhName}</p>
+              </div>
             </div>
-            <button className="chip bg-lilac text-lilacDeep" onClick={() => router.push("/settings")}>設定</button>
+            <button className="relative chip bg-lilac text-lilacDeep shadow-softer" onClick={() => router.push("/settings")}>設定</button>
           </div>
-          <div className="mt-3 flex gap-2 overflow-x-auto no-scrollbar pb-1">
+          <HorizontalScrollChips className="mt-4">
             {LEARNING_LANGUAGES.map((lang) => (
               <button
                 key={lang.code}
                 onClick={() => changeLanguage(lang.code)}
-                className={`chip whitespace-nowrap ${settings.targetLanguage === lang.code ? "bg-lilacDeep text-white" : "bg-cream text-ink"}`}
+                className={`rounded-3xl px-4 py-3 text-sm font-extrabold whitespace-nowrap active:scale-95 transition ${
+                  settings.targetLanguage === lang.code
+                    ? "bg-lilacDeep text-white shadow-soft"
+                    : "bg-cream text-ink shadow-softer"
+                }`}
               >
                 {lang.flag} {lang.zhName}
               </button>
             ))}
-          </div>
+          </HorizontalScrollChips>
         </div>
+      </div>
+
+      <div className="px-5 mt-4">
+        <button
+          onClick={() => router.push("/garden")}
+          className="relative w-full overflow-hidden rounded-[30px] bg-gradient-to-br from-mint via-white to-peach p-4 text-left shadow-soft active:scale-[0.98] transition"
+        >
+          <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-white/50" />
+          <div className="relative flex items-center gap-3">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-3xl bg-white text-3xl shadow-softer">🌱</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-inkSoft">學習遊戲</p>
+              <p className="text-lg font-extrabold text-ink">語言小農場</p>
+              <p className="truncate text-sm font-semibold text-inkSoft">
+                💧 {garden?.water ?? 0} 水滴 · 🌰 {garden?.seeds ?? 0} 種子 · 🧺 {garden?.harvests ?? 0} 收成
+              </p>
+            </div>
+            <ChevronRight className="relative text-inkSoft" />
+          </div>
+        </button>
       </div>
 
       {/* Quick actions */}
@@ -223,7 +270,7 @@ export default function Dashboard() {
         <div className="card space-y-4">
           <div className="flex items-center gap-3">
             <Languages className="text-lilacDeep" size={20} />
-            <div className="flex-1"><Toggle label="中文輔助顯示" checked={settings.showChineseGlobal} onChange={(v) => updateSetting({ showChineseGlobal: v })} /></div>
+            <div className="flex-1"><Toggle label="中文輔助顯示" checked={settings.showChineseGlobal} onChange={updateChineseSupport} /></div>
           </div>
           <div className="flex items-center gap-3">
             <Volume2 className="text-mintDeep" size={20} />

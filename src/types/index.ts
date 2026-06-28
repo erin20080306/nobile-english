@@ -205,6 +205,7 @@ export interface LearningRecord {
   zhContent?: string;
   userAnswer?: string;
   suggestion?: string;
+  conversationWords?: string[];
   transcript?: DialogueTranscriptLine[];
   score: number;
   completed: boolean;
@@ -232,6 +233,50 @@ export interface Stats {
   todayMinutes: number;
   completedDialogues: number;
   completedScenes: number;
+}
+
+export interface GardenCrop {
+  id: string;
+  name: string;
+  enName: string;
+  emoji: string;
+  color: string;
+}
+
+export interface GardenPlot {
+  id: number;
+  cropId?: string;
+  growth: number;
+  plantedAt?: string;
+  wateredAt?: string;
+  harvestReady?: boolean;
+}
+
+export interface GardenActivityLog {
+  id: string;
+  type: "learning" | "daily" | "plant" | "water" | "harvest" | "review";
+  title: string;
+  detail: string;
+  at: string;
+}
+
+export interface GardenState {
+  language: LearningLanguageCode;
+  level: number;
+  xp: number;
+  water: number;
+  seeds: number;
+  harvests: number;
+  lastDailyBonusAt?: string;
+  plots: GardenPlot[];
+  log: GardenActivityLog[];
+}
+
+export interface GardenReviewCard {
+  id: string;
+  word: string;
+  meaning: string;
+  language: LearningLanguageCode;
 }
 
 export interface CustomSceneStage {
@@ -279,6 +324,25 @@ export interface DialogueReview {
   vocabularyUsed: string[];
   strengthenAreas: string[];
   nativeRewrites: string[];
+}
+
+export type SceneReviewTaskKind = "fill" | "reply" | "choice";
+
+export interface SceneReviewTask {
+  id: string;
+  kind: SceneReviewTaskKind;
+  prompt: string;
+  answer: string;
+  options?: string[];
+  hint?: string;
+}
+
+export interface SceneReviewCheck {
+  sceneName: string;
+  language: LearningLanguageCode;
+  tasks: SceneReviewTask[];
+  advice: string[];
+  strengthenAreas: string[];
 }
 
 export interface DialogueResult {

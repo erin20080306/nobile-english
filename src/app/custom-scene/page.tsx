@@ -1,16 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Wand2, Play, Volume2 } from "lucide-react";
-import type { CustomScene, EnglishLevel } from "@/types";
+import type { CustomScene, EnglishLevel, LearningLanguageCode } from "@/types";
 import { sceneService } from "@/services/sceneService";
 import { learningService } from "@/services/learningService";
 import { speechService } from "@/services/speechService";
 import { getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
-import { LevelBadge, Toggle } from "@/components/ui";
+import { LevelBadge, Toggle, levelLabel } from "@/components/ui";
 
 const levels: EnglishLevel[] = ["Beginner", "Elementary", "Intermediate", "Upper-Intermediate", "Advanced"];
 const examples = [
@@ -34,8 +34,12 @@ export default function CustomScenePage() {
     rounds: 4,
   });
   const [created, setCreated] = useState<CustomScene | null>(null);
-  const targetLanguage = learningService.getCurrentLanguage();
+  const [targetLanguage, setTargetLanguage] = useState<LearningLanguageCode>("en");
   const languageInfo = getLearningLanguage(targetLanguage);
+
+  useEffect(() => {
+    setTargetLanguage(learningService.getCurrentLanguage());
+  }, []);
 
   function set<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -153,7 +157,7 @@ export default function CustomScenePage() {
           <p className="text-sm font-bold text-inkSoft mb-2">難度</p>
           <div className="flex flex-wrap gap-2">
             {levels.map((l) => (
-              <button key={l} onClick={() => set("difficulty", l)} className={`chip ${form.difficulty === l ? "bg-lilacDeep text-white" : "bg-white text-ink shadow-softer"}`}>{l}</button>
+              <button key={l} onClick={() => set("difficulty", l)} className={`chip ${form.difficulty === l ? "bg-lilacDeep text-white" : "bg-white text-ink shadow-softer"}`}>{levelLabel(l)}</button>
             ))}
           </div>
         </div>

@@ -13,10 +13,12 @@ import { learningService } from "@/services/learningService";
 export default function WordSheet({
   word,
   language = "en",
+  showChinese = true,
   onClose,
 }: {
   word: string | null;
   language?: LearningLanguageCode;
+  showChinese?: boolean;
   onClose: () => void;
 }) {
   const [saved, setSaved] = useState(false);
@@ -104,18 +106,18 @@ export default function WordSheet({
                   {language === "en" ? (
                     <>
                       <Block label="英文解釋" value={entry.enDef} />
-                      <Block label="中文解釋" value={entry.zh} />
+                      {showChinese && <Block label="中文解釋" value={entry.zh} />}
                     </>
                   ) : (
                     <>
-                      <Block label="中文解釋" value={entry.zh} />
                       <Block
                         label={`${languageInfo.zhName}詞意`}
                         value={entry.enDef}
                       />
+                      {showChinese && <Block label="中文解釋" value={entry.zh} />}
                     </>
                   )}
-                  <Block label="例句" value={entry.example} sub={entry.exampleZh} />
+                  <Block label="例句" value={entry.example} sub={showChinese ? entry.exampleZh : undefined} />
                   {entry.synonyms?.length ? (
                     <Block label="同義詞" value={entry.synonyms.join(", ")} />
                   ) : null}

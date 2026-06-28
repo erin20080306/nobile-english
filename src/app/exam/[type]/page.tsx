@@ -24,7 +24,7 @@ export default function ExamRunPage() {
     const u = authService.getCurrentUser();
     return u ? learningService.getSettings(u.id) : null;
   }, []);
-  const showZh = settings ? settings.examChinese : true;
+  const showZh = settings ? settings.showChineseGlobal && settings.examChinese : true;
 
   const [idx, setIdx] = useState(0);
   const [answers, setAnswers] = useState<number[]>([]);

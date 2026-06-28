@@ -222,6 +222,7 @@ export default function ConversationPractice({
   const [turn, setTurn] = useState(0);
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
+  const [voiceDraft, setVoiceDraft] = useState("");
   const [autoSpeak, setAutoSpeak] = useState(pronunciationOn);
   const [activeWord, setActiveWord] = useState<string | null>(null);
   const [toast, setToast] = useState("");
@@ -235,6 +236,8 @@ export default function ConversationPractice({
   const mountedRef = useRef(true);
   const voiceQueueRef = useRef<Promise<void>>(Promise.resolve());
   const stopListenRef = useRef<(() => void) | null>(null);
+  const voiceDraftRef = useRef("");
+  const voiceSubmitHandledRef = useRef(false);
   const historyRef = useRef<string[]>([]);
   const userTurnsRef = useRef<string[]>([]);
   const feedbacksRef = useRef<TutorFeedback[]>([]);
@@ -257,7 +260,7 @@ export default function ConversationPractice({
     let openingTimer: number | undefined;
     if (autoSpeak) {
       speechService.warmUp(speechOptions);
-      openingTimer = window.setTimeout(() => queueSpeak(firstTutor.en), 650);
+      openingTimer = window.setTimeout(() => queueSpeak(firstTutor.en), 90);
     }
     return () => {
       mountedRef.current = false;
@@ -391,31 +394,49 @@ export default function ConversationPractice({
   function toggleMic() {
     if (listening) {
       stopListenRef.current?.();
-      setListening(false);
+      finishVoiceInput(true);
       return;
     }
     speechService.stop();
+    voiceDraftRef.current = "";
+    voiceSubmitHandledRef.current = false;
+    setVoiceDraft("");
     const stop = speechService.listen({
       lang: selectedTutor.lang,
       onResult: (text) => {
-        setInput((prev) => (prev ? prev + " " : "") + text);
-        // auto-send after a short delay so the user sees the transcript
-        setTimeout(() => {
-          setInput((cur) => {
-            handleSend(cur);
-            return cur;
-          });
-        }, 350);
+        const transcript = text.trim();
+        if (!transcript) return;
+        voiceDraftRef.current = transcript;
+        setVoiceDraft(transcript);
+        setInput(transcript);
       },
       onError: (msg) => {
+        voiceSubmitHandledRef.current = true;
+        voiceDraftRef.current = "";
         flashToast(msg);
         setListening(false);
+        setVoiceDraft("");
       },
-      onEnd: () => setListening(false),
+      onEnd: () => finishVoiceInput(true),
     });
     if (stop) {
       stopListenRef.current = stop;
       setListening(true);
+    }
+  }
+
+  function finishVoiceInput(showEmptyToast: boolean) {
+    if (voiceSubmitHandledRef.current) return;
+    voiceSubmitHandledRef.current = true;
+    setListening(false);
+    const spoken = voiceDraftRef.current.trim();
+    voiceDraftRef.current = "";
+    setVoiceDraft("");
+    if (spoken) {
+      setInput(spoken);
+      void handleSend(spoken);
+    } else if (showEmptyToast) {
+      flashToast("沒有辨識到語音，請再試一次或改用打字回覆。");
     }
   }
 
@@ -444,8 +465,8 @@ export default function ConversationPractice({
   const userTurnCount = msgs.filter((m) => m.role === "user").length;
 
   return (
-    <div className="flex flex-col min-h-0 flex-1">
-      <div className="px-4 pb-3 shrink-0">
+    <div className="flex h-[calc(100dvh-64px)] min-h-0 flex-col overflow-hidden">
+      <div className="shrink-0 px-4 pb-3 bg-cream/95">
         <div className={`relative h-52 overflow-hidden rounded-[30px] bg-ink shadow-soft transition-all duration-300 ${tutorSpeaking ? "ring-4 ring-mint/70" : ""}`}>
           <img
             src={selectedTutor.photoUrl}
@@ -568,8 +589,26 @@ export default function ConversationPractice({
         </div>
 
         {listening && (
-          <div className="flex items-center justify-center gap-2 text-lilacDeep font-bold text-sm">
-            <span className="h-2 w-2 rounded-full bg-peachDeep animate-ping" /> 聆聽中…請說{languageInfo.zhName}
+          <div className="rounded-[28px] bg-white p-3 shadow-softer">
+            <div className="flex items-center gap-3">
+              <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-peach text-peachDeep">
+                <span className="absolute h-3 w-3 rounded-full bg-peachDeep animate-ping" />
+                <Mic size={18} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-extrabold text-ink">錄音中 · 請說{languageInfo.zhName}</p>
+                <p className="truncate text-xs font-semibold text-inkSoft">
+                  {voiceDraft || `辨識語言：${selectedTutor.lang}`}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={toggleMic}
+                className="rounded-2xl bg-lilacDeep px-4 py-2 text-sm font-extrabold text-white active:scale-95"
+              >
+                結束
+              </button>
+            </div>
           </div>
         )}
 
@@ -598,7 +637,7 @@ export default function ConversationPractice({
         </div>
       </div>
 
-      <WordSheet word={activeWord} language={targetLanguage} onClose={() => setActiveWord(null)} />
+      <WordSheet word={activeWord} language={targetLanguage} showChinese={showZh} onClose={() => setActiveWord(null)} />
     </div>
   );
 }

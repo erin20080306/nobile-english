@@ -48,6 +48,44 @@ const irregularForms: Record<string, string[]> = {
   went: ["go"],
 };
 
+const multilingualAliases: Partial<Record<Exclude<LearningLanguageCode, "en">, Record<string, string[]>>> = {
+  ja: {
+    "どうでしたか": ["どうですか"],
+    "でした": ["です"],
+    "ありますか": ["あります"],
+    "見せてください": ["ください"],
+    "教えてください": ["ください"],
+    "話してください": ["ください", "話す"],
+    "行ってください": ["ください", "行く"],
+  },
+  ko: {
+    "어땠어요": ["어때요"],
+    "어땠어": ["어때요"],
+    "어때": ["어때요"],
+    "좋았어요": ["좋아요"],
+    "괜찮았어요": ["괜찮아요"],
+    "갔어요": ["가다"],
+    "가세요": ["가다"],
+    "오세요": ["오다"],
+    "말해 주세요": ["말하다", "주세요"],
+    "보여 주세요": ["보다", "주세요"],
+    "알려 주세요": ["알리다", "주세요"],
+  },
+  it: {
+    informazioni: ["informazione"],
+    indicazioni: ["indicazione"],
+    prenotazioni: ["prenotazione"],
+    grazie: ["grazie"],
+  },
+  es: {
+    informaciones: ["información"],
+    indicaciones: ["indicación"],
+    reservaciones: ["reservación"],
+    tienes: ["tener"],
+    quieres: ["querer"],
+  },
+};
+
 export interface ClickableToken {
   text: string;
   lookup?: string;
@@ -84,6 +122,7 @@ function candidatesFor(word: string): string[] {
   irregularForms[q]?.forEach((w) => candidates.add(w));
 
   if (q.endsWith("'s")) candidates.add(q.slice(0, -2));
+  if (q.endsWith("iest") && q.length > 5) candidates.add(q.slice(0, -4) + "y");
   if (q.endsWith("ies") && q.length > 4) candidates.add(q.slice(0, -3) + "y");
   if (q.endsWith("es") && q.length > 3) candidates.add(q.slice(0, -2));
   if (q.endsWith("s") && q.length > 3) candidates.add(q.slice(0, -1));
@@ -119,9 +158,34 @@ function findLocalEntry(word: string): { entry: Word | null; fromFallback: boole
 function findMultilingualEntry(word: string, language: Exclude<LearningLanguageCode, "en">): Word | null {
   const normalized = normalizeMultilingualToken(word, language);
   if (!normalized) return null;
-  return multilingualDictionaryEntries.find(
-    (entry) => entry.language === language && normalizeMultilingualToken(entry.word, language) === normalized
-  ) ?? null;
+  const candidates = multilingualCandidatesFor(normalized, language);
+  return multilingualDictionaryEntries.find((entry) => {
+    if (entry.language !== language) return false;
+    const entryWord = normalizeMultilingualToken(entry.word, language);
+    if (candidates.has(entryWord)) return true;
+    return entry.related?.some((rel) => candidates.has(normalizeMultilingualToken(rel, language)));
+  }) ?? null;
+}
+
+function multilingualCandidatesFor(word: string, language: Exclude<LearningLanguageCode, "en">): Set<string> {
+  const normalized = normalizeMultilingualToken(word, language);
+  const candidates = new Set<string>(normalized ? [normalized] : []);
+  multilingualAliases[language]?.[normalized]?.forEach((alias) => {
+    const clean = normalizeMultilingualToken(alias, language);
+    if (clean) candidates.add(clean);
+  });
+  if (language === "it" || language === "es") {
+    if (normalized.endsWith("s") && normalized.length > 3) candidates.add(normalized.slice(0, -1));
+    if (normalized.endsWith("es") && normalized.length > 4) candidates.add(normalized.slice(0, -2));
+  }
+  if (language === "ko") {
+    if (normalized.endsWith("주세요")) candidates.add("주세요");
+    if (normalized.endsWith("세요")) candidates.add(normalized.replace(/세요$/, "다"));
+  }
+  if (language === "ja" && normalized.endsWith("ください")) {
+    candidates.add("ください");
+  }
+  return candidates;
 }
 
 function inferPartOfSpeech(word: string): Word["pos"] {
@@ -169,6 +233,8 @@ function multilingualFallback(word: string, language: Exclude<LearningLanguageCo
   if ((language === "it" || language === "es") && !/^[A-Za-zÀ-ÖØ-öø-ÿ']{2,}$/.test(q)) return null;
 
   const lang = getLearningLanguage(language);
+  const specific = multilingualPatternFallback(q, language);
+  if (specific) return specific;
   const examples: Record<Exclude<LearningLanguageCode, "en">, { example: string; zh: string }> = {
     ja: { example: `${q}を使って短い文を作りましょう。`, zh: `試著用「${q}」造一個短句。` },
     ko: { example: `${q}을/를 넣어서 짧은 문장을 만들어 보세요.`, zh: `試著把「${q}」放進短句裡。` },
@@ -193,6 +259,104 @@ function multilingualFallback(word: string, language: Exclude<LearningLanguageCo
     example: examples[language].example,
     exampleZh: examples[language].zh,
   };
+}
+
+function multilingualPatternFallback(q: string, language: Exclude<LearningLanguageCode, "en">): Word | null {
+  if (language === "ko") {
+    if (q.endsWith("주세요")) {
+      return {
+        language,
+        word: q,
+        phonetic: "/juseyo/",
+        pos: "interj.",
+        enDef: "A polite Korean request ending meaning please give me or please do something.",
+        zh: "韓文禮貌請求句，意思接近「請給我／請幫我……」。",
+        example: `${q}라고 말하면 정중한 부탁이 됩니다.`,
+        exampleZh: `用「${q}」可以表達有禮貌的請求。`,
+        related: ["주세요"],
+      };
+    }
+    if (q.endsWith("어요") || q.endsWith("예요") || q.endsWith("이에요")) {
+      return {
+        language,
+        word: q,
+        phonetic: "/-/",
+        pos: "v.",
+        enDef: "A polite Korean sentence form used in everyday conversation.",
+        zh: "韓文日常禮貌語尾，通常表示狀態、動作或提問，需依原句判斷完整意思。",
+        example: `${q}를 원래 문장 안에서 다시 읽어 보세요.`,
+        exampleZh: `請把「${q}」放回原句理解，通常是禮貌口語表達。`,
+      };
+    }
+  }
+  if (language === "ja") {
+    if (q.endsWith("ください")) {
+      return {
+        language,
+        word: q,
+        phonetic: "/kudasai/",
+        pos: "interj.",
+        enDef: "A polite Japanese request form meaning please do something.",
+        zh: "日文禮貌請求句，意思接近「請……」。",
+        example: `${q}を使うと丁寧にお願いできます。`,
+        exampleZh: `用「${q}」可以有禮貌地請對方做某件事。`,
+        related: ["ください"],
+      };
+    }
+  }
+  if (language === "it") {
+    if (q.endsWith("zione")) {
+      return {
+        language,
+        word: q,
+        phonetic: "/-/",
+        pos: "n.",
+        enDef: "An Italian noun ending in -zione, often similar to English nouns ending in -tion.",
+        zh: "義大利文名詞，常見字尾 -zione，很多意思接近英文 -tion 的抽象名詞。",
+        example: `Puoi usare "${q}" in una frase breve.`,
+        exampleZh: `可以把「${q}」放進短句中練習。`,
+      };
+    }
+    if (q.endsWith("mente")) {
+      return {
+        language,
+        word: q,
+        phonetic: "/-/",
+        pos: "adv.",
+        enDef: "An Italian adverb ending in -mente, similar to English -ly.",
+        zh: "義大利文副詞，字尾 -mente 常接近英文 -ly，表示方式或程度。",
+        example: `Parla ${q} quando fai pratica.`,
+        exampleZh: `練習時可以用「${q}」描述說話方式。`,
+      };
+    }
+  }
+  if (language === "es") {
+    if (q.endsWith("ción")) {
+      return {
+        language,
+        word: q,
+        phonetic: "/-/",
+        pos: "n.",
+        enDef: "A Spanish noun ending in -ción, often similar to English nouns ending in -tion.",
+        zh: "西班牙文名詞，常見字尾 -ción，很多意思接近英文 -tion 的抽象名詞。",
+        example: `Usa "${q}" en una frase corta.`,
+        exampleZh: `可以把「${q}」放進短句中練習。`,
+      };
+    }
+    if (q.endsWith("mente")) {
+      return {
+        language,
+        word: q,
+        phonetic: "/-/",
+        pos: "adv.",
+        enDef: "A Spanish adverb ending in -mente, similar to English -ly.",
+        zh: "西班牙文副詞，字尾 -mente 常接近英文 -ly，表示方式或程度。",
+        example: `Habla ${q} cuando practicas.`,
+        exampleZh: `練習時可以用「${q}」描述說話方式。`,
+      };
+    }
+  }
+  return null;
 }
 
 function tokenizeWithRegex(text: string, language: LearningLanguageCode): ClickableToken[] {

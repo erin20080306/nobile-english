@@ -1,10 +1,9 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import React from "react";
 import { useSearchParams } from "next/navigation";
 import { MessageSquare, Volume2, Star, X } from "lucide-react";
-import type { SavedWord, SavedSentence, LearningRecord, ExamResult, ExamQuestion, LearningLanguageCode } from "@/types";
+import type { SavedWord, SavedSentence, LearningRecord, ExamResult, ExamQuestion, LearningLanguageCode, UserSettings } from "@/types";
 import { vocabularyService } from "@/services/vocabularyService";
 import { dictionaryService } from "@/services/dictionaryService";
 import { learningService } from "@/services/learningService";
@@ -13,6 +12,7 @@ import { speechService } from "@/services/speechService";
 import { LEARNING_LANGUAGES, getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
+import HorizontalScrollChips from "@/components/HorizontalScrollChips";
 
 type RecordLanguageFilter = LearningLanguageCode | "all";
 
@@ -66,8 +66,10 @@ function RecordsInner() {
   const [wrong, setWrong] = useState<ExamQuestion[]>([]);
   const [activeRecord, setActiveRecord] = useState<LearningRecord | null>(null);
   const [languageFilter, setLanguageFilter] = useState<RecordLanguageFilter>("all");
+  const [settings, setSettings] = useState<UserSettings>(() => learningService.getSettings(""));
 
   function reload() {
+    setSettings(learningService.getSettings(""));
     setWords(vocabularyService.getSaved());
     setSentences(dictionaryService.getSavedSentences());
     setRecords(learningService.getRecords());
@@ -77,17 +79,23 @@ function RecordsInner() {
 
   useEffect(() => { reload(); }, []);
 
+  const showChineseGlobal = settings.showChineseGlobal;
+  const showWordZh = showChineseGlobal && settings.wordReviewChinese;
+  const showSentenceZh = showChineseGlobal && settings.sentenceReviewChinese;
+  const showDialogueZh = showChineseGlobal && settings.dialogueChinese;
+  const showSceneZh = showChineseGlobal && settings.sceneChinese;
+
   return (
     <div className="min-h-[100dvh] pb-4">
       <AppHeader title="學習紀錄" subtitle="單字、句子、對話、測驗一次掌握" back={false} />
       <div className="px-3">
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+        <HorizontalScrollChips>
           {tabs.map((t) => (
             <button key={t.key} onClick={() => setTab(t.key)} className={`chip whitespace-nowrap ${tab === t.key ? "bg-lilacDeep text-white" : "bg-white text-ink shadow-softer"}`}>
               {t.label}
             </button>
           ))}
-        </div>
+        </HorizontalScrollChips>
       </div>
 
       <div className="px-5 mt-2 space-y-3">
@@ -102,7 +110,7 @@ function RecordsInner() {
               {w.inReview && <span className="chip bg-mint text-mintDeep text-xs">複習中</span>}
               <button onClick={() => speakRecordText(w.word, "en")} className="ml-auto text-lilacDeep"><Volume2 size={18} /></button>
             </div>
-            <p className="text-sm text-inkSoft">{w.phonetic} · {w.zh}</p>
+            <p className="text-sm text-inkSoft">{w.phonetic}{showWordZh ? ` · ${w.zh}` : ""}</p>
             <p className="text-sm text-ink mt-1">{w.example}</p>
             <button onClick={() => { vocabularyService.toggleSave(w); reload(); }} className="chip bg-peach text-peachDeep text-xs mt-2 flex items-center gap-1"><Star size={12} /> 取消收藏</button>
           </div>
@@ -111,7 +119,7 @@ function RecordsInner() {
         {tab === "sentences" && (sentences.length ? sentences.map((s) => (
           <div key={s.id} className="card !p-4">
             <p className="text-ink font-semibold">{s.en}</p>
-            <p className="text-sm text-inkSoft">{s.zh}</p>
+            {showSentenceZh && <p className="text-sm text-inkSoft">{s.zh}</p>}
             <div className="mt-2 flex gap-2">
               <button onClick={() => speakRecordText(s.en, "en")} className="chip bg-lilac text-lilacDeep text-xs flex items-center gap-1"><Volume2 size={12} /> 發音</button>
               <button onClick={() => { dictionaryService.toggleSentence(s.en, s.zh); reload(); }} className="chip bg-peach text-peachDeep text-xs">移除</button>
@@ -119,8 +127,8 @@ function RecordsInner() {
           </div>
         )) : <Empty text="尚未收藏句子。" />)}
 
-        {tab === "dialogue" && <RecordList items={filterByLanguage(records.filter((r) => r.type === "dialogue"), languageFilter)} onOpen={setActiveRecord} />}
-        {tab === "scene" && <RecordList items={filterByLanguage(records.filter((r) => r.type === "scene" || r.type === "custom"), languageFilter)} onOpen={setActiveRecord} />}
+        {tab === "dialogue" && <RecordList items={filterByLanguage(records.filter((r) => r.type === "dialogue"), languageFilter)} onOpen={setActiveRecord} showChinese={showDialogueZh} />}
+        {tab === "scene" && <RecordList items={filterByLanguage(records.filter((r) => r.type === "scene" || r.type === "custom"), languageFilter)} onOpen={setActiveRecord} showChinese={showSceneZh} />}
 
         {tab === "exam" && (examResults.length ? examResults.map((r) => (
           <div key={r.id} className="card !p-4 flex items-center justify-between">
@@ -150,19 +158,25 @@ function RecordsInner() {
                 <p className="font-extrabold text-ink">{w.word}</p>
                 <button onClick={() => speakRecordText(w.word, "en")} className="ml-auto text-lilacDeep"><Volume2 size={18} /></button>
               </div>
-              <p className="text-sm text-inkSoft">{w.phonetic} · {w.zh}</p>
+              <p className="text-sm text-inkSoft">{w.phonetic}{showWordZh ? ` · ${w.zh}` : ""}</p>
               <button onClick={() => { vocabularyService.toggleReview(w.word); reload(); }} className="chip bg-peach text-peachDeep text-xs mt-2">移出複習</button>
             </div>
           )) : <Empty text="複習清單是空的，加入單字開始複習吧。" />;
         })()}
       </div>
-      {activeRecord && <RecordDetail record={activeRecord} onClose={() => setActiveRecord(null)} />}
+      {activeRecord && (
+        <RecordDetail
+          record={activeRecord}
+          showChinese={(activeRecord.type === "scene" || activeRecord.type === "custom") ? showSceneZh : showDialogueZh}
+          onClose={() => setActiveRecord(null)}
+        />
+      )}
       <BottomNav />
     </div>
   );
 }
 
-function RecordList({ items, onOpen }: { items: LearningRecord[]; onOpen: (record: LearningRecord) => void }) {
+function RecordList({ items, onOpen, showChinese }: { items: LearningRecord[]; onOpen: (record: LearningRecord) => void; showChinese: boolean }) {
   if (!items.length) return <Empty text="尚無紀錄。" />;
   return (
     <>
@@ -177,7 +191,7 @@ function RecordList({ items, onOpen }: { items: LearningRecord[]; onOpen: (recor
           </div>
           <p className="text-xs text-inkSoft">{new Date(r.date).toLocaleString()} · {r.minutes} 分鐘</p>
           {r.userAnswer && <p className="text-sm text-ink mt-1">你的回答：{r.userAnswer}</p>}
-          {r.suggestion && <p className="text-sm text-inkSoft mt-1">建議：{r.suggestion}</p>}
+          {showChinese && r.suggestion && <p className="text-sm text-inkSoft mt-1">建議：{r.suggestion}</p>}
           <div className="mt-2 flex flex-wrap gap-2">
             <span className="inline-flex items-center gap-1 text-xs font-bold text-lilacDeep">
               <MessageSquare size={13} /> 查看完整對話紀錄
@@ -199,7 +213,7 @@ function RecordList({ items, onOpen }: { items: LearningRecord[]; onOpen: (recor
   );
 }
 
-function RecordDetail({ record, onClose }: { record: LearningRecord; onClose: () => void }) {
+function RecordDetail({ record, showChinese, onClose }: { record: LearningRecord; showChinese: boolean; onClose: () => void }) {
   const fallbackLines = (record.userAnswer || "")
     .split(" / ")
     .map((en) => en.trim())
@@ -232,19 +246,19 @@ function RecordDetail({ record, onClose }: { record: LearningRecord; onClose: ()
               <div key={`${line.role}-${index}`} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
                 <div className={`max-w-[88%] rounded-3xl p-3 ${isUser ? "bg-lilacDeep text-white" : "bg-white text-ink shadow-softer"}`}>
                   <p className="font-semibold leading-relaxed break-words">{line.en}</p>
-                  {line.zh && <p className={`mt-1 text-sm ${isUser ? "text-white/80" : "text-inkSoft"}`}>{line.zh}</p>}
+                  {showChinese && line.zh && <p className={`mt-1 text-sm ${isUser ? "text-white/80" : "text-inkSoft"}`}>{line.zh}</p>}
                   <button
                     onClick={() => speakRecordText(line.en, language)}
                     className={`mt-2 inline-flex items-center gap-1 text-xs font-bold ${isUser ? "text-white/90" : "text-lilacDeep"}`}
                   >
                     <Volume2 size={13} /> 播放
                   </button>
-                  {isUser && (line.betterWay || line.grammarTip) && (
+                  {isUser && (line.betterWay || (showChinese && (line.grammarTip || line.zhExplain))) && (
                     <div className="mt-3 rounded-2xl bg-white/95 p-3 text-sm text-ink">
                       {typeof line.naturalness === "number" && <p className="font-bold text-mintDeep">自然度 {line.naturalness}</p>}
                       {line.betterWay && <p className="mt-1">更道地：{line.betterWay}</p>}
-                      {line.grammarTip && <p className="mt-1 text-inkSoft">修正：{line.grammarTip}</p>}
-                      {line.zhExplain && <p className="mt-1 text-inkSoft">{line.zhExplain}</p>}
+                      {showChinese && line.grammarTip && <p className="mt-1 text-inkSoft">修正：{line.grammarTip}</p>}
+                      {showChinese && line.zhExplain && <p className="mt-1 text-inkSoft">{line.zhExplain}</p>}
                     </div>
                   )}
                 </div>
@@ -257,7 +271,7 @@ function RecordDetail({ record, onClose }: { record: LearningRecord; onClose: ()
           )}
         </div>
 
-        {record.suggestion && (
+        {showChinese && record.suggestion && (
           <div className="mt-5 card !p-4">
             <p className="text-xs font-bold text-inkSoft">最後建議</p>
             <p className="mt-1 text-ink font-semibold">{record.suggestion}</p>
@@ -269,44 +283,9 @@ function RecordDetail({ record, onClose }: { record: LearningRecord; onClose: ()
 }
 
 function LanguageFilter({ value, onChange }: { value: RecordLanguageFilter; onChange: (value: RecordLanguageFilter) => void }) {
-  const scrollRef = React.useRef<HTMLDivElement>(null);
-  const [showLeftArrow, setShowLeftArrow] = React.useState(false);
-  const [showRightArrow, setShowRightArrow] = React.useState(true);
-
-  const scroll = (direction: "left" | "right") => {
-    if (scrollRef.current) {
-      const scrollAmount = 120;
-      scrollRef.current.scrollBy({ left: direction === "left" ? -scrollAmount : scrollAmount, behavior: "smooth" });
-    }
-  };
-
-  const handleScroll = () => {
-    if (scrollRef.current) {
-      setShowLeftArrow(scrollRef.current.scrollLeft > 10);
-      setShowRightArrow(scrollRef.current.scrollLeft < scrollRef.current.scrollWidth - scrollRef.current.clientWidth - 10);
-    }
-  };
-
-  React.useEffect(() => {
-    const ref = scrollRef.current;
-    if (ref) {
-      ref.addEventListener("scroll", handleScroll);
-      handleScroll();
-      return () => ref.removeEventListener("scroll", handleScroll);
-    }
-  }, []);
-
   return (
-    <div className="relative">
-      {showLeftArrow && (
-        <button
-          onClick={() => scroll("left")}
-          className="absolute left-0 top-0 bottom-1 z-10 w-8 bg-gradient-to-r from-cream to-transparent flex items-center justify-center text-lilacDeep"
-        >
-          ‹
-        </button>
-      )}
-      <div ref={scrollRef} className="flex gap-2 overflow-x-auto no-scrollbar pb-1 px-2">
+    <div className="rounded-[28px] bg-white/70 p-2 shadow-softer">
+      <HorizontalScrollChips>
         <button onClick={() => onChange("all")} className={`chip whitespace-nowrap ${value === "all" ? "bg-lilacDeep text-white" : "bg-white text-ink shadow-softer"}`}>
           全部語言
         </button>
@@ -319,15 +298,7 @@ function LanguageFilter({ value, onChange }: { value: RecordLanguageFilter; onCh
             {lang.flag} {lang.zhName}
           </button>
         ))}
-      </div>
-      {showRightArrow && (
-        <button
-          onClick={() => scroll("right")}
-          className="absolute right-0 top-0 bottom-1 z-10 w-8 bg-gradient-to-l from-cream to-transparent flex items-center justify-center text-lilacDeep"
-        >
-          ›
-        </button>
-      )}
+      </HorizontalScrollChips>
     </div>
   );
 }

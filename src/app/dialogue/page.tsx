@@ -13,6 +13,8 @@ import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguage
 import AppHeader from "@/components/AppHeader";
 import ConversationPractice from "@/components/ConversationPractice";
 import TutorSelector, { getSelectedTutor, TutorAvatar } from "@/components/TutorSelector";
+import HorizontalScrollChips from "@/components/HorizontalScrollChips";
+import { levelLabel } from "@/components/ui";
 import type { TutorProfile } from "@/data/tutors";
 
 export default function DialoguePage() {
@@ -29,7 +31,11 @@ function DialogueInner() {
   const preset = search.get("scene");
   const [scene, setScene] = useState<Scene | null>(null);
   const [isFreeMode, setIsFreeMode] = useState(false);
-  const [language, setLanguage] = useState<LearningLanguageCode>(() => learningService.getCurrentLanguage());
+  const [language, setLanguage] = useState<LearningLanguageCode>("en");
+
+  useEffect(() => {
+    setLanguage(learningService.getCurrentLanguage());
+  }, []);
 
   function changeLanguage(code: LearningLanguageCode) {
     const user = authService.getCurrentUser();
@@ -109,17 +115,17 @@ function ScenerPicker({
         }
       />
       <div className="px-5">
-        <div className="mb-4 flex gap-2 overflow-x-auto no-scrollbar pb-1">
+        <HorizontalScrollChips className="mb-4">
           {LEARNING_LANGUAGES.map((item) => (
             <button
               key={item.code}
               onClick={() => onLanguageChange(item.code)}
-              className={`chip whitespace-nowrap ${language === item.code ? "bg-lilacDeep text-white" : "bg-white text-ink shadow-softer"}`}
+              className={`chip whitespace-nowrap ${language === item.code ? "bg-lilacDeep text-white shadow-soft" : "bg-white text-ink shadow-softer"}`}
             >
               {item.flag} {item.zhName}
             </button>
           ))}
-        </div>
+        </HorizontalScrollChips>
 
         {/* Tutor selector banner */}
         <button
@@ -180,7 +186,7 @@ function ScenerPicker({
                       <p className="mt-1 text-xs font-semibold text-inkSoft truncate">{s.enName}</p>
                     </div>
                     <span className="relative z-10 self-start rounded-full bg-white/85 px-3 py-1.5 text-xs font-extrabold text-lilacDeep shadow-softer">
-                      {s.difficulty}
+                      {levelLabel(s.difficulty)}
                     </span>
                   </button>
                 ))}
@@ -228,7 +234,7 @@ function Chat({ scene, onExit }: { scene: Scene; onExit: () => void }) {
     const u = authService.getCurrentUser();
     return u ? learningService.getSettings(u.id) : null;
   }, []);
-  const showZh = settings ? settings.dialogueChinese : true;
+  const showZh = settings ? settings.showChineseGlobal && settings.dialogueChinese : true;
   const pron = settings ? settings.pronunciationOn : true;
 
   function handleFinish(result: DialogueResult, userTurns: string[], feedbacks: TutorFeedback[]) {
@@ -297,7 +303,7 @@ function FreeChat({ targetLanguage, onExit }: { targetLanguage: LearningLanguage
     const u = authService.getCurrentUser();
     return u ? learningService.getSettings(u.id) : null;
   }, []);
-  const showZh = settings ? settings.dialogueChinese : true;
+  const showZh = settings ? settings.showChineseGlobal && settings.dialogueChinese : true;
   const pron = settings ? settings.pronunciationOn : true;
   const [createdScene, setCreatedScene] = useState<CustomScene | null>(null);
 

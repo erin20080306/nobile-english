@@ -1,4 +1,8 @@
 export const rewardImages = {
+  perfect100: "/assets/rewards/perfect-100.png",
+  randomQuiz: "/assets/rewards/random-quiz.png",
+  keepPracticingDesk: "/assets/rewards/keep-practicing-desk.png",
+  cheerUpSign: "/assets/rewards/cheer-up-sign.png",
   excellent: "/assets/rewards/07BC4F18-27ED-4E00-9525-3E20CA3E1004.png",
   veryGood: "/assets/rewards/0321EB45-76C3-4D8C-90A0-9FF248BF705E.png",
   good: "/assets/rewards/C887C3E4-25B4-46D2-B3F9-9A6CD2F29F4C.png",
@@ -9,11 +13,11 @@ export const rewardImages = {
 };
 
 export function rewardImageForScore(score: number) {
-  if (score >= 98) return rewardImages.excellent;
+  if (score >= 98) return rewardImages.perfect100;
   if (score >= 90) return rewardImages.veryGood;
   if (score >= 82) return rewardImages.great;
   if (score >= 72) return rewardImages.good;
-  if (score >= 60) return rewardImages.letsGo;
-  if (score >= 45) return rewardImages.keepGoing;
-  return rewardImages.almost;
+  if (score >= 60) return rewardImages.randomQuiz;
+  if (score >= 45) return rewardImages.keepPracticingDesk;
+  return rewardImages.cheerUpSign;
 }

@@ -5,6 +5,8 @@ let voicesReady: Promise<SpeechSynthesisVoice[]> | null = null;
 let currentAudio: HTMLAudioElement | null = null;
 let currentAudioContext: AudioContext | null = null;
 let currentPlaybackEnd: (() => void) | null = null;
+const ttsBlobCache = new Map<string, Blob>();
+const TTS_CACHE_LIMIT = 24;
 
 export interface SpeakOptions {
   rate?: number;
@@ -128,18 +130,28 @@ function speakNow(text: string, opts?: SpeakOptions, voices = window.speechSynth
 async function speakWithOpenAi(text: string, opts?: SpeakOptions) {
   if (!opts?.ttsVoice || typeof fetch === "undefined" || typeof Audio === "undefined") return false;
   try {
-    const response = await fetch("/api/tts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        input: text,
-        voice: opts.ttsVoice,
-        instructions: opts.ttsInstructions,
-        speed: opts.rate ?? 1,
-      }),
-    });
-    if (!response.ok) return false;
-    const blob = await response.blob();
+    const cacheKey = ttsCacheKey(text, opts);
+    const cachedBlob = ttsBlobCache.get(cacheKey);
+    if (cachedBlob) {
+      ttsBlobCache.delete(cacheKey);
+      ttsBlobCache.set(cacheKey, cachedBlob);
+    }
+    let blob = cachedBlob;
+    if (!blob) {
+      const response = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          input: text,
+          voice: opts.ttsVoice,
+          instructions: opts.ttsInstructions,
+          speed: opts.rate ?? 1,
+        }),
+      });
+      if (!response.ok) return false;
+      blob = await response.blob();
+      rememberTtsBlob(cacheKey, blob);
+    }
     if (!blob.size) return false;
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
@@ -164,6 +176,26 @@ async function speakWithOpenAi(text: string, opts?: SpeakOptions) {
     return true;
   } catch {
     return false;
+  }
+}
+
+function ttsCacheKey(text: string, opts: SpeakOptions) {
+  return JSON.stringify({
+    text: text.trim(),
+    voice: opts.ttsVoice,
+    instructions: opts.ttsInstructions || "",
+    speed: opts.rate ?? 1,
+  });
+}
+
+function rememberTtsBlob(key: string, blob: Blob) {
+  if (!blob.size) return;
+  if (ttsBlobCache.has(key)) ttsBlobCache.delete(key);
+  ttsBlobCache.set(key, blob);
+  while (ttsBlobCache.size > TTS_CACHE_LIMIT) {
+    const firstKey = ttsBlobCache.keys().next().value as string | undefined;
+    if (!firstKey) break;
+    ttsBlobCache.delete(firstKey);
   }
 }
 
@@ -311,17 +343,22 @@ export const speechService = {
     }
     const rec = new Ctor();
     rec.lang = handlers.lang || "en-US";
-    rec.interimResults = false;
+    rec.interimResults = true;
     rec.maxAlternatives = 1;
-    rec.continuous = false;
+    rec.continuous = true;
 
+    let finalTranscript = "";
     rec.onresult = (e: SpeechRecognitionEvent) => {
-      let transcript = "";
-      for (let i = 0; i < e.results.length; i++) {
-        transcript += e.results[i][0]?.transcript || "";
-        transcript += " ";
+      let interimTranscript = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const piece = e.results[i][0]?.transcript || "";
+        if (e.results[i].isFinal) {
+          finalTranscript += `${piece} `;
+        } else {
+          interimTranscript += piece;
+        }
       }
-      transcript = transcript.trim();
+      const transcript = `${finalTranscript} ${interimTranscript}`.trim();
       if (transcript) handlers.onResult(transcript);
     };
     rec.onerror = (e: SpeechRecognitionErrorEvent) => {
@@ -329,6 +366,8 @@ export const speechService = {
         "not-allowed": "麥克風權限被拒，請在瀏覽器允許麥克風。",
         "no-speech": "沒有偵測到語音，請再試一次。",
         "audio-capture": "找不到麥克風裝置。",
+        "language-not-supported": `此瀏覽器不支援 ${handlers.lang || "目前語言"} 語音辨識，請改用 Chrome 或先用打字回覆。`,
+        "network": "語音辨識需要網路服務，目前連線不穩，請再試一次。",
       };
       handlers.onError?.(map[e.error] || "語音辨識發生問題，請再試一次。");
     };

@@ -39,9 +39,21 @@ const levelStyles: Record<string, string> = {
   Advanced: "bg-ink text-white",
 };
 
+const levelZh: Record<string, string> = {
+  Beginner: "初級",
+  Elementary: "基礎",
+  Intermediate: "中級",
+  "Upper-Intermediate": "中高級",
+  Advanced: "高級",
+};
+
+export function levelLabel(level: EnglishLevel | string) {
+  return levelZh[level] ? `${level}｜${levelZh[level]}` : level;
+}
+
 export function LevelBadge({ level }: { level: EnglishLevel | string }) {
   return (
-    <span className={`chip ${levelStyles[level] || "bg-lilac text-lilacDeep"}`}>{level}</span>
+    <span className={`chip whitespace-nowrap text-xs ${levelStyles[level] || "bg-lilac text-lilacDeep"}`}>{levelLabel(level)}</span>
   );
 }
 

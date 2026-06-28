@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Flame, Award, ArrowRight, Home, TrendingUp, BookOpen, MessageSquare, ClipboardCheck, Sparkles } from "lucide-react";
-import type { DialogueSuggestion, DialogueReview } from "@/types";
+import type { DialogueSuggestion, DialogueReview, SceneReviewCheck } from "@/types";
 import { storageService, KEYS } from "@/services/storageService";
 import { learningService } from "@/services/learningService";
 import { rewardImageForScore } from "@/data/rewardImages";
 import CheerImage from "@/components/CheerImage";
+import SceneReviewAssessment from "@/components/SceneReviewAssessment";
 import ScoreRing from "@/components/ScoreRing";
 import { Stars, ProgressBar } from "@/components/ui";
 
@@ -22,6 +23,7 @@ interface LastResult {
   conversationWords?: string[];
   suggestions?: DialogueSuggestion[];
   dialogueReview?: DialogueReview;
+  sceneReview?: SceneReviewCheck;
   nextHref: string;
 }
 
@@ -30,9 +32,12 @@ export default function ResultsPage() {
   const [data, setData] = useState<LastResult | null>(null);
   const [xp, setXp] = useState(0);
   const [streak, setStreak] = useState(0);
+  const [showReview, setShowReview] = useState(false);
 
   useEffect(() => {
-    setData(storageService.get<LastResult | null>(KEYS.lastResult, null));
+    const result = storageService.get<LastResult | null>(KEYS.lastResult, null);
+    setData(result);
+    setShowReview(Boolean(result?.sceneReview));
     const s = learningService.getStats();
     setXp(s.xp);
     setStreak(s.streak);
@@ -64,6 +69,10 @@ export default function ResultsPage() {
 
   return (
     <div className="min-h-[100dvh] flex flex-col px-6 pt-10 pb-8">
+      {showReview && data.sceneReview && (
+        <SceneReviewAssessment review={data.sceneReview} onClose={() => setShowReview(false)} />
+      )}
+
       <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring" }} className="text-center">
         <span className="chip bg-mint text-mintDeep">練習完成</span>
         <h1 className="mt-3 text-2xl font-extrabold text-ink">{data.title}</h1>
@@ -209,6 +218,9 @@ export default function ResultsPage() {
       )}
 
       <div className="mt-5 space-y-3">
+        <button className="btn-secondary w-full flex items-center justify-center gap-2 bg-mint text-mintDeep" onClick={() => router.push("/garden")}>
+          <Sparkles size={18} /> 去語言小農場澆水
+        </button>
         <button className="btn-primary w-full flex items-center justify-center gap-2" onClick={() => router.push(data.nextHref)}>
           下一步推薦 <ArrowRight size={18} />
         </button>
