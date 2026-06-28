@@ -290,26 +290,21 @@ export default function GardenPage() {
       <div className="px-5 mt-4">
         <div className="relative overflow-hidden rounded-[34px] bg-white p-4 shadow-soft">
           <div className="absolute -right-8 -bottom-8 h-28 w-28 rounded-full bg-mint/60" />
-          <div className="relative flex items-center gap-4">
-            <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-[30px] bg-gradient-to-b from-sky to-cream text-center shadow-softer">
-              <div>
-                <div className="text-4xl">🙂</div>
-                <div className="mt-1 text-2xl">{equippedOutfit?.emoji || "👕"}{equippedAccessories.map((item) => item.emoji).join("")}</div>
-              </div>
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-inkSoft">小小學伴</p>
-              <h2 className="text-xl font-extrabold text-ink">我的語言夥伴</h2>
-              <p className="mt-1 text-sm leading-relaxed text-inkSoft">
-                目前穿搭：{equippedOutfit?.name || "基本上衣"}
-                {equippedAccessories.length > 0 ? `，飾品 ${equippedAccessories.map((item) => item.name).join("、")}` : "，尚未配戴飾品"}
-              </p>
-            </div>
-          </div>
-          <div className="relative mt-4 rounded-[26px] bg-cream px-4 py-3">
-            <p className="text-sm font-extrabold text-ink">{equippedHouse?.emoji || "🏚️"} 我的農場住屋</p>
-            <p className="text-xs leading-relaxed text-inkSoft">
-              練習者一開始已擁有「茅屋」，之後可以用金幣購買房子、物品、衣物與飾品。
+          <BuddyFarmStage
+            outfit={equippedOutfit}
+            accessories={equippedAccessories}
+            house={equippedHouse}
+            items={equippedItems}
+          />
+          <div className="relative mt-4">
+            <p className="text-xs font-bold text-inkSoft">小小學伴</p>
+            <h2 className="text-xl font-extrabold text-ink">我的語言夥伴</h2>
+            <p className="mt-1 text-sm leading-relaxed text-inkSoft">
+              目前穿搭：{equippedOutfit?.name || "基本上衣"}
+              {equippedAccessories.length > 0 ? `，飾品 ${equippedAccessories.map((item) => item.name).join("、")}` : "，尚未配戴飾品"}
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-inkSoft">
+              住屋：{equippedHouse?.name || "茅屋"}。練習者一開始已擁有「茅屋」，後續購買的房子與物品會放在這個展示區。
             </p>
             {equippedItems.length > 0 && (
               <p className="mt-2 text-sm font-bold text-mintDeep">
@@ -418,7 +413,7 @@ export default function GardenPage() {
                         }`}
                       >
                         <div className="flex items-start gap-2">
-                          <span className="text-2xl">{item.emoji}</span>
+                          <ShopObject3D item={item} equipped={equipped} />
                           <div className="min-w-0">
                             <p className="font-extrabold leading-tight">{item.name}</p>
                             <p className="mt-1 text-[11px] leading-relaxed text-inkSoft">{item.description}</p>
@@ -621,6 +616,151 @@ export default function GardenPage() {
 
       <BottomNav />
     </div>
+  );
+}
+
+function BuddyFarmStage({
+  outfit,
+  accessories,
+  house,
+  items,
+}: {
+  outfit?: GardenShopItem;
+  accessories: GardenShopItem[];
+  house?: GardenShopItem;
+  items: GardenShopItem[];
+}) {
+  return (
+    <div className="relative h-72 overflow-hidden rounded-[32px] bg-gradient-to-b from-sky/60 via-[#fff7ea] to-[#dff6df] shadow-softer [perspective:1000px]">
+      <div className="absolute inset-x-0 top-0 h-20 bg-white/35" />
+      <div className="absolute left-5 top-6 h-12 w-12 rounded-full bg-[#fff4be] shadow-[0_0_34px_rgba(255,220,130,0.75)]" />
+      <div className="absolute bottom-5 left-5 right-5 h-24 rounded-[50%] bg-gradient-to-b from-mint/80 to-mintDeep/25 shadow-[inset_0_8px_16px_rgba(255,255,255,0.55)]" />
+      <div className="absolute bottom-5 left-6 right-6 h-8 rounded-[50%] bg-ink/10 blur-md" />
+
+      <div className="absolute bottom-16 right-8 z-10">
+        <HouseFigure house={house} />
+      </div>
+
+      <div className="absolute bottom-16 left-5 z-20">
+        <BuddyDoll outfit={outfit} accessories={accessories} />
+      </div>
+
+      <div className="absolute bottom-8 left-4 right-4 z-30 flex items-end justify-center gap-3">
+        {items.length === 0 ? (
+          <div className="rounded-full bg-white/80 px-3 py-1 text-xs font-extrabold text-inkSoft shadow-softer">
+            商店購買物品後會擺在這裡
+          </div>
+        ) : (
+          items.slice(0, 4).map((item, index) => (
+            <motion.div
+              key={item.id}
+              animate={{ y: [0, -2, 0] }}
+              transition={{ duration: 2.4 + index * 0.2, repeat: Infinity, ease: "easeInOut" }}
+              style={{ transform: `scale(${1 - index * 0.05})` }}
+            >
+              <ToyObject3D item={item} fallbackEmoji="📦" size="sm" />
+            </motion.div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BuddyDoll({ outfit, accessories }: { outfit?: GardenShopItem; accessories: GardenShopItem[] }) {
+  return (
+    <div className="relative h-44 w-36 [perspective:900px]">
+      <motion.div
+        animate={{ y: [0, -5, 0], rotateY: [-4, 5, -4] }}
+        transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+        className="relative mx-auto h-44 w-36 [transform-style:preserve-3d]"
+      >
+        <div className="absolute bottom-1 left-1/2 h-7 w-28 -translate-x-1/2 rounded-full bg-ink/20 blur-sm" />
+        <div className="absolute left-6 top-[112px] h-9 w-8 rounded-full bg-gradient-to-br from-[#ffe5c9] to-[#ffc28e] shadow-[inset_-7px_-6px_10px_rgba(117,70,41,0.15)]" />
+        <div className="absolute right-6 top-[112px] h-9 w-8 rounded-full bg-gradient-to-br from-[#ffe5c9] to-[#ffc28e] shadow-[inset_-7px_-6px_10px_rgba(117,70,41,0.15)]" />
+        <div className="absolute left-1/2 top-[76px] h-[66px] w-[76px] -translate-x-1/2 rounded-[38px] bg-gradient-to-br from-peach via-[#ffd4be] to-[#f3a076] shadow-[inset_-10px_-10px_18px_rgba(126,77,45,0.16),0_16px_20px_rgba(64,56,79,0.16)]" />
+        <div className="absolute left-3 top-[82px] h-11 w-8 rotate-[-20deg] rounded-full bg-gradient-to-br from-[#ffe5c9] to-[#ffc28e] shadow-[inset_-7px_-6px_10px_rgba(117,70,41,0.14)]" />
+        <div className="absolute right-3 top-[82px] h-11 w-8 rotate-[20deg] rounded-full bg-gradient-to-br from-[#ffe5c9] to-[#ffc28e] shadow-[inset_-7px_-6px_10px_rgba(117,70,41,0.14)]" />
+        <div className="absolute left-1/2 top-5 h-[78px] w-[82px] -translate-x-1/2 rounded-full bg-gradient-to-br from-[#fff9df] via-[#ffe4aa] to-[#ffc56e] shadow-[inset_-12px_-12px_20px_rgba(151,93,31,0.2),0_16px_24px_rgba(80,63,55,0.2)]">
+          <div className="absolute left-5 top-8 h-3 w-3 rounded-full bg-ink shadow-[29px_0_0_#40384f]" />
+          <div className="absolute left-1/2 top-[50px] h-3 w-8 -translate-x-1/2 rounded-b-full border-b-4 border-peachDeep/85" />
+          <div className="absolute left-2 top-10 h-3 w-4 rounded-full bg-peach/70 blur-[1px] shadow-[56px_0_0_rgba(255,195,175,0.7)]" />
+          <div className="absolute left-4 top-3 h-4 w-8 rounded-full bg-white/55 blur-[1px]" />
+        </div>
+        <div className="absolute left-1/2 top-[86px] -translate-x-1/2 rounded-[20px] bg-white/90 px-3 py-2 text-2xl shadow-[0_8px_16px_rgba(64,56,79,0.15)]">
+          <span className="drop-shadow-[0_4px_3px_rgba(64,56,79,0.2)]">{outfit?.emoji || "👕"}</span>
+        </div>
+        <div className="absolute -right-1 top-5 flex flex-col gap-1.5">
+          {accessories.slice(0, 3).map((item, index) => (
+            <span
+              key={item.id}
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-lg shadow-[0_7px_12px_rgba(64,56,79,0.18)]"
+              style={{ transform: `translateZ(${8 + index * 3}px)` }}
+            >
+              {item.emoji}
+            </span>
+          ))}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+function HouseFigure({ house }: { house?: GardenShopItem }) {
+  return (
+    <motion.div
+      animate={{ y: [0, -2, 0] }}
+      transition={{ duration: 3.4, repeat: Infinity, ease: "easeInOut" }}
+      className="relative h-32 w-36 [transform-style:preserve-3d]"
+    >
+      <div className="absolute bottom-0 left-1/2 h-6 w-32 -translate-x-1/2 rounded-full bg-ink/20 blur-sm" />
+      <div className="absolute bottom-4 left-1/2 h-20 w-28 -translate-x-1/2 rounded-[20px] bg-gradient-to-br from-[#ffe6bd] via-[#ffd293] to-[#d79b5e] shadow-[inset_-10px_-10px_16px_rgba(98,60,30,0.16),0_14px_20px_rgba(64,56,79,0.16)]" />
+      <div className="absolute bottom-[74px] left-1/2 h-16 w-16 -translate-x-1/2 rotate-45 rounded-[14px] bg-gradient-to-br from-[#8d5632] to-[#5f351f] shadow-[inset_8px_8px_12px_rgba(255,255,255,0.16),0_8px_14px_rgba(64,56,79,0.18)]" />
+      <div className="absolute bottom-5 left-1/2 h-10 w-7 -translate-x-1/2 rounded-t-2xl bg-gradient-to-b from-[#85502e] to-[#5a341f] shadow-inner" />
+      <div className="absolute bottom-10 left-7 h-6 w-6 rounded-xl bg-sky/70 shadow-inner" />
+      <div className="absolute bottom-10 right-7 h-6 w-6 rounded-xl bg-sky/70 shadow-inner" />
+      <div className="absolute bottom-7 left-1/2 -translate-x-1/2 rounded-full bg-white/90 px-3 py-1 text-sm font-extrabold text-ink shadow-softer">
+        {house?.emoji || "🏚️"} {house?.name || "茅屋"}
+      </div>
+    </motion.div>
+  );
+}
+
+function ShopObject3D({ item, equipped }: { item: GardenShopItem; equipped: boolean }) {
+  return (
+    <div className="shrink-0">
+      <ToyObject3D item={item} fallbackEmoji={item.emoji} size="sm" active={equipped} />
+    </div>
+  );
+}
+
+function ToyObject3D({
+  item,
+  fallbackEmoji,
+  size = "sm",
+  active = false,
+}: {
+  item?: GardenShopItem;
+  fallbackEmoji: string;
+  size?: "sm" | "lg";
+  active?: boolean;
+}) {
+  const box = size === "lg" ? "h-20 w-24" : "h-12 w-12";
+  const emojiSize = size === "lg" ? "text-5xl" : "text-2xl";
+  return (
+    <motion.div
+      animate={active ? { y: [0, -3, 0], rotateZ: [-1, 1, -1] } : { y: [0, -1.5, 0] }}
+      transition={{ duration: active ? 1.8 : 2.8, repeat: Infinity, ease: "easeInOut" }}
+      className={`relative ${box} [transform-style:preserve-3d]`}
+    >
+      <div className="absolute bottom-0 left-1/2 h-3 w-4/5 -translate-x-1/2 rounded-full bg-ink/20 blur-sm" />
+      <div className="absolute inset-x-1 bottom-2 top-2 rounded-[22px] bg-gradient-to-br from-white via-[#fff8ef] to-[#e8dccb] shadow-[inset_-8px_-8px_12px_rgba(91,66,48,0.12),0_10px_16px_rgba(72,54,44,0.16)]" />
+      <div className="absolute inset-x-2 bottom-1 h-4 rounded-b-[20px] bg-[#d7b48b] shadow-[inset_0_4px_8px_rgba(255,255,255,0.35)]" />
+      <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center">
+        <span className={`${emojiSize} drop-shadow-[0_6px_4px_rgba(64,56,79,0.22)]`}>{item?.emoji || fallbackEmoji}</span>
+      </div>
+      <div className="absolute left-3 top-3 h-2 w-8 rounded-full bg-white/65 blur-[1px]" />
+    </motion.div>
   );
 }
 
