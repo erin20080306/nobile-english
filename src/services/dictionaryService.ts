@@ -48,6 +48,56 @@ const irregularForms: Record<string, string[]> = {
   went: ["go"],
 };
 
+const preciseEnglishFallbacks: Record<string, Omit<Word, "word">> = {
+  different: {
+    phonetic: "/ˈdɪfərənt/",
+    pos: "adj.",
+    enDef: "not the same; unlike another person or thing",
+    zh: "不同的；不一樣的。常用來比較兩件事、人或想法，例如 different from/to something。",
+    example: "This answer is different from mine.",
+    exampleZh: "這個答案跟我的不一樣。",
+    synonyms: ["another", "distinct"],
+    antonyms: ["same", "similar"],
+    related: ["difference", "differently"],
+  },
+  busiest: {
+    phonetic: "/ˈbɪziɪst/",
+    pos: "adj.",
+    enDef: "the superlative form of busy; having the most activity",
+    zh: "最忙的；最繁忙的。busy 的最高級，常用在 busiest time / busiest street。",
+    example: "This is the busiest street in the area.",
+    exampleZh: "這是這一帶最繁忙的街道。",
+    related: ["busy", "busier"],
+  },
+  available: {
+    phonetic: "/əˈveɪləbəl/",
+    pos: "adj.",
+    enDef: "able to be used, bought, or reached",
+    zh: "可取得的；有空的；可用的。點餐或訂位時可問某物是否 available。",
+    example: "Do you have seafood available?",
+    exampleZh: "你們有海鮮嗎？",
+    related: ["availability"],
+  },
+  seafood: {
+    phonetic: "/ˈsiːfuːd/",
+    pos: "n.",
+    enDef: "food from the sea, such as fish, shrimp, or shellfish",
+    zh: "海鮮；例如魚、蝦、貝類等海產食物。",
+    example: "Do you have seafood available?",
+    exampleZh: "你們有海鮮嗎？",
+    related: ["fish", "shrimp"],
+  },
+  rushed: {
+    phonetic: "/rʌʃt/",
+    pos: "adj.",
+    enDef: "hurried; not having enough time",
+    zh: "匆忙的；趕時間的。You look rushed 表示「你看起來有點趕」。",
+    example: "You look a little rushed.",
+    exampleZh: "你看起來有點趕。",
+    related: ["rush", "hurry"],
+  },
+};
+
 const multilingualAliases: Partial<Record<Exclude<LearningLanguageCode, "en">, Record<string, string[]>>> = {
   ja: {
     "どうでしたか": ["どうですか"],
@@ -201,6 +251,8 @@ function inferPartOfSpeech(word: string): Word["pos"] {
 function learnerFallback(word: string): Word | null {
   const q = normalizeToken(word);
   if (!/^[a-z][a-z'-]*$/.test(q) || q.length < 2) return null;
+  const precise = preciseEnglishFallbacks[q];
+  if (precise) return { word: q, ...precise };
   const pos = inferPartOfSpeech(q);
   const zhByPos: Record<Word["pos"], string> = {
     "n.": "情境對話常見名詞或名稱，請搭配原句理解。",
@@ -263,6 +315,19 @@ function multilingualFallback(word: string, language: Exclude<LearningLanguageCo
 
 function multilingualPatternFallback(q: string, language: Exclude<LearningLanguageCode, "en">): Word | null {
   if (language === "ko") {
+    if (/어땠/.test(q)) {
+      return {
+        language,
+        word: q,
+        phonetic: "/eottaesseoyo/",
+        pos: "interj.",
+        enDef: "A polite Korean question meaning how was it or how did it go.",
+        zh: "韓文禮貌問句，意思是「剛剛/那件事怎麼樣？」或「過得如何？」不是「他怎麼樣」。",
+        example: "오늘 하루는 어땠어요?",
+        exampleZh: "今天過得怎麼樣？",
+        related: ["어때요", "어떻게"],
+      };
+    }
     if (q.endsWith("주세요")) {
       return {
         language,
@@ -283,7 +348,7 @@ function multilingualPatternFallback(q: string, language: Exclude<LearningLangua
         phonetic: "/-/",
         pos: "v.",
         enDef: "A polite Korean sentence form used in everyday conversation.",
-        zh: "韓文日常禮貌語尾，通常表示狀態、動作或提問，需依原句判斷完整意思。",
+        zh: "韓文日常禮貌句尾，通常表示動作、狀態或提問；完整意思需看前面的詞幹與原句。",
         example: `${q}를 원래 문장 안에서 다시 읽어 보세요.`,
         exampleZh: `請把「${q}」放回原句理解，通常是禮貌口語表達。`,
       };

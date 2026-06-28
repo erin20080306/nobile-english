@@ -1,8 +1,10 @@
 import type {
   GardenActivityLog,
   GardenCrop,
+  GardenLeagueEntry,
   GardenPlot,
   GardenReviewCard,
+  GardenShopItem,
   GardenState,
   LearningLanguageCode,
   SavedWord,
@@ -10,6 +12,116 @@ import type {
 import { KEYS, storageService } from "./storageService";
 
 const PLOT_COUNT = 6;
+const LANGUAGE_CODES: LearningLanguageCode[] = ["en", "ja", "ko", "it", "es"];
+const STARTER_HOUSE_ID = "hut-house";
+const STARTER_OUTFIT_ID = "starter-outfit";
+
+export const GARDEN_SHOP_ITEMS: GardenShopItem[] = [
+  {
+    id: STARTER_HOUSE_ID,
+    category: "house",
+    name: "茅屋",
+    emoji: "🏚️",
+    price: 0,
+    description: "初始房子，每位練習者一開始就擁有。",
+  },
+  {
+    id: "wood-house",
+    category: "house",
+    name: "小木屋",
+    emoji: "🏡",
+    price: 180,
+    description: "溫暖的小木屋，適合穩定練習的學習者。",
+  },
+  {
+    id: "flower-house",
+    category: "house",
+    name: "花園小屋",
+    emoji: "🏠",
+    price: 320,
+    description: "帶花圃的小屋，讓農場更有完成感。",
+  },
+  {
+    id: "study-desk",
+    category: "item",
+    name: "讀書桌",
+    emoji: "📚",
+    price: 80,
+    description: "放在農場旁，提醒自己每天複習。",
+  },
+  {
+    id: "mailbox",
+    category: "item",
+    name: "小信箱",
+    emoji: "📬",
+    price: 70,
+    description: "適合放每日任務與學習提醒。",
+  },
+  {
+    id: "windmill",
+    category: "item",
+    name: "小風車",
+    emoji: "🎡",
+    price: 140,
+    description: "讓農場更活潑，也象徵口說流暢度。",
+  },
+  {
+    id: STARTER_OUTFIT_ID,
+    category: "outfit",
+    name: "基本上衣",
+    emoji: "👕",
+    price: 0,
+    description: "小小學伴的初始穿搭。",
+  },
+  {
+    id: "academy-vest",
+    category: "outfit",
+    name: "學院背心",
+    emoji: "🎽",
+    price: 90,
+    description: "適合專心練單字與測驗的造型。",
+  },
+  {
+    id: "cafe-apron",
+    category: "outfit",
+    name: "咖啡圍裙",
+    emoji: "🧣",
+    price: 110,
+    description: "很適合餐廳、咖啡廳場景練習。",
+  },
+  {
+    id: "star-pin",
+    category: "accessory",
+    name: "星星髮夾",
+    emoji: "⭐",
+    price: 60,
+    description: "答對題目時會更有成就感的小飾品。",
+  },
+  {
+    id: "round-glasses",
+    category: "accessory",
+    name: "圓框眼鏡",
+    emoji: "👓",
+    price: 75,
+    description: "讓小小學伴多一點讀書氣質。",
+  },
+  {
+    id: "mini-bag",
+    category: "accessory",
+    name: "小背包",
+    emoji: "🎒",
+    price: 95,
+    description: "適合旅行、問路、機場場景的配件。",
+  },
+];
+
+const simulatedLeaguePlayers: GardenLeagueEntry[] = [
+  { id: "sim-mia", name: "Mia", avatar: "🙂", dailyCoins: 72, monthlyCoins: 860, totalCoins: 1420 },
+  { id: "sim-leo", name: "Leo", avatar: "😎", dailyCoins: 64, monthlyCoins: 790, totalCoins: 1310 },
+  { id: "sim-hana", name: "Hana", avatar: "😊", dailyCoins: 58, monthlyCoins: 930, totalCoins: 1500 },
+  { id: "sim-kai", name: "Kai", avatar: "🤓", dailyCoins: 43, monthlyCoins: 640, totalCoins: 980 },
+  { id: "sim-sofia", name: "Sofia", avatar: "😄", dailyCoins: 36, monthlyCoins: 710, totalCoins: 1050 },
+];
 
 export const GARDEN_CROPS: GardenCrop[] = [
   {
@@ -72,6 +184,10 @@ function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function monthKey() {
+  return new Date().toISOString().slice(0, 7);
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -95,6 +211,15 @@ function normalizeState(raw: Partial<GardenState> | undefined, language: Learnin
   const plots = (raw?.plots || defaultPlots()).slice(0, PLOT_COUNT);
   while (plots.length < PLOT_COUNT) plots.push({ id: plots.length, growth: 0 });
   const xp = raw?.xp ?? 0;
+  const today = todayKey();
+  const month = monthKey();
+  const isSameDay = raw?.leagueDay === today;
+  const isSameMonth = raw?.leagueMonth === month;
+  const ownedItemIds = Array.from(new Set([STARTER_HOUSE_ID, STARTER_OUTFIT_ID, ...(raw?.ownedItemIds || [])]));
+  const equippedHouseId = ownedItemIds.includes(raw?.equippedHouseId || "") ? raw?.equippedHouseId || STARTER_HOUSE_ID : STARTER_HOUSE_ID;
+  const equippedOutfitId = ownedItemIds.includes(raw?.equippedOutfitId || "") ? raw?.equippedOutfitId || STARTER_OUTFIT_ID : STARTER_OUTFIT_ID;
+  const equippedItemIds = (raw?.equippedItemIds || []).filter((id) => ownedItemIds.includes(id));
+  const equippedAccessoryIds = (raw?.equippedAccessoryIds || []).filter((id) => ownedItemIds.includes(id)).slice(0, 3);
   return {
     language,
     level: levelFromXp(xp),
@@ -102,8 +227,21 @@ function normalizeState(raw: Partial<GardenState> | undefined, language: Learnin
     water: raw?.water ?? 5,
     seeds: raw?.seeds ?? 3,
     coins: raw?.coins ?? 0,
+    dailyCoins: isSameDay ? raw?.dailyCoins ?? 0 : 0,
+    monthlyCoins: isSameMonth ? raw?.monthlyCoins ?? 0 : 0,
+    leagueDay: today,
+    leagueMonth: month,
+    leagueRewardsClaimed: {
+      daily: isSameDay ? raw?.leagueRewardsClaimed?.daily : undefined,
+      monthly: isSameMonth ? raw?.leagueRewardsClaimed?.monthly : undefined,
+    },
     harvests: raw?.harvests ?? 0,
     harvestByCrop: raw?.harvestByCrop ?? {},
+    ownedItemIds,
+    equippedHouseId,
+    equippedItemIds,
+    equippedOutfitId,
+    equippedAccessoryIds,
     lastDailyBonusAt: raw?.lastDailyBonusAt,
     plots: plots.map((plot, index) => ({
       id: index,
@@ -133,6 +271,14 @@ function saveState(state: GardenState) {
   return next;
 }
 
+function addCoins(state: GardenState, amount: number, countForLeague = true) {
+  state.coins += amount;
+  if (countForLeague) {
+    state.dailyCoins += amount;
+    state.monthlyCoins += amount;
+  }
+}
+
 function uniqueCards(cards: GardenReviewCard[]) {
   const seen = new Set<string>();
   return cards.filter((card) => {
@@ -157,6 +303,28 @@ function hasPreciseMeaning(word: SavedWord) {
       !meaning.includes("情境對話常見") &&
       !meaning.includes("常見名詞或名稱")
   );
+}
+
+function userLeagueEntry(name = "You"): GardenLeagueEntry {
+  const all = getAllStates();
+  const states = LANGUAGE_CODES.map((code) => normalizeState(all[code], code));
+  return {
+    id: "current-user",
+    name,
+    avatar: "🙂",
+    dailyCoins: states.reduce((sum, state) => sum + state.dailyCoins, 0),
+    monthlyCoins: states.reduce((sum, state) => sum + state.monthlyCoins, 0),
+    totalCoins: states.reduce((sum, state) => sum + state.coins, 0),
+    isCurrentUser: true,
+  };
+}
+
+function rankEntries(entries: GardenLeagueEntry[], key: "dailyCoins" | "monthlyCoins" | "totalCoins") {
+  return [...entries].sort((a, b) => b[key] - a[key]);
+}
+
+function getShopItem(itemId?: string) {
+  return GARDEN_SHOP_ITEMS.find((item) => item.id === itemId);
 }
 
 export const gardenService = {
@@ -242,7 +410,7 @@ export const gardenService = {
     state.harvests += 1;
     const cropId = crop?.id || plot.cropId;
     const coinGain = crop?.rewardCoins ?? 10;
-    state.coins += coinGain;
+    addCoins(state, coinGain);
     if (cropId) state.harvestByCrop[cropId] = (state.harvestByCrop[cropId] || 0) + 1;
     state.seeds += 1;
     state.water += 1;
@@ -267,11 +435,12 @@ export const gardenService = {
   completeReviewGame(language: LearningLanguageCode, matchedPairs: number) {
     const state = this.getState(language);
     const waterGain = Math.max(2, matchedPairs);
+    const coinGain = Math.max(1, Math.ceil(matchedPairs / 2));
     state.water += waterGain;
     state.seeds += 1;
-    state.coins += Math.max(1, Math.ceil(matchedPairs / 2));
+    addCoins(state, coinGain);
     state.xp += matchedPairs * 10;
-    pushLog(state, "review", "翻牌複習完成", `配對 ${matchedPairs} 組，獲得 ${waterGain} 水滴、1 顆種子。`);
+    pushLog(state, "review", "翻牌複習完成", `配對 ${matchedPairs} 組，獲得 ${waterGain} 水滴、${coinGain} 金幣、1 顆種子。`);
     return saveState(state);
   },
 
@@ -291,6 +460,75 @@ export const gardenService = {
   getReviewCardCount(language: LearningLanguageCode): number {
     return this.getReviewCards(language, 999).length;
   },
+
+  getLeague(userName?: string) {
+    const entries = [userLeagueEntry(userName), ...simulatedLeaguePlayers];
+    return {
+      daily: rankEntries(entries, "dailyCoins"),
+      monthly: rankEntries(entries, "monthlyCoins"),
+      total: rankEntries(entries, "totalCoins"),
+    };
+  },
+
+  getUserRank(userName: string | undefined, kind: "daily" | "monthly" | "total") {
+    const key = kind === "daily" ? "dailyCoins" : kind === "monthly" ? "monthlyCoins" : "totalCoins";
+    const entries = rankEntries([userLeagueEntry(userName), ...simulatedLeaguePlayers], key);
+    return entries.findIndex((entry) => entry.isCurrentUser) + 1;
+  },
+
+  canClaimLeagueReward(language: LearningLanguageCode, type: "daily" | "monthly", userName?: string) {
+    const state = this.getState(language);
+    const key = type === "daily" ? todayKey() : monthKey();
+    const rank = this.getUserRank(userName, type);
+    return rank === 1 && state.leagueRewardsClaimed[type] !== key;
+  },
+
+  claimLeagueReward(language: LearningLanguageCode, type: "daily" | "monthly", userName?: string) {
+    const state = this.getState(language);
+    if (!this.canClaimLeagueReward(language, type, userName)) return state;
+    const reward = type === "daily" ? 100 : 300;
+    const key = type === "daily" ? todayKey() : monthKey();
+    addCoins(state, reward, false);
+    state.leagueRewardsClaimed[type] = key;
+    pushLog(state, "harvest", type === "daily" ? "日冠軍獎勵" : "月冠軍獎勵", `獲得 ${reward} 金幣。`);
+    return saveState(state);
+  },
+
+  buyItem(language: LearningLanguageCode, itemId: string) {
+    const state = this.getState(language);
+    const item = getShopItem(itemId);
+    if (!item || state.ownedItemIds.includes(item.id) || state.coins < item.price) return state;
+    state.coins -= item.price;
+    state.ownedItemIds = Array.from(new Set([...state.ownedItemIds, item.id]));
+    pushLog(state, "harvest", "商店購買", `購買「${item.name}」，花費 ${item.price} 金幣。`);
+    return saveState(this.equipItemState(state, item.id));
+  },
+
+  equipItem(language: LearningLanguageCode, itemId: string) {
+    const state = this.getState(language);
+    if (!state.ownedItemIds.includes(itemId)) return state;
+    return saveState(this.equipItemState(state, itemId));
+  },
+
+  equipItemState(state: GardenState, itemId: string) {
+    const item = getShopItem(itemId);
+    if (!item) return state;
+    if (item.category === "house") state.equippedHouseId = item.id;
+    if (item.category === "outfit") state.equippedOutfitId = item.id;
+    if (item.category === "item") {
+      state.equippedItemIds = state.equippedItemIds.includes(item.id)
+        ? state.equippedItemIds.filter((id) => id !== item.id)
+        : [...state.equippedItemIds, item.id].slice(-3);
+    }
+    if (item.category === "accessory") {
+      state.equippedAccessoryIds = state.equippedAccessoryIds.includes(item.id)
+        ? state.equippedAccessoryIds.filter((id) => id !== item.id)
+        : [...state.equippedAccessoryIds, item.id].slice(-3);
+    }
+    return state;
+  },
+
+  getShopItem,
 
   getCrop(cropId?: string) {
     return GARDEN_CROPS.find((crop) => crop.id === cropId);

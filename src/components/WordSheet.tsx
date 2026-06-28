@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Volume2, Star, X, BookmarkPlus } from "lucide-react";
-import type { LearningLanguageCode } from "@/types";
+import type { LearningLanguageCode, Word } from "@/types";
 import { getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
 import { dictionaryService } from "@/services/dictionaryService";
 import { vocabularyService } from "@/services/vocabularyService";
@@ -14,23 +14,78 @@ export default function WordSheet({
   word,
   language = "en",
   showChinese = true,
+  sentence,
   onClose,
 }: {
   word: string | null;
   language?: LearningLanguageCode;
   showChinese?: boolean;
+  sentence?: string;
   onClose: () => void;
 }) {
   const [saved, setSaved] = useState(false);
   const [toast, setToast] = useState("");
+  const [aiEntry, setAiEntry] = useState<Word | null>(null);
+  const [loadingAi, setLoadingAi] = useState(false);
 
-  const result = word ? dictionaryService.lookup(word, language) : { entry: null, fromFallback: false };
-  const entry = result.entry;
+  const result = useMemo(
+    () => word ? dictionaryService.lookup(word, language) : { entry: null, fromFallback: false },
+    [word, language]
+  );
+  const entry = aiEntry || result.entry;
   const languageInfo = getLearningLanguage(language);
 
   useEffect(() => {
     if (entry) setSaved(vocabularyService.isSaved(entry.word));
   }, [entry]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setAiEntry(null);
+    if (!word || !result.entry || !shouldAskAi(result.entry, result.fromFallback, sentence)) return;
+
+    const cacheKey = `dictionary-ai:${language}:${word.trim().toLowerCase()}:${(sentence || "").slice(0, 80)}`;
+    try {
+      const cached = window.localStorage.getItem(cacheKey);
+      if (cached) {
+        setAiEntry(JSON.parse(cached) as Word);
+        return;
+      }
+    } catch {
+      // Ignore cache errors; the local dictionary still works.
+    }
+
+    setLoadingAi(true);
+    fetch("/api/dictionary", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        word,
+        language,
+        sentence,
+        localEntry: result.entry,
+        fromFallback: result.fromFallback,
+      }),
+    })
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (cancelled || !data?.entry) return;
+        setAiEntry(data.entry);
+        try {
+          window.localStorage.setItem(cacheKey, JSON.stringify(data.entry));
+        } catch {
+          // Cache is optional.
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setLoadingAi(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [word, language, sentence, result.entry, result.fromFallback]);
 
   function speak() {
     if (!entry) return;
@@ -103,6 +158,11 @@ export default function WordSheet({
                 <p className="text-inkSoft mt-1">{entry.phonetic}</p>
 
                 <div className="mt-4 space-y-3">
+                  {loadingAi && (
+                    <div className="rounded-3xl bg-lilac/50 px-3 py-2 text-sm font-bold text-lilacDeep">
+                      正在補完整情境解釋…
+                    </div>
+                  )}
                   {language === "en" ? (
                     <>
                       <Block label="英文解釋" value={entry.enDef} />
@@ -167,4 +227,15 @@ function Block({ label, value, sub }: { label: string; value: string; sub?: stri
       {sub && <p className="text-sm text-inkSoft mt-0.5">{sub}</p>}
     </div>
   );
+}
+
+function shouldAskAi(entry: Word, fromFallback: boolean, sentence?: string) {
+  const rough =
+    fromFallback ||
+    entry.phonetic === "/-/" ||
+    entry.zh.includes("情境對話") ||
+    entry.zh.includes("請搭配") ||
+    entry.enDef.includes("common conversation word") ||
+    entry.enDef.includes("common conversations");
+  return rough || Boolean(sentence);
 }

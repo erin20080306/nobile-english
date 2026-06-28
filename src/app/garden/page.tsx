@@ -14,13 +14,14 @@ import {
   Info,
   Lock,
   RotateCcw,
+  ShoppingBag,
   Sparkles,
   Star,
   Trophy,
 } from "lucide-react";
-import type { GardenPlot, GardenState, LearningLanguageCode } from "@/types";
+import type { GardenLeagueEntry, GardenPlot, GardenShopCategory, GardenShopItem, GardenState, LearningLanguageCode } from "@/types";
 import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
-import { gardenService, GARDEN_CROPS } from "@/services/gardenService";
+import { gardenService, GARDEN_CROPS, GARDEN_SHOP_ITEMS } from "@/services/gardenService";
 import { learningService } from "@/services/learningService";
 import { soundService } from "@/services/soundService";
 import { useUser } from "@/hooks/useUser";
@@ -80,15 +81,24 @@ export default function GardenPage() {
   const pairCount = useMemo(() => new Set(deck.map((card) => card.pairId)).size, [deck]);
   const reviewCardCount = gardenService.getReviewCardCount(language);
   const selectedCropInfo = gardenService.getCrop(selectedCrop) || GARDEN_CROPS[0];
-  const leaderboard = LEARNING_LANGUAGES
-    .map((lang) => {
-      const state = lang.code === language ? garden : gardenService.getState(lang.code);
-      return { lang, coins: state?.coins ?? 0, harvests: state?.harvests ?? 0 };
-    })
-    .sort((a, b) => b.coins - a.coins || b.harvests - a.harvests);
+  const league = gardenService.getLeague(user?.name || "你");
+  const userDailyRank = gardenService.getUserRank(user?.name, "daily");
+  const userMonthlyRank = gardenService.getUserRank(user?.name, "monthly");
+  const canClaimDailyLeague = garden ? gardenService.canClaimLeagueReward(language, "daily", user?.name) : false;
+  const canClaimMonthlyLeague = garden ? gardenService.canClaimLeagueReward(language, "monthly", user?.name) : false;
   const harvestedCrops = GARDEN_CROPS
     .map((crop) => ({ crop, count: garden?.harvestByCrop[crop.id] || 0 }))
     .filter((item) => item.count > 0);
+  const equippedHouse = gardenService.getShopItem(garden?.equippedHouseId);
+  const equippedOutfit = gardenService.getShopItem(garden?.equippedOutfitId);
+  const equippedItems = (garden?.equippedItemIds || []).map((id) => gardenService.getShopItem(id)).filter(Boolean) as GardenShopItem[];
+  const equippedAccessories = (garden?.equippedAccessoryIds || []).map((id) => gardenService.getShopItem(id)).filter(Boolean) as GardenShopItem[];
+  const shopByCategory: Record<GardenShopCategory, GardenShopItem[]> = {
+    house: GARDEN_SHOP_ITEMS.filter((item) => item.category === "house"),
+    item: GARDEN_SHOP_ITEMS.filter((item) => item.category === "item"),
+    outfit: GARDEN_SHOP_ITEMS.filter((item) => item.category === "outfit"),
+    accessory: GARDEN_SHOP_ITEMS.filter((item) => item.category === "accessory"),
+  };
 
   function refresh(nextLanguage = language) {
     setGarden(gardenService.getState(nextLanguage));
@@ -107,6 +117,17 @@ export default function GardenPage() {
   function claimDaily() {
     soundService.play("review");
     setGarden(gardenService.claimDailyBonus(language));
+  }
+
+  function claimLeagueReward(type: "daily" | "monthly") {
+    soundService.play("harvest");
+    setGarden(gardenService.claimLeagueReward(language, type, user?.name));
+  }
+
+  function buyOrEquip(item: GardenShopItem) {
+    const owned = garden?.ownedItemIds.includes(item.id);
+    soundService.play(owned ? "review" : "harvest");
+    setGarden(owned ? gardenService.equipItem(language, item.id) : gardenService.buyItem(language, item.id));
   }
 
   function plant(plotId: number) {
@@ -266,6 +287,39 @@ export default function GardenPage() {
         <GardenStat label="收成" value={garden.harvests} emoji="🧺" />
       </div>
 
+      <div className="px-5 mt-4">
+        <div className="relative overflow-hidden rounded-[34px] bg-white p-4 shadow-soft">
+          <div className="absolute -right-8 -bottom-8 h-28 w-28 rounded-full bg-mint/60" />
+          <div className="relative flex items-center gap-4">
+            <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-[30px] bg-gradient-to-b from-sky to-cream text-center shadow-softer">
+              <div>
+                <div className="text-4xl">🙂</div>
+                <div className="mt-1 text-2xl">{equippedOutfit?.emoji || "👕"}{equippedAccessories.map((item) => item.emoji).join("")}</div>
+              </div>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-inkSoft">小小學伴</p>
+              <h2 className="text-xl font-extrabold text-ink">我的語言夥伴</h2>
+              <p className="mt-1 text-sm leading-relaxed text-inkSoft">
+                目前穿搭：{equippedOutfit?.name || "基本上衣"}
+                {equippedAccessories.length > 0 ? `，飾品 ${equippedAccessories.map((item) => item.name).join("、")}` : "，尚未配戴飾品"}
+              </p>
+            </div>
+          </div>
+          <div className="relative mt-4 rounded-[26px] bg-cream px-4 py-3">
+            <p className="text-sm font-extrabold text-ink">{equippedHouse?.emoji || "🏚️"} 我的農場住屋</p>
+            <p className="text-xs leading-relaxed text-inkSoft">
+              練習者一開始已擁有「茅屋」，之後可以用金幣購買房子、物品、衣物與飾品。
+            </p>
+            {equippedItems.length > 0 && (
+              <p className="mt-2 text-sm font-bold text-mintDeep">
+                已擺設：{equippedItems.map((item) => `${item.emoji} ${item.name}`).join("、")}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
       <div className="px-5 mt-4 grid grid-cols-2 gap-3">
         <button
           onClick={claimDaily}
@@ -287,19 +341,99 @@ export default function GardenPage() {
       </div>
 
       <div className="px-5 mt-4">
-        <div className="rounded-[30px] bg-white p-4 shadow-soft">
-          <div className="flex items-center gap-2">
+        <div className="rounded-[34px] bg-white p-4 shadow-soft">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2">
             <Crown size={18} className="text-peachDeep" />
-            <h2 className="font-extrabold text-ink">金幣排行榜</h2>
+              <div>
+                <h2 className="font-extrabold text-ink">金幣聯賽</h2>
+                <p className="text-xs font-bold text-inkSoft">含模擬玩家，之後可改接真實所有用戶</p>
+              </div>
+            </div>
+            <div className="rounded-2xl bg-peach px-3 py-2 text-right">
+              <p className="text-[11px] font-bold text-peachDeep">你的總金幣</p>
+              <p className="font-extrabold text-ink">🪙 {league.total.find((entry) => entry.isCurrentUser)?.totalCoins ?? 0}</p>
+            </div>
           </div>
-          <div className="mt-3 space-y-2">
-            {leaderboard.map((item, index) => (
-              <div key={item.lang.code} className="flex items-center gap-3 rounded-2xl bg-cream px-3 py-2">
-                <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-extrabold ${index === 0 ? "bg-peach text-peachDeep" : "bg-white text-inkSoft"}`}>
-                  {index + 1}
-                </span>
-                <span className="flex-1 text-sm font-extrabold text-ink">{item.lang.flag} {item.lang.zhName}</span>
-                <span className="text-sm font-extrabold text-peachDeep">🪙 {item.coins}</span>
+
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <LeagueRewardCard
+              title="日冠軍"
+              reward={100}
+              rank={userDailyRank}
+              canClaim={canClaimDailyLeague}
+              onClaim={() => claimLeagueReward("daily")}
+            />
+            <LeagueRewardCard
+              title="月冠軍"
+              reward={300}
+              rank={userMonthlyRank}
+              canClaim={canClaimMonthlyLeague}
+              onClaim={() => claimLeagueReward("monthly")}
+            />
+          </div>
+
+          <div className="mt-4 grid gap-3">
+            <LeagueList title="今日排行榜" entries={league.daily.slice(0, 5)} metric="dailyCoins" />
+            <LeagueList title="本月排行榜" entries={league.monthly.slice(0, 5)} metric="monthlyCoins" />
+          </div>
+        </div>
+      </div>
+
+      <div className="px-5 mt-5">
+        <div className="rounded-[34px] bg-white p-4 shadow-soft">
+          <div className="flex items-center gap-2">
+            <ShoppingBag size={18} className="text-lilacDeep" />
+            <div>
+              <h2 className="font-extrabold text-ink">金幣商店</h2>
+              <p className="text-xs font-bold text-inkSoft">房子、物品、衣物、飾品都可用金幣解鎖</p>
+            </div>
+          </div>
+          <div className="mt-4 space-y-4">
+            {(["house", "item", "outfit", "accessory"] as GardenShopCategory[]).map((category) => (
+              <div key={category}>
+                <p className="mb-2 text-sm font-extrabold text-ink">{shopCategoryLabel(category)}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {shopByCategory[category].map((item) => {
+                    const owned = garden.ownedItemIds.includes(item.id);
+                    const equipped =
+                      garden.equippedHouseId === item.id ||
+                      garden.equippedOutfitId === item.id ||
+                      garden.equippedItemIds.includes(item.id) ||
+                      garden.equippedAccessoryIds.includes(item.id);
+                    const affordable = garden.coins >= item.price;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => buyOrEquip(item)}
+                        disabled={!owned && !affordable}
+                        className={`rounded-[24px] p-3 text-left shadow-softer transition active:scale-95 ${
+                          equipped
+                            ? "bg-mint text-mintDeep"
+                            : owned
+                            ? "bg-cream text-ink"
+                            : affordable
+                            ? "bg-white text-ink"
+                            : "bg-cream/60 text-inkSoft"
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className="text-2xl">{item.emoji}</span>
+                          <div className="min-w-0">
+                            <p className="font-extrabold leading-tight">{item.name}</p>
+                            <p className="mt-1 text-[11px] leading-relaxed text-inkSoft">{item.description}</p>
+                          </div>
+                        </div>
+                        <div className="mt-3 flex items-center justify-between gap-2">
+                          <span className="text-xs font-extrabold text-peachDeep">{item.price === 0 ? "初始擁有" : `🪙 ${item.price}`}</span>
+                          <span className="rounded-full bg-white/70 px-2 py-1 text-[11px] font-extrabold">
+                            {equipped ? "使用中" : owned ? "裝備" : affordable ? "購買" : "金幣不足"}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             ))}
           </div>
@@ -498,6 +632,74 @@ function GardenStat({ label, value, emoji }: { label: string; value: number; emo
       <p className="text-[11px] font-bold text-inkSoft">{label}</p>
     </div>
   );
+}
+
+function LeagueRewardCard({
+  title,
+  reward,
+  rank,
+  canClaim,
+  onClaim,
+}: {
+  title: string;
+  reward: number;
+  rank: number;
+  canClaim: boolean;
+  onClaim: () => void;
+}) {
+  return (
+    <div className="rounded-[24px] bg-cream p-3">
+      <p className="text-sm font-extrabold text-ink">{title}</p>
+      <p className="mt-1 text-xs font-bold text-inkSoft">目前第 {rank || "-"} 名</p>
+      <button
+        onClick={onClaim}
+        disabled={!canClaim}
+        className={`mt-3 w-full rounded-2xl px-3 py-2 text-xs font-extrabold transition active:scale-95 ${
+          canClaim ? "bg-peach text-peachDeep" : "bg-white text-inkSoft"
+        }`}
+      >
+        {canClaim ? `領 ${reward} 金幣` : `冠軍可得 ${reward}`}
+      </button>
+    </div>
+  );
+}
+
+function LeagueList({
+  title,
+  entries,
+  metric,
+}: {
+  title: string;
+  entries: GardenLeagueEntry[];
+  metric: "dailyCoins" | "monthlyCoins" | "totalCoins";
+}) {
+  return (
+    <div className="rounded-[24px] bg-cream p-3">
+      <p className="mb-2 text-sm font-extrabold text-ink">{title}</p>
+      <div className="space-y-2">
+        {entries.map((entry, index) => (
+          <div key={entry.id} className={`flex items-center gap-2 rounded-2xl px-3 py-2 ${entry.isCurrentUser ? "bg-mint" : "bg-white/80"}`}>
+            <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-extrabold ${index === 0 ? "bg-peach text-peachDeep" : "bg-white text-inkSoft"}`}>
+              {index + 1}
+            </span>
+            <span className="text-lg">{entry.avatar}</span>
+            <span className="min-w-0 flex-1 truncate text-sm font-extrabold text-ink">{entry.isCurrentUser ? `${entry.name}（你）` : entry.name}</span>
+            <span className="text-sm font-extrabold text-peachDeep">🪙 {entry[metric]}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function shopCategoryLabel(category: GardenShopCategory) {
+  const labels: Record<GardenShopCategory, string> = {
+    house: "房子",
+    item: "農場物品",
+    outfit: "小小學伴衣服",
+    accessory: "小小學伴飾品",
+  };
+  return labels[category];
 }
 
 function GardenPlotCard({

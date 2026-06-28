@@ -245,6 +245,27 @@ export interface GardenCrop {
   rewardCoins: number;
 }
 
+export type GardenShopCategory = "house" | "item" | "outfit" | "accessory";
+
+export interface GardenShopItem {
+  id: string;
+  category: GardenShopCategory;
+  name: string;
+  emoji: string;
+  price: number;
+  description: string;
+}
+
+export interface GardenLeagueEntry {
+  id: string;
+  name: string;
+  avatar: string;
+  dailyCoins: number;
+  monthlyCoins: number;
+  totalCoins: number;
+  isCurrentUser?: boolean;
+}
+
 export interface GardenPlot {
   id: number;
   cropId?: string;
@@ -269,8 +290,18 @@ export interface GardenState {
   water: number;
   seeds: number;
   coins: number;
+  dailyCoins: number;
+  monthlyCoins: number;
+  leagueDay: string;
+  leagueMonth: string;
+  leagueRewardsClaimed: Partial<Record<"daily" | "monthly", string>>;
   harvests: number;
   harvestByCrop: Partial<Record<string, number>>;
+  ownedItemIds: string[];
+  equippedHouseId: string;
+  equippedItemIds: string[];
+  equippedOutfitId: string;
+  equippedAccessoryIds: string[];
   lastDailyBonusAt?: string;
   plots: GardenPlot[];
   log: GardenActivityLog[];

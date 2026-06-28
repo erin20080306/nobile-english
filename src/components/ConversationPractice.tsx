@@ -224,7 +224,7 @@ export default function ConversationPractice({
   const [listening, setListening] = useState(false);
   const [voiceDraft, setVoiceDraft] = useState("");
   const [autoSpeak, setAutoSpeak] = useState(pronunciationOn);
-  const [activeWord, setActiveWord] = useState<string | null>(null);
+  const [activeWord, setActiveWord] = useState<{ word: string; sentence?: string } | null>(null);
   const [toast, setToast] = useState("");
   const [tutorSpeaking, setTutorSpeaking] = useState(false);
   const [speechRate, setSpeechRate] = useState(() => learningService.getSpeechRate(targetLanguage));
@@ -519,7 +519,12 @@ export default function ConversationPractice({
             <div className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"}`}>
               {m.role === "tutor" && <span className="text-xs font-bold text-inkSoft ml-1 mb-0.5">{tutorName}</span>}
               <div className={`max-w-[85%] rounded-3xl p-3 ${m.role === "user" ? "bg-lilacDeep text-white" : "bg-white text-ink shadow-softer"}`}>
-                <ClickableText text={m.en} onWord={setActiveWord} language={targetLanguage} className={m.role === "user" ? "text-white" : "text-ink"} />
+                <ClickableText
+                  text={m.en}
+                  onWord={(word) => setActiveWord({ word, sentence: m.en })}
+                  language={targetLanguage}
+                  className={m.role === "user" ? "text-white" : "text-ink"}
+                />
                 {showZh && m.zh && <p className={`text-sm mt-1 ${m.role === "user" ? "text-white/80" : "text-inkSoft"}`}>{m.zh}</p>}
                 <div className="mt-1 flex gap-3">
                   <button onClick={() => speak(m.en, m.role === "tutor")} className={m.role === "user" ? "text-white/90" : "text-lilacDeep"}><Volume2 size={15} /></button>
@@ -637,7 +642,13 @@ export default function ConversationPractice({
         </div>
       </div>
 
-      <WordSheet word={activeWord} language={targetLanguage} showChinese={showZh} onClose={() => setActiveWord(null)} />
+      <WordSheet
+        word={activeWord?.word || null}
+        sentence={activeWord?.sentence}
+        language={targetLanguage}
+        showChinese={showZh}
+        onClose={() => setActiveWord(null)}
+      />
     </div>
   );
 }

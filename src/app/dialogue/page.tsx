@@ -7,6 +7,7 @@ import type { CustomScene, EnglishLevel, Scene, TutorFeedback, DialogueResult, D
 import { sceneService } from "@/services/sceneService";
 import { learningService } from "@/services/learningService";
 import { authService } from "@/services/authService";
+import { sceneReviewService } from "@/services/sceneReviewService";
 import { storageService, KEYS } from "@/services/storageService";
 import { sceneCardStyle } from "@/data/sceneVisuals";
 import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
@@ -255,6 +256,7 @@ function Chat({ scene, onExit }: { scene: Scene; onExit: () => void }) {
       completed: true,
       minutes: 8,
     });
+    const shouldShowSceneReview = sceneReviewService.isDue();
     storageService.set(KEYS.lastResult, {
       kind: "dialogue",
       title: scene.name + "（對話）",
@@ -270,6 +272,9 @@ function Chat({ scene, onExit }: { scene: Scene; onExit: () => void }) {
       conversationWords: result.conversationWords,
       suggestions: result.suggestions,
       dialogueReview: result.dialogueReview,
+      sceneReview: shouldShowSceneReview
+        ? sceneReviewService.build(scene, targetLanguage, userTurns, feedbacks)
+        : undefined,
       nextHref: "/dialogue",
     });
     router.push("/results");
