@@ -254,6 +254,8 @@ export interface GardenShopItem {
   emoji: string;
   price: number;
   description: string;
+  imageSrc?: string;
+  dollImageSrc?: string;
 }
 
 export interface GardenLeagueEntry {

@@ -339,10 +339,10 @@ export default function GardenPage() {
         <div className="rounded-[34px] bg-white p-4 shadow-soft">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-2">
-            <Crown size={18} className="text-peachDeep" />
+              <Crown size={18} className="text-peachDeep" />
               <div>
                 <h2 className="font-extrabold text-ink">金幣聯賽</h2>
-                <p className="text-xs font-bold text-inkSoft">含模擬玩家，之後可改接真實所有用戶</p>
+                <p className="text-xs font-bold text-inkSoft">每日與每月依金幣累積排名</p>
               </div>
             </div>
             <div className="rounded-2xl bg-peach px-3 py-2 text-right">
@@ -631,34 +631,34 @@ function BuddyFarmStage({
   items: GardenShopItem[];
 }) {
   return (
-    <div className="relative h-72 overflow-hidden rounded-[32px] bg-gradient-to-b from-sky/60 via-[#fff7ea] to-[#dff6df] shadow-softer [perspective:1000px]">
-      <div className="absolute inset-x-0 top-0 h-20 bg-white/35" />
+    <div className="relative h-[360px] overflow-hidden rounded-[32px] bg-gradient-to-b from-sky/55 via-[#fff7ea] to-[#dff6df] shadow-softer [perspective:1000px]">
+      <div className="absolute inset-x-0 top-0 h-24 bg-white/35" />
       <div className="absolute left-5 top-6 h-12 w-12 rounded-full bg-[#fff4be] shadow-[0_0_34px_rgba(255,220,130,0.75)]" />
-      <div className="absolute bottom-5 left-5 right-5 h-24 rounded-[50%] bg-gradient-to-b from-mint/80 to-mintDeep/25 shadow-[inset_0_8px_16px_rgba(255,255,255,0.55)]" />
-      <div className="absolute bottom-5 left-6 right-6 h-8 rounded-[50%] bg-ink/10 blur-md" />
+      <div className="absolute bottom-4 left-4 right-4 h-32 rounded-[50%] bg-gradient-to-b from-mint/80 to-mintDeep/25 shadow-[inset_0_8px_16px_rgba(255,255,255,0.55)]" />
+      <div className="absolute bottom-8 left-6 right-6 h-8 rounded-[50%] bg-ink/10 blur-md" />
 
-      <div className="absolute bottom-16 right-8 z-10">
+      <div className="absolute bottom-20 right-2 z-10 sm:right-6">
         <HouseFigure house={house} />
       </div>
 
-      <div className="absolute bottom-16 left-5 z-20">
+      <div className="absolute bottom-14 left-3 z-30 sm:left-6">
         <BuddyDoll outfit={outfit} accessories={accessories} />
       </div>
 
-      <div className="absolute bottom-8 left-4 right-4 z-30 flex items-end justify-center gap-3">
+      <div className="absolute bottom-5 left-3 right-3 z-40 flex min-h-[74px] items-end justify-center gap-2">
         {items.length === 0 ? (
-          <div className="rounded-full bg-white/80 px-3 py-1 text-xs font-extrabold text-inkSoft shadow-softer">
+          <div className="rounded-full bg-white/85 px-3 py-1 text-xs font-extrabold text-inkSoft shadow-softer">
             商店購買物品後會擺在這裡
           </div>
         ) : (
-          items.slice(0, 4).map((item, index) => (
+          items.slice(0, 3).map((item, index) => (
             <motion.div
               key={item.id}
               animate={{ y: [0, -2, 0] }}
               transition={{ duration: 2.4 + index * 0.2, repeat: Infinity, ease: "easeInOut" }}
-              style={{ transform: `scale(${1 - index * 0.05})` }}
+              style={{ transform: `scale(${1 - index * 0.07})` }}
             >
-              <ToyObject3D item={item} fallbackEmoji="📦" size="sm" />
+              <ToyObject3D item={item} fallbackEmoji="📦" size="lg" />
             </motion.div>
           ))
         )}
@@ -668,36 +668,35 @@ function BuddyFarmStage({
 }
 
 function BuddyDoll({ outfit, accessories }: { outfit?: GardenShopItem; accessories: GardenShopItem[] }) {
+  const dollImage = outfit?.dollImageSrc || outfit?.imageSrc || "/assets/garden/doll-base.png";
+
   return (
-    <div className="relative h-44 w-36 [perspective:900px]">
+    <div className="relative h-56 w-40 [perspective:900px]">
       <motion.div
-        animate={{ y: [0, -5, 0], rotateY: [-4, 5, -4] }}
-        transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
-        className="relative mx-auto h-44 w-36 [transform-style:preserve-3d]"
+        animate={{ y: [0, -9, 0], rotateZ: [-1.5, 1.5, -1.5] }}
+        transition={{ duration: 2.05, repeat: Infinity, ease: "easeInOut" }}
+        className="relative mx-auto h-56 w-40 [transform-style:preserve-3d]"
       >
-        <div className="absolute bottom-1 left-1/2 h-7 w-28 -translate-x-1/2 rounded-full bg-ink/20 blur-sm" />
-        <div className="absolute left-6 top-[112px] h-9 w-8 rounded-full bg-gradient-to-br from-[#ffe5c9] to-[#ffc28e] shadow-[inset_-7px_-6px_10px_rgba(117,70,41,0.15)]" />
-        <div className="absolute right-6 top-[112px] h-9 w-8 rounded-full bg-gradient-to-br from-[#ffe5c9] to-[#ffc28e] shadow-[inset_-7px_-6px_10px_rgba(117,70,41,0.15)]" />
-        <div className="absolute left-1/2 top-[76px] h-[66px] w-[76px] -translate-x-1/2 rounded-[38px] bg-gradient-to-br from-peach via-[#ffd4be] to-[#f3a076] shadow-[inset_-10px_-10px_18px_rgba(126,77,45,0.16),0_16px_20px_rgba(64,56,79,0.16)]" />
-        <div className="absolute left-3 top-[82px] h-11 w-8 rotate-[-20deg] rounded-full bg-gradient-to-br from-[#ffe5c9] to-[#ffc28e] shadow-[inset_-7px_-6px_10px_rgba(117,70,41,0.14)]" />
-        <div className="absolute right-3 top-[82px] h-11 w-8 rotate-[20deg] rounded-full bg-gradient-to-br from-[#ffe5c9] to-[#ffc28e] shadow-[inset_-7px_-6px_10px_rgba(117,70,41,0.14)]" />
-        <div className="absolute left-1/2 top-5 h-[78px] w-[82px] -translate-x-1/2 rounded-full bg-gradient-to-br from-[#fff9df] via-[#ffe4aa] to-[#ffc56e] shadow-[inset_-12px_-12px_20px_rgba(151,93,31,0.2),0_16px_24px_rgba(80,63,55,0.2)]">
-          <div className="absolute left-5 top-8 h-3 w-3 rounded-full bg-ink shadow-[29px_0_0_#40384f]" />
-          <div className="absolute left-1/2 top-[50px] h-3 w-8 -translate-x-1/2 rounded-b-full border-b-4 border-peachDeep/85" />
-          <div className="absolute left-2 top-10 h-3 w-4 rounded-full bg-peach/70 blur-[1px] shadow-[56px_0_0_rgba(255,195,175,0.7)]" />
-          <div className="absolute left-4 top-3 h-4 w-8 rounded-full bg-white/55 blur-[1px]" />
+        <div className="absolute bottom-1 left-1/2 h-8 w-32 -translate-x-1/2 rounded-full bg-ink/20 blur-sm" />
+        <div className="relative h-full w-full rounded-[30px] bg-gradient-to-b from-[#fffaf0] to-[#f5ead9] p-1 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.9),0_18px_24px_rgba(64,56,79,0.18)]">
+          <img
+            src={dollImage}
+            alt={outfit?.name || "小小學伴"}
+            className="h-full w-full object-contain drop-shadow-[0_14px_14px_rgba(64,56,79,0.2)]"
+          />
         </div>
-        <div className="absolute left-1/2 top-[86px] -translate-x-1/2 rounded-[20px] bg-white/90 px-3 py-2 text-2xl shadow-[0_8px_16px_rgba(64,56,79,0.15)]">
-          <span className="drop-shadow-[0_4px_3px_rgba(64,56,79,0.2)]">{outfit?.emoji || "👕"}</span>
-        </div>
-        <div className="absolute -right-1 top-5 flex flex-col gap-1.5">
+        <div className="absolute -right-2 top-5 flex flex-col gap-1.5">
           {accessories.slice(0, 3).map((item, index) => (
             <span
               key={item.id}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-lg shadow-[0_7px_12px_rgba(64,56,79,0.18)]"
+              className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-white/95 p-1 text-lg shadow-[0_7px_12px_rgba(64,56,79,0.18)]"
               style={{ transform: `translateZ(${8 + index * 3}px)` }}
             >
-              {item.emoji}
+              {item.imageSrc ? (
+                <img src={item.imageSrc} alt={item.name} className="h-full w-full object-contain" />
+              ) : (
+                item.emoji
+              )}
             </span>
           ))}
         </div>
@@ -707,19 +706,21 @@ function BuddyDoll({ outfit, accessories }: { outfit?: GardenShopItem; accessori
 }
 
 function HouseFigure({ house }: { house?: GardenShopItem }) {
+  const houseImage = house?.imageSrc || "/assets/garden/house-hut.png";
+
   return (
     <motion.div
       animate={{ y: [0, -2, 0] }}
       transition={{ duration: 3.4, repeat: Infinity, ease: "easeInOut" }}
-      className="relative h-32 w-36 [transform-style:preserve-3d]"
+      className="relative h-44 w-44 [transform-style:preserve-3d]"
     >
-      <div className="absolute bottom-0 left-1/2 h-6 w-32 -translate-x-1/2 rounded-full bg-ink/20 blur-sm" />
-      <div className="absolute bottom-4 left-1/2 h-20 w-28 -translate-x-1/2 rounded-[20px] bg-gradient-to-br from-[#ffe6bd] via-[#ffd293] to-[#d79b5e] shadow-[inset_-10px_-10px_16px_rgba(98,60,30,0.16),0_14px_20px_rgba(64,56,79,0.16)]" />
-      <div className="absolute bottom-[74px] left-1/2 h-16 w-16 -translate-x-1/2 rotate-45 rounded-[14px] bg-gradient-to-br from-[#8d5632] to-[#5f351f] shadow-[inset_8px_8px_12px_rgba(255,255,255,0.16),0_8px_14px_rgba(64,56,79,0.18)]" />
-      <div className="absolute bottom-5 left-1/2 h-10 w-7 -translate-x-1/2 rounded-t-2xl bg-gradient-to-b from-[#85502e] to-[#5a341f] shadow-inner" />
-      <div className="absolute bottom-10 left-7 h-6 w-6 rounded-xl bg-sky/70 shadow-inner" />
-      <div className="absolute bottom-10 right-7 h-6 w-6 rounded-xl bg-sky/70 shadow-inner" />
-      <div className="absolute bottom-7 left-1/2 -translate-x-1/2 rounded-full bg-white/90 px-3 py-1 text-sm font-extrabold text-ink shadow-softer">
+      <div className="absolute bottom-0 left-1/2 h-8 w-36 -translate-x-1/2 rounded-full bg-ink/20 blur-sm" />
+      <img
+        src={houseImage}
+        alt={house?.name || "茅屋"}
+        className="absolute inset-0 h-full w-full object-contain drop-shadow-[0_16px_18px_rgba(64,56,79,0.2)]"
+      />
+      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-white/90 px-3 py-1 text-sm font-extrabold text-ink shadow-softer">
         {house?.emoji || "🏚️"} {house?.name || "茅屋"}
       </div>
     </motion.div>
@@ -747,6 +748,7 @@ function ToyObject3D({
 }) {
   const box = size === "lg" ? "h-20 w-24" : "h-12 w-12";
   const emojiSize = size === "lg" ? "text-5xl" : "text-2xl";
+  const imageSrc = item?.imageSrc;
   return (
     <motion.div
       animate={active ? { y: [0, -3, 0], rotateZ: [-1, 1, -1] } : { y: [0, -1.5, 0] }}
@@ -754,12 +756,20 @@ function ToyObject3D({
       className={`relative ${box} [transform-style:preserve-3d]`}
     >
       <div className="absolute bottom-0 left-1/2 h-3 w-4/5 -translate-x-1/2 rounded-full bg-ink/20 blur-sm" />
-      <div className="absolute inset-x-1 bottom-2 top-2 rounded-[22px] bg-gradient-to-br from-white via-[#fff8ef] to-[#e8dccb] shadow-[inset_-8px_-8px_12px_rgba(91,66,48,0.12),0_10px_16px_rgba(72,54,44,0.16)]" />
-      <div className="absolute inset-x-2 bottom-1 h-4 rounded-b-[20px] bg-[#d7b48b] shadow-[inset_0_4px_8px_rgba(255,255,255,0.35)]" />
-      <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center">
-        <span className={`${emojiSize} drop-shadow-[0_6px_4px_rgba(64,56,79,0.22)]`}>{item?.emoji || fallbackEmoji}</span>
-      </div>
-      <div className="absolute left-3 top-3 h-2 w-8 rounded-full bg-white/65 blur-[1px]" />
+      {imageSrc ? (
+        <div className="absolute inset-0 rounded-[22px] bg-white/85 p-1 shadow-[0_10px_16px_rgba(72,54,44,0.14)]">
+          <img src={imageSrc} alt={item?.name || "商品"} className="h-full w-full object-contain drop-shadow-[0_7px_6px_rgba(64,56,79,0.2)]" />
+        </div>
+      ) : (
+        <>
+          <div className="absolute inset-x-1 bottom-2 top-2 rounded-[22px] bg-gradient-to-br from-white via-[#fff8ef] to-[#e8dccb] shadow-[inset_-8px_-8px_12px_rgba(91,66,48,0.12),0_10px_16px_rgba(72,54,44,0.16)]" />
+          <div className="absolute inset-x-2 bottom-1 h-4 rounded-b-[20px] bg-[#d7b48b] shadow-[inset_0_4px_8px_rgba(255,255,255,0.35)]" />
+          <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center">
+            <span className={`${emojiSize} drop-shadow-[0_6px_4px_rgba(64,56,79,0.22)]`}>{item?.emoji || fallbackEmoji}</span>
+          </div>
+          <div className="absolute left-3 top-3 h-2 w-8 rounded-full bg-white/65 blur-[1px]" />
+        </>
+      )}
     </motion.div>
   );
 }
@@ -788,13 +798,14 @@ function LeagueRewardCard({
   onClaim: () => void;
 }) {
   return (
-    <div className="rounded-[24px] bg-cream p-3">
-      <p className="text-sm font-extrabold text-ink">{title}</p>
-      <p className="mt-1 text-xs font-bold text-inkSoft">目前第 {rank || "-"} 名</p>
+    <div className="relative overflow-hidden rounded-[24px] bg-gradient-to-br from-cream to-white p-3 shadow-softer">
+      <div className="absolute -right-5 -top-5 h-16 w-16 rounded-full bg-peach/35" />
+      <p className="relative text-sm font-extrabold text-ink">{title}</p>
+      <p className="relative mt-1 text-xs font-bold text-inkSoft">目前第 {rank || "-"} 名</p>
       <button
         onClick={onClaim}
         disabled={!canClaim}
-        className={`mt-3 w-full rounded-2xl px-3 py-2 text-xs font-extrabold transition active:scale-95 ${
+        className={`relative mt-3 w-full rounded-2xl px-3 py-2 text-xs font-extrabold transition active:scale-95 ${
           canClaim ? "bg-peach text-peachDeep" : "bg-white text-inkSoft"
         }`}
       >
@@ -814,22 +825,44 @@ function LeagueList({
   metric: "dailyCoins" | "monthlyCoins" | "totalCoins";
 }) {
   return (
-    <div className="rounded-[24px] bg-cream p-3">
-      <p className="mb-2 text-sm font-extrabold text-ink">{title}</p>
+    <div className="rounded-[28px] bg-gradient-to-br from-[#fffaf2] to-white p-3 shadow-softer">
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-sm font-extrabold text-ink">{title}</p>
+        <span className="rounded-full bg-lilac/60 px-2 py-1 text-[11px] font-extrabold text-lilacDeep">Top 5</span>
+      </div>
       <div className="space-y-2">
         {entries.map((entry, index) => (
-          <div key={entry.id} className={`flex items-center gap-2 rounded-2xl px-3 py-2 ${entry.isCurrentUser ? "bg-mint" : "bg-white/80"}`}>
-            <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-extrabold ${index === 0 ? "bg-peach text-peachDeep" : "bg-white text-inkSoft"}`}>
-              {index + 1}
+          <div
+            key={entry.id}
+            className={`flex items-center gap-2 rounded-2xl px-2.5 py-2 shadow-[0_8px_16px_rgba(64,56,79,0.06)] ${
+              entry.isCurrentUser ? "bg-mint" : "bg-white/90"
+            }`}
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-cream">
+              {rankIcon(index) ? (
+                <img src={rankIcon(index)} alt={`第 ${index + 1} 名`} className="h-8 w-8 object-contain" />
+              ) : (
+                <span className="text-xs font-extrabold text-inkSoft">{index + 1}</span>
+              )}
             </span>
-            <span className="text-lg">{entry.avatar}</span>
-            <span className="min-w-0 flex-1 truncate text-sm font-extrabold text-ink">{entry.isCurrentUser ? `${entry.name}（你）` : entry.name}</span>
-            <span className="text-sm font-extrabold text-peachDeep">🪙 {entry[metric]}</span>
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white text-lg shadow-softer">{entry.avatar}</span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-extrabold text-ink">{entry.isCurrentUser ? `${entry.name}（你）` : entry.name}</span>
+              <span className="block text-[11px] font-bold text-inkSoft">{index < 3 ? ["金牌", "銀牌", "銅牌"][index] : "努力追趕中"}</span>
+            </span>
+            <span className="rounded-full bg-peach/70 px-2 py-1 text-xs font-extrabold text-peachDeep">🪙 {entry[metric]}</span>
           </div>
         ))}
       </div>
     </div>
   );
+}
+
+function rankIcon(index: number) {
+  if (index === 0) return "/assets/garden/rank-gold.png";
+  if (index === 1) return "/assets/garden/rank-silver.png";
+  if (index === 2) return "/assets/garden/rank-bronze.png";
+  return "";
 }
 
 function shopCategoryLabel(category: GardenShopCategory) {
