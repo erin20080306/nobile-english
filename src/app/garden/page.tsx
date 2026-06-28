@@ -71,6 +71,7 @@ export default function GardenPage() {
   const [reviewClaimed, setReviewClaimed] = useState(false);
   const [harvestToast, setHarvestToast] = useState<{ text: string; coins: number } | null>(null);
   const [shopOpen, setShopOpen] = useState(false);
+  const [leagueOpen, setLeagueOpen] = useState(true);
   const [previewItem, setPreviewItem] = useState<GardenShopItem | null>(null);
 
   useEffect(() => {
@@ -341,7 +342,10 @@ export default function GardenPage() {
 
       <div className="px-5 mt-4">
         <div className="overflow-hidden rounded-[34px] shadow-soft">
-          <div className="relative bg-gradient-to-br from-[#ffd673] via-[#ff9f7a] to-[#b88cff] px-5 pt-5 pb-6">
+          <button
+            onClick={() => setLeagueOpen((prev) => !prev)}
+            className="relative block w-full bg-gradient-to-br from-[#ffd673] via-[#ff9f7a] to-[#b88cff] px-5 pt-5 pb-5 text-left"
+          >
             <div className="absolute -right-6 -top-10 h-32 w-32 rounded-full bg-white/20" />
             <div className="absolute -left-6 bottom-2 h-20 w-20 rounded-full bg-white/15" />
             <div className="relative flex items-center justify-between gap-3">
@@ -354,36 +358,45 @@ export default function GardenPage() {
                   <p className="text-[11px] font-bold text-white/90">每日與每月依金幣累積排名</p>
                 </div>
               </div>
-              <div className="rounded-2xl bg-white/95 px-3 py-2 text-right shadow-soft">
-                <p className="text-[10px] font-extrabold text-peachDeep">你的總金幣</p>
-                <p className="text-base font-black text-ink">🪙 {league.total.find((entry) => entry.isCurrentUser)?.totalCoins ?? 0}</p>
+              <ChevronDown size={22} className={`shrink-0 text-white/90 transition-transform ${leagueOpen ? "rotate-180" : ""}`} />
+            </div>
+            <div className="relative mt-3 flex items-stretch gap-2">
+              <div className="flex flex-1 items-center justify-between rounded-2xl bg-white/95 px-3 py-2 shadow-soft">
+                <span className="text-[10px] font-extrabold text-lilacDeep">你的名次</span>
+                <span className="text-sm font-black text-ink">🏆 今日第 {userDailyRank || "-"} 名</span>
+              </div>
+              <div className="flex items-center gap-1 rounded-2xl bg-white/95 px-3 py-2 shadow-soft">
+                <span className="text-[10px] font-extrabold text-peachDeep">總金幣</span>
+                <span className="text-sm font-black text-ink">🪙 {league.total.find((entry) => entry.isCurrentUser)?.totalCoins ?? 0}</span>
               </div>
             </div>
-          </div>
+          </button>
 
-          <div className="bg-white px-4 pt-4 pb-4">
-            <div className="grid grid-cols-2 gap-3">
-              <LeagueRewardCard
-                title="日冠軍"
-                reward={100}
-                rank={userDailyRank}
-                canClaim={canClaimDailyLeague}
-                onClaim={() => claimLeagueReward("daily")}
-              />
-              <LeagueRewardCard
-                title="月冠軍"
-                reward={300}
-                rank={userMonthlyRank}
-                canClaim={canClaimMonthlyLeague}
-                onClaim={() => claimLeagueReward("monthly")}
-              />
-            </div>
+          {leagueOpen && (
+            <div className="bg-white px-4 pt-4 pb-4">
+              <div className="grid grid-cols-2 gap-3">
+                <LeagueRewardCard
+                  title="日冠軍"
+                  reward={100}
+                  rank={userDailyRank}
+                  canClaim={canClaimDailyLeague}
+                  onClaim={() => claimLeagueReward("daily")}
+                />
+                <LeagueRewardCard
+                  title="月冠軍"
+                  reward={300}
+                  rank={userMonthlyRank}
+                  canClaim={canClaimMonthlyLeague}
+                  onClaim={() => claimLeagueReward("monthly")}
+                />
+              </div>
 
-            <div className="mt-4 grid gap-3">
-              <LeagueList title="今日排行榜" entries={league.daily.slice(0, 5)} metric="dailyCoins" />
-              <LeagueList title="本月排行榜" entries={league.monthly.slice(0, 5)} metric="monthlyCoins" />
+              <div className="mt-4 grid gap-3">
+                <LeagueList title="今日排行榜" entries={league.daily.slice(0, 5)} metric="dailyCoins" />
+                <LeagueList title="本月排行榜" entries={league.monthly.slice(0, 5)} metric="monthlyCoins" />
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -849,22 +862,21 @@ function LeagueRewardCard({
   onClaim: () => void;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-[24px] border border-cream bg-gradient-to-br from-[#fff7ec] to-white p-3.5 shadow-softer">
-      <div className="absolute -right-6 -top-6 h-16 w-16 rounded-full bg-peach/30" />
-      <div className="relative flex items-center gap-1.5">
+    <div className="rounded-[22px] bg-cream/35 px-3.5 py-3">
+      <div className="flex items-center gap-1.5">
         <Trophy size={15} className="text-peachDeep" />
         <p className="text-sm font-black text-ink">{title}</p>
       </div>
-      <p className="relative mt-1 flex items-baseline gap-1 text-xs font-bold text-inkSoft">
+      <p className="mt-1 flex items-baseline gap-1 text-xs font-bold text-inkSoft">
         目前 <span className="text-base font-black text-lilacDeep">{rank || "-"}</span> 名
       </p>
       <button
         onClick={onClaim}
         disabled={!canClaim}
-        className={`relative mt-3 w-full rounded-2xl px-3 py-2 text-xs font-black transition active:scale-95 ${
+        className={`mt-3 w-full rounded-2xl px-3 py-2 text-xs font-black transition active:scale-95 ${
           canClaim
             ? "bg-gradient-to-r from-peachDeep to-[#ff8f6b] text-white shadow-soft"
-            : "bg-cream text-inkSoft"
+            : "bg-white/70 text-inkSoft"
         }`}
       >
         {canClaim ? `領 ${reward} 金幣` : `冠軍可得 🪙 ${reward}`}
@@ -879,6 +891,8 @@ const MEDAL_STYLES = [
   "bg-gradient-to-br from-[#f6c79a] to-[#c87b3c] text-white",
 ];
 
+const CROWN_COLORS = ["text-[#f3a712]", "text-[#aab6c6]", "text-[#c87b3c]"];
+
 function LeagueList({
   title,
   entries,
@@ -889,7 +903,7 @@ function LeagueList({
   metric: "dailyCoins" | "monthlyCoins" | "totalCoins";
 }) {
   return (
-    <div className="rounded-[28px] border border-cream bg-white p-3.5 shadow-softer">
+    <div className="rounded-[24px] bg-cream/25 p-3">
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="h-5 w-1.5 rounded-full bg-gradient-to-b from-peachDeep to-lilacDeep" />
@@ -910,10 +924,17 @@ function LeagueList({
             }`}
           >
             <span
-              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-black shadow-softer ${
+              className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-black shadow-softer ${
                 index < 3 ? MEDAL_STYLES[index] : "bg-white text-inkSoft"
               }`}
             >
+              {index < 3 && (
+                <Crown
+                  size={13}
+                  fill="currentColor"
+                  className={`absolute -top-2 left-1/2 -translate-x-1/2 drop-shadow ${CROWN_COLORS[index]}`}
+                />
+              )}
               {index + 1}
             </span>
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white text-lg shadow-softer">{entry.avatar}</span>
