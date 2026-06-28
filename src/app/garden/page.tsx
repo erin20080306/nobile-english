@@ -721,11 +721,11 @@ function BuddyDoll({ outfit, accessories }: { outfit?: GardenShopItem; accessori
   const dollImage = outfit?.dollImageSrc || outfit?.imageSrc || "/assets/garden/doll-base.png";
 
   return (
-    <div className="relative h-56 w-40 [perspective:900px]">
+    <div className="relative h-72 w-52 [perspective:900px]">
       <motion.div
         animate={{ y: [0, -9, 0], rotateZ: [-1.5, 1.5, -1.5] }}
         transition={{ duration: 2.05, repeat: Infinity, ease: "easeInOut" }}
-        className="relative mx-auto h-56 w-40 [transform-style:preserve-3d]"
+        className="relative mx-auto h-72 w-52 [transform-style:preserve-3d]"
       >
         <div className="absolute bottom-1 left-1/2 h-8 w-32 -translate-x-1/2 rounded-full bg-ink/20 blur-sm" />
         <img
@@ -768,9 +768,6 @@ function HouseFigure({ house }: { house?: GardenShopItem }) {
         alt={house?.name || "茅屋"}
         className="absolute inset-0 h-full w-full object-contain drop-shadow-[0_16px_18px_rgba(64,56,79,0.2)]"
       />
-      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-white/90 px-3 py-1 text-sm font-extrabold text-ink shadow-softer">
-        {house?.emoji || "🏚️"} {house?.name || "茅屋"}
-      </div>
     </motion.div>
   );
 }
