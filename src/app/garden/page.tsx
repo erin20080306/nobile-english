@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   Award,
   CheckCircle2,
+  ChevronDown,
   Coins,
   Crown,
   Gift,
@@ -18,6 +19,7 @@ import {
   Sparkles,
   Star,
   Trophy,
+  X,
 } from "lucide-react";
 import type { GardenLeagueEntry, GardenPlot, GardenShopCategory, GardenShopItem, GardenState, LearningLanguageCode } from "@/types";
 import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
@@ -68,6 +70,8 @@ export default function GardenPage() {
   const [matchedPairs, setMatchedPairs] = useState<string[]>([]);
   const [reviewClaimed, setReviewClaimed] = useState(false);
   const [harvestToast, setHarvestToast] = useState<{ text: string; coins: number } | null>(null);
+  const [shopOpen, setShopOpen] = useState(false);
+  const [previewItem, setPreviewItem] = useState<GardenShopItem | null>(null);
 
   useEffect(() => {
     const current = learningService.getCurrentLanguage();
@@ -377,61 +381,74 @@ export default function GardenPage() {
 
       <div className="px-5 mt-5">
         <div className="rounded-[34px] bg-white p-4 shadow-soft">
-          <div className="flex items-center gap-2">
+          <button onClick={() => setShopOpen((prev) => !prev)} className="flex w-full items-center gap-2 text-left">
             <ShoppingBag size={18} className="text-lilacDeep" />
-            <div>
+            <div className="flex-1">
               <h2 className="font-extrabold text-ink">金幣商店</h2>
               <p className="text-xs font-bold text-inkSoft">房子、物品、衣物、飾品都可用金幣解鎖</p>
             </div>
-          </div>
-          <div className="mt-4 space-y-4">
-            {(["house", "item", "outfit", "accessory"] as GardenShopCategory[]).map((category) => (
-              <div key={category}>
-                <p className="mb-2 text-sm font-extrabold text-ink">{shopCategoryLabel(category)}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {shopByCategory[category].map((item) => {
-                    const owned = garden.ownedItemIds.includes(item.id);
-                    const equipped =
-                      garden.equippedHouseId === item.id ||
-                      garden.equippedOutfitId === item.id ||
-                      garden.equippedItemIds.includes(item.id) ||
-                      garden.equippedAccessoryIds.includes(item.id);
-                    const affordable = garden.coins >= item.price;
-                    return (
-                      <button
-                        key={item.id}
-                        onClick={() => buyOrEquip(item)}
-                        disabled={!owned && !affordable}
-                        className={`rounded-[24px] p-3 text-left shadow-softer transition active:scale-95 ${
-                          equipped
-                            ? "bg-mint text-mintDeep"
-                            : owned
-                            ? "bg-cream text-ink"
-                            : affordable
-                            ? "bg-white text-ink"
-                            : "bg-cream/60 text-inkSoft"
-                        }`}
-                      >
-                        <div className="flex items-start gap-2">
-                          <ShopObject3D item={item} equipped={equipped} />
-                          <div className="min-w-0">
-                            <p className="font-extrabold leading-tight">{item.name}</p>
-                            <p className="mt-1 text-[11px] leading-relaxed text-inkSoft">{item.description}</p>
+            <ChevronDown size={20} className={`text-inkSoft transition-transform ${shopOpen ? "rotate-180" : ""}`} />
+          </button>
+          {shopOpen && (
+            <div className="mt-4 space-y-4">
+              {(["house", "item", "outfit", "accessory"] as GardenShopCategory[]).map((category) => (
+                <div key={category}>
+                  <p className="mb-2 text-sm font-extrabold text-ink">{shopCategoryLabel(category)}</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {shopByCategory[category].map((item) => {
+                      const owned = garden.ownedItemIds.includes(item.id);
+                      const equipped =
+                        garden.equippedHouseId === item.id ||
+                        garden.equippedOutfitId === item.id ||
+                        garden.equippedItemIds.includes(item.id) ||
+                        garden.equippedAccessoryIds.includes(item.id);
+                      const affordable = garden.coins >= item.price;
+                      return (
+                        <div
+                          key={item.id}
+                          className={`rounded-[24px] p-3 text-left shadow-softer transition ${
+                            equipped
+                              ? "bg-mint text-mintDeep"
+                              : owned
+                              ? "bg-cream text-ink"
+                              : affordable
+                              ? "bg-white text-ink"
+                              : "bg-cream/60 text-inkSoft"
+                          }`}
+                        >
+                          <div className="flex items-start gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setPreviewItem(item)}
+                              className="shrink-0 active:scale-95 transition"
+                              title="點圖放大"
+                            >
+                              <ShopObject3D item={item} equipped={equipped} />
+                            </button>
+                            <div className="min-w-0">
+                              <p className="font-extrabold leading-tight">{item.name}</p>
+                              <p className="mt-1 text-[11px] leading-relaxed text-inkSoft line-clamp-3">{item.description}</p>
+                            </div>
                           </div>
+                          <button
+                            type="button"
+                            onClick={() => buyOrEquip(item)}
+                            disabled={!owned && !affordable}
+                            className="mt-3 flex w-full items-center justify-between gap-2 active:scale-95 transition disabled:opacity-60"
+                          >
+                            <span className="text-xs font-extrabold text-peachDeep">{item.price === 0 ? "初始擁有" : `🪙 ${item.price}`}</span>
+                            <span className="rounded-full bg-white/70 px-2 py-1 text-[11px] font-extrabold">
+                              {equipped ? "使用中" : owned ? "裝備" : affordable ? "購買" : "金幣不足"}
+                            </span>
+                          </button>
                         </div>
-                        <div className="mt-3 flex items-center justify-between gap-2">
-                          <span className="text-xs font-extrabold text-peachDeep">{item.price === 0 ? "初始擁有" : `🪙 ${item.price}`}</span>
-                          <span className="rounded-full bg-white/70 px-2 py-1 text-[11px] font-extrabold">
-                            {equipped ? "使用中" : owned ? "裝備" : affordable ? "購買" : "金幣不足"}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -614,6 +631,39 @@ export default function GardenPage() {
         </div>
       </div>
 
+      {previewItem && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 px-6 backdrop-blur-sm"
+          onClick={() => setPreviewItem(null)}
+        >
+          <motion.div
+            initial={{ scale: 0.85, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="relative w-full max-w-sm rounded-[32px] bg-white p-5 shadow-soft"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setPreviewItem(null)}
+              className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-cream text-inkSoft active:scale-90 transition"
+            >
+              <X size={18} />
+            </button>
+            <div className="flex h-56 items-center justify-center">
+              {previewItem.imageSrc ? (
+                <img src={previewItem.imageSrc} alt={previewItem.name} className="max-h-full max-w-full object-contain" />
+              ) : (
+                <span className="text-7xl">{previewItem.emoji}</span>
+              )}
+            </div>
+            <p className="mt-2 text-center text-lg font-extrabold text-ink">{previewItem.emoji} {previewItem.name}</p>
+            <p className="mt-2 text-center text-sm leading-relaxed text-inkSoft">{previewItem.description}</p>
+            <p className="mt-3 text-center text-sm font-extrabold text-peachDeep">
+              {previewItem.price === 0 ? "初始擁有" : `🪙 ${previewItem.price}`}
+            </p>
+          </motion.div>
+        </div>
+      )}
+
       <BottomNav />
     </div>
   );
@@ -678,13 +728,11 @@ function BuddyDoll({ outfit, accessories }: { outfit?: GardenShopItem; accessori
         className="relative mx-auto h-56 w-40 [transform-style:preserve-3d]"
       >
         <div className="absolute bottom-1 left-1/2 h-8 w-32 -translate-x-1/2 rounded-full bg-ink/20 blur-sm" />
-        <div className="relative h-full w-full rounded-[30px] bg-gradient-to-b from-[#fffaf0] to-[#f5ead9] p-1 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.9),0_18px_24px_rgba(64,56,79,0.18)]">
-          <img
-            src={dollImage}
-            alt={outfit?.name || "小小學伴"}
-            className="h-full w-full object-contain drop-shadow-[0_14px_14px_rgba(64,56,79,0.2)]"
-          />
-        </div>
+        <img
+          src={dollImage}
+          alt={outfit?.name || "小小學伴"}
+          className="relative h-full w-full object-contain drop-shadow-[0_14px_14px_rgba(64,56,79,0.2)]"
+        />
         <div className="absolute -right-2 top-5 flex flex-col gap-1.5">
           {accessories.slice(0, 3).map((item, index) => (
             <span
@@ -757,9 +805,7 @@ function ToyObject3D({
     >
       <div className="absolute bottom-0 left-1/2 h-3 w-4/5 -translate-x-1/2 rounded-full bg-ink/20 blur-sm" />
       {imageSrc ? (
-        <div className="absolute inset-0 rounded-[22px] bg-white/85 p-1 shadow-[0_10px_16px_rgba(72,54,44,0.14)]">
-          <img src={imageSrc} alt={item?.name || "商品"} className="h-full w-full object-contain drop-shadow-[0_7px_6px_rgba(64,56,79,0.2)]" />
-        </div>
+        <img src={imageSrc} alt={item?.name || "商品"} className="absolute inset-0 h-full w-full object-contain drop-shadow-[0_7px_6px_rgba(64,56,79,0.2)]" />
       ) : (
         <>
           <div className="absolute inset-x-1 bottom-2 top-2 rounded-[22px] bg-gradient-to-br from-white via-[#fff8ef] to-[#e8dccb] shadow-[inset_-8px_-8px_12px_rgba(91,66,48,0.12),0_10px_16px_rgba(72,54,44,0.16)]" />
