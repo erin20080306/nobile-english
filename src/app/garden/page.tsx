@@ -340,41 +340,49 @@ export default function GardenPage() {
       </div>
 
       <div className="px-5 mt-4">
-        <div className="rounded-[34px] bg-white p-4 shadow-soft">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Crown size={18} className="text-peachDeep" />
-              <div>
-                <h2 className="font-extrabold text-ink">金幣聯賽</h2>
-                <p className="text-xs font-bold text-inkSoft">每日與每月依金幣累積排名</p>
+        <div className="overflow-hidden rounded-[34px] shadow-soft">
+          <div className="relative bg-gradient-to-br from-[#ffd673] via-[#ff9f7a] to-[#b88cff] px-5 pt-5 pb-6">
+            <div className="absolute -right-6 -top-10 h-32 w-32 rounded-full bg-white/20" />
+            <div className="absolute -left-6 bottom-2 h-20 w-20 rounded-full bg-white/15" />
+            <div className="relative flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/25 backdrop-blur-sm">
+                  <Crown size={22} className="text-white drop-shadow" />
+                </span>
+                <div>
+                  <h2 className="text-lg font-black text-white drop-shadow-sm">金幣聯賽</h2>
+                  <p className="text-[11px] font-bold text-white/90">每日與每月依金幣累積排名</p>
+                </div>
+              </div>
+              <div className="rounded-2xl bg-white/95 px-3 py-2 text-right shadow-soft">
+                <p className="text-[10px] font-extrabold text-peachDeep">你的總金幣</p>
+                <p className="text-base font-black text-ink">🪙 {league.total.find((entry) => entry.isCurrentUser)?.totalCoins ?? 0}</p>
               </div>
             </div>
-            <div className="rounded-2xl bg-peach px-3 py-2 text-right">
-              <p className="text-[11px] font-bold text-peachDeep">你的總金幣</p>
-              <p className="font-extrabold text-ink">🪙 {league.total.find((entry) => entry.isCurrentUser)?.totalCoins ?? 0}</p>
+          </div>
+
+          <div className="bg-white px-4 pt-4 pb-4">
+            <div className="grid grid-cols-2 gap-3">
+              <LeagueRewardCard
+                title="日冠軍"
+                reward={100}
+                rank={userDailyRank}
+                canClaim={canClaimDailyLeague}
+                onClaim={() => claimLeagueReward("daily")}
+              />
+              <LeagueRewardCard
+                title="月冠軍"
+                reward={300}
+                rank={userMonthlyRank}
+                canClaim={canClaimMonthlyLeague}
+                onClaim={() => claimLeagueReward("monthly")}
+              />
             </div>
-          </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <LeagueRewardCard
-              title="日冠軍"
-              reward={100}
-              rank={userDailyRank}
-              canClaim={canClaimDailyLeague}
-              onClaim={() => claimLeagueReward("daily")}
-            />
-            <LeagueRewardCard
-              title="月冠軍"
-              reward={300}
-              rank={userMonthlyRank}
-              canClaim={canClaimMonthlyLeague}
-              onClaim={() => claimLeagueReward("monthly")}
-            />
-          </div>
-
-          <div className="mt-4 grid gap-3">
-            <LeagueList title="今日排行榜" entries={league.daily.slice(0, 5)} metric="dailyCoins" />
-            <LeagueList title="本月排行榜" entries={league.monthly.slice(0, 5)} metric="monthlyCoins" />
+            <div className="mt-4 grid gap-3">
+              <LeagueList title="今日排行榜" entries={league.daily.slice(0, 5)} metric="dailyCoins" />
+              <LeagueList title="本月排行榜" entries={league.monthly.slice(0, 5)} metric="monthlyCoins" />
+            </div>
           </div>
         </div>
       </div>
@@ -687,11 +695,11 @@ function BuddyFarmStage({
       <div className="absolute bottom-4 left-4 right-4 h-32 rounded-[50%] bg-gradient-to-b from-mint/80 to-mintDeep/25 shadow-[inset_0_8px_16px_rgba(255,255,255,0.55)]" />
       <div className="absolute bottom-8 left-6 right-6 h-8 rounded-[50%] bg-ink/10 blur-md" />
 
-      <div className="absolute bottom-20 right-2 z-10 sm:right-6">
+      <div className="absolute bottom-12 right-0 z-10 sm:right-2">
         <HouseFigure house={house} />
       </div>
 
-      <div className="absolute bottom-14 left-3 z-30 sm:left-6">
+      <div className="absolute bottom-10 left-0 z-30 sm:left-4">
         <BuddyDoll outfit={outfit} accessories={accessories} />
       </div>
 
@@ -760,9 +768,9 @@ function HouseFigure({ house }: { house?: GardenShopItem }) {
     <motion.div
       animate={{ y: [0, -2, 0] }}
       transition={{ duration: 3.4, repeat: Infinity, ease: "easeInOut" }}
-      className="relative h-44 w-44 [transform-style:preserve-3d]"
+      className="relative h-56 w-56 [transform-style:preserve-3d]"
     >
-      <div className="absolute bottom-0 left-1/2 h-8 w-36 -translate-x-1/2 rounded-full bg-ink/20 blur-sm" />
+      <div className="absolute bottom-0 left-1/2 h-8 w-44 -translate-x-1/2 rounded-full bg-ink/20 blur-sm" />
       <img
         src={houseImage}
         alt={house?.name || "茅屋"}
@@ -841,22 +849,35 @@ function LeagueRewardCard({
   onClaim: () => void;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-[24px] bg-gradient-to-br from-cream to-white p-3 shadow-softer">
-      <div className="absolute -right-5 -top-5 h-16 w-16 rounded-full bg-peach/35" />
-      <p className="relative text-sm font-extrabold text-ink">{title}</p>
-      <p className="relative mt-1 text-xs font-bold text-inkSoft">目前第 {rank || "-"} 名</p>
+    <div className="relative overflow-hidden rounded-[24px] border border-cream bg-gradient-to-br from-[#fff7ec] to-white p-3.5 shadow-softer">
+      <div className="absolute -right-6 -top-6 h-16 w-16 rounded-full bg-peach/30" />
+      <div className="relative flex items-center gap-1.5">
+        <Trophy size={15} className="text-peachDeep" />
+        <p className="text-sm font-black text-ink">{title}</p>
+      </div>
+      <p className="relative mt-1 flex items-baseline gap-1 text-xs font-bold text-inkSoft">
+        目前 <span className="text-base font-black text-lilacDeep">{rank || "-"}</span> 名
+      </p>
       <button
         onClick={onClaim}
         disabled={!canClaim}
-        className={`relative mt-3 w-full rounded-2xl px-3 py-2 text-xs font-extrabold transition active:scale-95 ${
-          canClaim ? "bg-peach text-peachDeep" : "bg-white text-inkSoft"
+        className={`relative mt-3 w-full rounded-2xl px-3 py-2 text-xs font-black transition active:scale-95 ${
+          canClaim
+            ? "bg-gradient-to-r from-peachDeep to-[#ff8f6b] text-white shadow-soft"
+            : "bg-cream text-inkSoft"
         }`}
       >
-        {canClaim ? `領 ${reward} 金幣` : `冠軍可得 ${reward}`}
+        {canClaim ? `領 ${reward} 金幣` : `冠軍可得 🪙 ${reward}`}
       </button>
     </div>
   );
 }
+
+const MEDAL_STYLES = [
+  "bg-gradient-to-br from-[#ffe27a] to-[#f3a712] text-white",
+  "bg-gradient-to-br from-[#eef2f8] to-[#aab6c6] text-white",
+  "bg-gradient-to-br from-[#f6c79a] to-[#c87b3c] text-white",
+];
 
 function LeagueList({
   title,
@@ -868,44 +889,46 @@ function LeagueList({
   metric: "dailyCoins" | "monthlyCoins" | "totalCoins";
 }) {
   return (
-    <div className="rounded-[28px] bg-gradient-to-br from-[#fffaf2] to-white p-3 shadow-softer">
+    <div className="rounded-[28px] border border-cream bg-white p-3.5 shadow-softer">
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-sm font-extrabold text-ink">{title}</p>
-        <span className="rounded-full bg-lilac/60 px-2 py-1 text-[11px] font-extrabold text-lilacDeep">Top 5</span>
+        <div className="flex items-center gap-2">
+          <span className="h-5 w-1.5 rounded-full bg-gradient-to-b from-peachDeep to-lilacDeep" />
+          <p className="text-sm font-black text-ink">{title}</p>
+        </div>
+        <span className="rounded-full bg-gradient-to-r from-lilac to-peach px-2.5 py-0.5 text-[10px] font-black tracking-wide text-ink/70">
+          TOP 5
+        </span>
       </div>
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {entries.map((entry, index) => (
           <div
             key={entry.id}
-            className={`flex items-center gap-2 rounded-2xl px-2.5 py-2 shadow-[0_8px_16px_rgba(64,56,79,0.06)] ${
-              entry.isCurrentUser ? "bg-mint" : "bg-white/90"
+            className={`relative flex items-center gap-2.5 rounded-2xl px-2.5 py-2 transition ${
+              entry.isCurrentUser
+                ? "bg-gradient-to-r from-mint to-[#e9fff2] ring-2 ring-mintDeep/35"
+                : "bg-cream/45"
             }`}
           >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-cream">
-              {rankIcon(index) ? (
-                <img src={rankIcon(index)} alt={`第 ${index + 1} 名`} className="h-8 w-8 object-contain" />
-              ) : (
-                <span className="text-xs font-extrabold text-inkSoft">{index + 1}</span>
-              )}
+            <span
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-black shadow-softer ${
+                index < 3 ? MEDAL_STYLES[index] : "bg-white text-inkSoft"
+              }`}
+            >
+              {index + 1}
             </span>
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white text-lg shadow-softer">{entry.avatar}</span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-extrabold text-ink">{entry.isCurrentUser ? `${entry.name}（你）` : entry.name}</span>
               <span className="block text-[11px] font-bold text-inkSoft">{index < 3 ? ["金牌", "銀牌", "銅牌"][index] : "努力追趕中"}</span>
             </span>
-            <span className="rounded-full bg-peach/70 px-2 py-1 text-xs font-extrabold text-peachDeep">🪙 {entry[metric]}</span>
+            <span className="flex items-center gap-1 rounded-full bg-gradient-to-r from-[#fff0d6] to-peach/70 px-2.5 py-1 text-xs font-black text-peachDeep">
+              🪙 {entry[metric]}
+            </span>
           </div>
         ))}
       </div>
     </div>
   );
-}
-
-function rankIcon(index: number) {
-  if (index === 0) return "/assets/garden/rank-gold.png";
-  if (index === 1) return "/assets/garden/rank-silver.png";
-  if (index === 2) return "/assets/garden/rank-bronze.png";
-  return "";
 }
 
 function shopCategoryLabel(category: GardenShopCategory) {
