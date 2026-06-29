@@ -119,7 +119,7 @@ function buildPrompt({ scene, userInput, turn, history = [] }: TutorRequest, per
     `Turn ${turn}/7. Learner just said: "${userInput}"`,
     ``,
     `Return ONLY valid JSON (no extra text):`,
-    `{"reply":"your natural in-character ${targetLanguage.nativeName} response, 2 short sentences","replyZh":"Traditional Chinese translation","naturalness":50-99,"grammarTip":"短中文文法建議","betterWay":"more natural version of learner sentence in ${targetLanguage.nativeName}","zhExplain":"短中文解釋","encouragement":"短鼓勵繁中，可加一句${targetLanguage.nativeName}"}`,
+    `{"reply":"your natural in-character ${targetLanguage.nativeName} response, 2 short sentences","replyZh":"Traditional Chinese translation","ttsCandidate":"the exact text to be spoken by TTS (same as reply, but without any Chinese characters or explanations)","naturalness":50-99,"grammarTip":"短中文文法建議","betterWay":"more natural version of learner sentence in ${targetLanguage.nativeName}","zhExplain":"短中文解釋","encouragement":"短鼓勵繁中，可加一句${targetLanguage.nativeName}"}`,
   ].filter(Boolean).join("\n");
 }
 
@@ -169,6 +169,7 @@ export async function POST(req: Request) {
     const feedback: TutorFeedback = {
       reply: String(parsed.reply || local.reply),
       replyZh: String(parsed.replyZh || local.replyZh),
+      ttsCandidate: String(parsed.ttsCandidate || parsed.reply || local.reply),
       naturalness: Math.max(45, Math.min(99, Number(parsed.naturalness || local.naturalness))),
       grammarTip: String(parsed.grammarTip || local.grammarTip),
       betterWay: String(parsed.betterWay || local.betterWay),

@@ -7,7 +7,9 @@ import type { Scene, TutorFeedback, DialogueResult } from "@/types";
 import { aiTutorService } from "@/services/aiTutorService";
 import { dictionaryService } from "@/services/dictionaryService";
 import { learningService } from "@/services/learningService";
-import { speechService, type SpeakOptions } from "@/services/speechService";
+import { speechService } from "@/services/speechService";
+import { audioQueueService } from "@/services/audioQueueService";
+import { tutorVoiceService } from "@/services/tutorVoiceService";
 import { getLearningLanguage } from "@/data/learningLanguages";
 import ClickableText from "@/components/ClickableText";
 import WordSheet from "@/components/WordSheet";
@@ -234,7 +236,6 @@ export default function ConversationPractice({
 
   const endRef = useRef<HTMLDivElement>(null);
   const mountedRef = useRef(true);
-  const voiceQueueRef = useRef<Promise<void>>(Promise.resolve());
   const stopListenRef = useRef<(() => void) | null>(null);
   const voiceDraftRef = useRef("");
   const voiceSubmitHandledRef = useRef(false);
@@ -242,30 +243,41 @@ export default function ConversationPractice({
   const userTurnsRef = useRef<string[]>([]);
   const feedbacksRef = useRef<TutorFeedback[]>([]);
   const finishedRef = useRef(false);
-  const speechOptions = {
-    lang: selectedTutor.lang,
-    voiceKeywords: selectedTutor.voiceKeywords,
-    ttsVoice: selectedTutor.ttsVoice,
-    ttsInstructions: selectedTutor.ttsInstructions,
-    rate: speechRate,
-    volumeGain: selectedTutor.ttsVolumeGain,
-  };
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs]);
 
-  // Speak the opening tutor line once.
+  // Speak the opening tutor line once and unlock audio
   useEffect(() => {
     let openingTimer: number | undefined;
     if (autoSpeak) {
-      speechService.warmUp(speechOptions);
-      openingTimer = window.setTimeout(() => queueSpeak(firstTutor.en), 90);
+      // Unlock audio on first interaction
+      const unlockAudio = () => {
+        audioQueueService.unlockAudio();
+      };
+      
+      // Add click listener to unlock audio
+      document.addEventListener('click', unlockAudio, { once: true });
+      document.addEventListener('touchstart', unlockAudio, { once: true });
+      
+      openingTimer = window.setTimeout(() => {
+        void tutorVoiceService.playTutorReply(
+          { reply: firstTutor.en, replyZh: firstTutor.zh, ttsCandidate: firstTutor.en, naturalness: 80, grammarTip: "", betterWay: "", zhExplain: "", encouragement: "" },
+          { languageCode: targetLanguage, voiceGender: selectedTutor.gender, voiceProfileId: selectedTutor.id }
+        );
+      }, 90);
+      
+      return () => {
+        document.removeEventListener('click', unlockAudio);
+        document.removeEventListener('touchstart', unlockAudio);
+      };
     }
     return () => {
       mountedRef.current = false;
       if (openingTimer) window.clearTimeout(openingTimer);
-      speechService.stop();
+      tutorVoiceService.stop();
+      audioQueueService.clearQueue();
       stopListenRef.current?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -280,66 +292,24 @@ export default function ConversationPractice({
     if (mountedRef.current) setTutorSpeaking(active);
   }
 
-  function tutorSpeechOptions(extra?: Partial<SpeakOptions>): SpeakOptions {
-    return {
-      ...speechOptions,
-      ...extra,
-      onStart: () => {
-        setTutorVoiceActive(true);
-        extra?.onStart?.();
-      },
-      onEnd: () => {
-        setTutorVoiceActive(false);
-        extra?.onEnd?.();
-      },
-      onError: (message) => {
-        setTutorVoiceActive(false);
-        flashToast(message);
-        extra?.onError?.(message);
-      },
-    };
-  }
-
-  function speak(text: string, animateTutor = true) {
-    const r = speechService.speak(text, animateTutor ? tutorSpeechOptions() : speechOptions);
-    if (!r.ok) setTutorVoiceActive(false);
-    if (!r.ok) flashToast(r.message || "無法播放發音");
+  async function speak(text: string, animateTutor = true) {
+    setTutorVoiceActive(true);
+    try {
+      await tutorVoiceService.playManual(text, {
+        languageCode: targetLanguage,
+        voiceGender: selectedTutor.gender,
+        voiceProfileId: selectedTutor.id,
+      });
+    } catch (error) {
+      setTutorVoiceActive(false);
+      flashToast("無法播放發音");
+    }
   }
 
   function updateSpeechRate(value: number) {
     const next = Math.max(0.75, Math.min(1.25, Number(value)));
     setSpeechRate(next);
     learningService.setSpeechRate(targetLanguage, next);
-  }
-
-  function queueSpeak(text: string, animateTutor = true, extra?: Partial<SpeakOptions>): Promise<void> {
-    const clean = text.trim();
-    if (!clean) return Promise.resolve();
-
-    const previous = voiceQueueRef.current.catch(() => undefined);
-    voiceQueueRef.current = previous.then(() => new Promise<void>((resolve) => {
-      let settled = false;
-      const fallbackMs = Math.max(3500, Math.min(18000, clean.length * 95 + 4500));
-      const timer = window.setTimeout(done, fallbackMs);
-
-      function done() {
-        if (settled) return;
-        settled = true;
-        window.clearTimeout(timer);
-        if (animateTutor) setTutorVoiceActive(false);
-        resolve();
-      }
-
-      const options: SpeakOptions = animateTutor
-        ? tutorSpeechOptions({ ...extra, onEnd: done })
-        : { ...speechOptions, ...extra, onEnd: done, onError: (message) => { flashToast(message); extra?.onError?.(message); } };
-      const r = speechService.speak(clean, options);
-      if (!r.ok) {
-        flashToast(r.message || "無法播放發音");
-        done();
-      }
-    }));
-    return voiceQueueRef.current;
   }
 
   async function handleSend(text: string) {
@@ -358,10 +328,15 @@ export default function ConversationPractice({
       return;
     }
 
+    // Unlock audio on first user interaction
+    await audioQueueService.unlockAudio();
+
     let learnerSpeechDone = Promise.resolve();
     if (autoSpeak) {
-      learnerSpeechDone = queueSpeak(trimmed, false, {
-        ttsInstructions: `Repeat the learner's ${languageInfo.nativeName} sentence clearly and naturally for listening practice. Use strong clear volume.`,
+      learnerSpeechDone = tutorVoiceService.playManual(trimmed, {
+        languageCode: targetLanguage,
+        voiceGender: selectedTutor.gender,
+        voiceProfileId: selectedTutor.id,
       });
     }
 
@@ -382,13 +357,20 @@ export default function ConversationPractice({
     setBusy(false);
     if (reachedMax) {
       finishedRef.current = true;
-      speechService.stop();
+      tutorVoiceService.stop();
+      audioQueueService.clearQueue();
       stopListenRef.current?.();
       flashToast("已完成 7 句，正在產生成績");
       window.setTimeout(() => finishWith(userTurnsRef.current, feedbacksRef.current, true), 550);
       return;
     }
-    if (autoSpeak) queueSpeak(fb.reply);
+    if (autoSpeak) {
+      void tutorVoiceService.playTutorReply(fb, {
+        languageCode: targetLanguage,
+        voiceGender: selectedTutor.gender,
+        voiceProfileId: selectedTutor.id,
+      });
+    }
   }
 
   function toggleMic() {
@@ -397,7 +379,8 @@ export default function ConversationPractice({
       finishVoiceInput(true);
       return;
     }
-    speechService.stop();
+    tutorVoiceService.stop();
+    tutorVoiceService.setRecording(true);
     voiceDraftRef.current = "";
     voiceSubmitHandledRef.current = false;
     setVoiceDraft("");
@@ -413,11 +396,15 @@ export default function ConversationPractice({
       onError: (msg) => {
         voiceSubmitHandledRef.current = true;
         voiceDraftRef.current = "";
+        tutorVoiceService.setRecording(false);
         flashToast(msg);
         setListening(false);
         setVoiceDraft("");
       },
-      onEnd: () => finishVoiceInput(true),
+      onEnd: () => {
+        tutorVoiceService.setRecording(false);
+        finishVoiceInput(true);
+      },
     });
     if (stop) {
       stopListenRef.current = stop;
@@ -446,7 +433,8 @@ export default function ConversationPractice({
       return;
     }
     const result = aiTutorService.summarize(activeScene, feedbacks, userTurns);
-    speechService.stop();
+    tutorVoiceService.stop();
+    audioQueueService.clearQueue();
     stopListenRef.current?.();
     onFinish(result, userTurns, feedbacks);
   }
@@ -571,7 +559,7 @@ export default function ConversationPractice({
           <span className="text-xs font-bold text-inkSoft">
             已練習 {Math.min(userTurnCount, MAX_PRACTICE_TURNS)}/{MAX_PRACTICE_TURNS} 句
           </span>
-          <button onClick={() => setAutoSpeak((v) => !v)} className="flex items-center gap-1 text-xs font-bold text-inkSoft">
+          <button onClick={() => { setAutoSpeak((v) => !v); tutorVoiceService.setAutoPlay(!autoSpeak); }} className="flex items-center gap-1 text-xs font-bold text-inkSoft">
             {autoSpeak ? <Volume2 size={14} className="text-lilacDeep" /> : <VolumeX size={14} />}
             自動朗讀：{autoSpeak ? "開" : "關"}
           </button>

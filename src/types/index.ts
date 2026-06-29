@@ -343,6 +343,7 @@ export interface CustomScene {
 export interface TutorFeedback {
   reply: string;
   replyZh: string;
+  ttsCandidate?: string; // Text to be spoken by TTS (target language only, no Chinese)
   naturalness: number;
   grammarTip: string;
   betterWay: string;
