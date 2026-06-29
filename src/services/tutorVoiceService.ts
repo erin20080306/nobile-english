@@ -72,6 +72,10 @@ class TutorVoiceService {
       this.setRecording(false);
     }
 
+    // 5. 清空佇列並停止當前播放，確保導師語音優先播放
+    audioQueueService.clearQueue();
+    this.stop();
+
     // 4. 取得音檔 URL
     this.log("[AI_TTS] Fetching TTS audio URL", {
       text: feedback.ttsCandidate,
