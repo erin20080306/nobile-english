@@ -272,7 +272,7 @@ export default function ConversationPractice({
       // Try to play after a short delay
       openingTimer = window.setTimeout(() => {
         playOpening();
-      }, 150);
+      }, 200);
       
       // Also play on first user interaction (fallback for autoplay policy)
       const onInteraction = () => {
