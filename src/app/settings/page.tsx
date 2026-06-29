@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, User as UserIcon, Globe, Volume2, ShieldCheck, Users, Plus, MessageSquareWarning } from "lucide-react";
+import { LogOut, User as UserIcon, Globe, Volume2, ShieldCheck, Users, Plus, MessageSquareWarning, GraduationCap } from "lucide-react";
 import type { User, UserSettings, OnboardingProfile } from "@/types";
 import { useUser } from "@/hooks/useUser";
 import { learningService } from "@/services/learningService";
@@ -10,6 +10,7 @@ import { authService } from "@/services/authService";
 import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
+import TutorSelector from "@/components/TutorSelector";
 import { Toggle, LevelBadge } from "@/components/ui";
 
 export default function SettingsPage() {
@@ -177,6 +178,12 @@ export default function SettingsPage() {
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="card space-y-3">
+          <p className="font-bold text-ink flex items-center gap-2"><GraduationCap size={18} className="text-lilacDeep" /> AI 導師</p>
+          <p className="text-xs text-inkSoft">為「{currentLanguage.flag} {currentLanguage.zhName}」選擇男生或女生導師，對話與情境練習都會使用這位導師的聲音。</p>
+          <TutorSelector targetLanguage={settings.targetLanguage} />
         </div>
 
         <div className="card space-y-4">

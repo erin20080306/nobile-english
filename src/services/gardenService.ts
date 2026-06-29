@@ -11,6 +11,13 @@ import type {
 } from "@/types";
 import { KEYS, storageService } from "./storageService";
 
+type RecentSceneWord = {
+  word: string;
+  meaning: string;
+  language: LearningLanguageCode;
+  at: number;
+};
+
 const PLOT_COUNT = 6;
 const LANGUAGE_CODES: LearningLanguageCode[] = ["en", "ja", "ko", "it", "es"];
 const STARTER_HOUSE_ID = "hut-house";
@@ -384,8 +391,8 @@ function savedWordBelongsToLanguage(word: SavedWord, language: LearningLanguageC
   return word.language === language;
 }
 
-function hasPreciseMeaning(word: SavedWord) {
-  const meaning = word.zh.trim();
+function meaningIsPrecise(rawMeaning: string) {
+  const meaning = rawMeaning.trim();
   return Boolean(
     meaning &&
       !meaning.includes("練習詞") &&
@@ -393,6 +400,10 @@ function hasPreciseMeaning(word: SavedWord) {
       !meaning.includes("情境對話常見") &&
       !meaning.includes("常見名詞或名稱")
   );
+}
+
+function hasPreciseMeaning(word: SavedWord) {
+  return meaningIsPrecise(word.zh);
 }
 
 function userLeagueEntry(name = "You"): GardenLeagueEntry {
@@ -543,8 +554,35 @@ export const gardenService = {
         meaning: word.zh,
         language,
       }));
-    const cards = uniqueCards(saved);
+    const scene = storageService.get<RecentSceneWord[]>(KEYS.recentSceneWords, [])
+      .filter((item) => item.language === language && meaningIsPrecise(item.meaning))
+      .sort((a, b) => b.at - a.at)
+      .map((item) => ({
+        id: `${language}-scene-${item.word}`,
+        word: item.word,
+        meaning: item.meaning,
+        language,
+      }));
+    const cards = uniqueCards([...saved, ...scene]);
     return cards.slice(0, limit);
+  },
+
+  addSceneWords(language: LearningLanguageCode, words: { word: string; meaning: string }[]) {
+    const incoming = words
+      .map((item) => ({ word: item.word.trim(), meaning: item.meaning.trim() }))
+      .filter((item) => item.word && meaningIsPrecise(item.meaning));
+    if (incoming.length === 0) return;
+    const existing = storageService.get<RecentSceneWord[]>(KEYS.recentSceneWords, []);
+    const now = Date.now();
+    const merged: RecentSceneWord[] = [...existing];
+    for (const item of incoming) {
+      const key = `${language}:${item.word.toLowerCase()}`;
+      const idx = merged.findIndex((w) => `${w.language}:${w.word.toLowerCase()}` === key);
+      if (idx >= 0) merged[idx] = { ...merged[idx], meaning: item.meaning, at: now };
+      else merged.push({ word: item.word, meaning: item.meaning, language, at: now });
+    }
+    const trimmed = merged.sort((a, b) => b.at - a.at).slice(0, 120);
+    storageService.set(KEYS.recentSceneWords, trimmed);
   },
 
   getReviewCardCount(language: LearningLanguageCode): number {

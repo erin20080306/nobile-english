@@ -7,6 +7,7 @@ import { sceneService } from "@/services/sceneService";
 import { learningService } from "@/services/learningService";
 import { dictionaryService } from "@/services/dictionaryService";
 import { sceneReviewService } from "@/services/sceneReviewService";
+import { gardenService } from "@/services/gardenService";
 import { speechService } from "@/services/speechService";
 import { storageService, KEYS } from "@/services/storageService";
 import { authService } from "@/services/authService";
@@ -119,6 +120,17 @@ export default function ScenePracticePage() {
       completed: true,
       minutes: activeScene!.minutes,
     });
+
+    // Add practiced scene vocabulary to the farm flip-card review pool.
+    const practicedWords = Array.from(
+      new Set([...(activeScene!.keyWords || []), ...(result.conversationWords || [])])
+    )
+      .map((word) => ({
+        word,
+        meaning: dictionaryService.lookup(word, targetLanguage).entry?.zh?.trim() || "",
+      }))
+      .filter((item) => item.meaning);
+    gardenService.addSceneWords(targetLanguage, practicedWords);
 
     const shouldShowSceneReview = sceneReviewService.isDue();
     storageService.set(KEYS.lastResult, {

@@ -560,7 +560,7 @@ export default function GardenPage() {
               <Lock className="mx-auto text-lilacDeep" size={28} />
               <p className="mt-2 font-extrabold text-ink">單字量不足，暫時無法開啟翻牌遊戲</p>
               <p className="mt-1 text-sm leading-relaxed text-inkSoft">
-                需要至少 4 個「{currentLanguage.zhName}」收藏單字或加入複習的單字。請先在場景句子中點單字並收藏，多多學習後再回來挑戰。
+                需要至少 4 個「{currentLanguage.zhName}」單字。可收藏單字、加入複習，或直接完成場景練習，最近練過的場景單字也會自動加入這裡。
               </p>
             </div>
           ) : deck.length === 0 ? (
