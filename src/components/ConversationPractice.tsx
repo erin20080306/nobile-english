@@ -252,31 +252,30 @@ export default function ConversationPractice({
   useEffect(() => {
     let openingTimer: number | undefined;
     if (autoSpeak) {
-      // Unlock audio on first interaction
-      const unlockAudio = () => {
-        audioQueueService.unlockAudio();
+      // Unlock audio on first interaction, then play opening line
+      const unlockAndPlay = async () => {
+        await audioQueueService.unlockAudio();
+        openingTimer = window.setTimeout(() => {
+          void tutorVoiceService.playTutorReply(
+            { reply: firstTutor.en, replyZh: firstTutor.zh, ttsCandidate: firstTutor.en, naturalness: 80, grammarTip: "", betterWay: "", zhExplain: "", encouragement: "" },
+            {
+              languageCode: targetLanguage,
+              voiceGender: selectedTutor.gender,
+              voiceProfileId: selectedTutor.id,
+              onSpeakStart: () => setTutorVoiceActive(true),
+              onSpeakEnd: () => setTutorVoiceActive(false),
+            }
+          );
+        }, 100);
       };
       
-      // Add click listener to unlock audio
-      document.addEventListener('click', unlockAudio, { once: true });
-      document.addEventListener('touchstart', unlockAudio, { once: true });
-      
-      openingTimer = window.setTimeout(async () => {
-        void tutorVoiceService.playTutorReply(
-          { reply: firstTutor.en, replyZh: firstTutor.zh, ttsCandidate: firstTutor.en, naturalness: 80, grammarTip: "", betterWay: "", zhExplain: "", encouragement: "" },
-          {
-            languageCode: targetLanguage,
-            voiceGender: selectedTutor.gender,
-            voiceProfileId: selectedTutor.id,
-            onSpeakStart: () => setTutorVoiceActive(true),
-            onSpeakEnd: () => setTutorVoiceActive(false),
-          }
-        );
-      }, 90);
+      // Add click listener to unlock audio and play
+      document.addEventListener('click', unlockAndPlay, { once: true });
+      document.addEventListener('touchstart', unlockAndPlay, { once: true });
       
       return () => {
-        document.removeEventListener('click', unlockAudio);
-        document.removeEventListener('touchstart', unlockAudio);
+        document.removeEventListener('click', unlockAndPlay);
+        document.removeEventListener('touchstart', unlockAndPlay);
       };
     }
     return () => {
