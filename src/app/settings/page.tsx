@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, User as UserIcon, Globe, Volume2, ShieldCheck, Users, Plus, MessageSquareWarning, GraduationCap } from "lucide-react";
+import { LogOut, User as UserIcon, Globe, Volume2, ShieldCheck, Users, Plus, MessageSquareWarning, GraduationCap, Crown, RefreshCw, Trash2, FileText, Mail, ArrowRight } from "lucide-react";
 import type { User, UserSettings, OnboardingProfile } from "@/types";
 import { useUser } from "@/hooks/useUser";
 import { learningService } from "@/services/learningService";
@@ -242,6 +242,17 @@ export default function SettingsPage() {
           <Toggle label="測驗解析顯示中文" checked={settings.examChinese} onChange={(v) => update({ examChinese: v })} />
         </div>
 
+        <button onClick={() => router.push("/subscription")} className="w-full card !py-4 flex items-center gap-3 text-left active:scale-[0.99] transition">
+          <span className="h-12 w-12 rounded-2xl bg-lilac flex items-center justify-center text-lilacDeep">
+            <Crown size={20} />
+          </span>
+          <span className="flex-1">
+            <span className="block font-extrabold text-ink">訂閱與付款</span>
+            <span className="block text-sm text-inkSoft">查看方案、恢復購買、管理訂閱</span>
+          </span>
+          <ArrowRight size={18} className="text-inkSoft" />
+        </button>
+
         <button onClick={() => router.push("/feedback")} className="w-full card !py-4 flex items-center gap-3 text-left active:scale-[0.99] transition">
           <span className="h-12 w-12 rounded-2xl bg-peach flex items-center justify-center text-peachDeep">
             <MessageSquareWarning size={20} />
@@ -251,6 +262,25 @@ export default function SettingsPage() {
             <span className="block text-sm text-inkSoft">回報錯誤、語音問題或測驗建議</span>
           </span>
         </button>
+
+        <div className="card space-y-3">
+          <p className="font-bold text-ink flex items-center gap-2"><ShieldCheck size={18} className="text-mintDeep" /> 隱私與資料</p>
+          <button onClick={() => window.open("/privacy", "_blank")} className="w-full flex items-center gap-3 py-2 text-left active:scale-[0.99] transition">
+            <FileText size={18} className="text-inkSoft" />
+            <span className="flex-1 text-sm text-ink">隱私權政策</span>
+            <ArrowRight size={16} className="text-inkSoft" />
+          </button>
+          <button onClick={() => window.open("/delete-account", "_blank")} className="w-full flex items-center gap-3 py-2 text-left active:scale-[0.99] transition">
+            <Trash2 size={18} className="text-peachDeep" />
+            <span className="flex-1 text-sm text-ink">刪除帳號與資料</span>
+            <ArrowRight size={16} className="text-inkSoft" />
+          </button>
+          <button onClick={() => window.open("mailto:support@mobileenglish.app", "_blank")} className="w-full flex items-center gap-3 py-2 text-left active:scale-[0.99] transition">
+            <Mail size={18} className="text-inkSoft" />
+            <span className="flex-1 text-sm text-ink">聯絡客服</span>
+            <ArrowRight size={16} className="text-inkSoft" />
+          </button>
+        </div>
 
         <div className="card space-y-2">
           <p className="font-bold text-ink">真人感 AI 串接建議</p>
