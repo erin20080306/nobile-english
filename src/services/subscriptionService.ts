@@ -87,4 +87,89 @@ export const subscriptionService = {
     // In native app, this will open native subscription management
     // For web, no-op
   },
+
+  /**
+   * 檢查是否可以閱讀完整每日文章
+   */
+  async canReadFullArticle(): Promise<boolean> {
+    const entitlement = await this.getEntitlement();
+    return entitlement.isActive;
+  },
+
+  /**
+   * 檢查是否可以播放全文語音
+   */
+  async canPlayFullAudio(): Promise<boolean> {
+    const entitlement = await this.getEntitlement();
+    return entitlement.isActive;
+  },
+
+  /**
+   * 檢查是否可以調整播放速度
+   */
+  async canAdjustPlaybackSpeed(): Promise<boolean> {
+    const entitlement = await this.getEntitlement();
+    return entitlement.isActive;
+  },
+
+  /**
+   * 檢查是否可以使用完整單字卡
+   */
+  async canUseFullWordCards(): Promise<boolean> {
+    const entitlement = await this.getEntitlement();
+    return entitlement.isActive;
+  },
+
+  /**
+   * 檢查是否可以完成閱讀複習
+   */
+  async canCompleteQuiz(): Promise<boolean> {
+    const entitlement = await this.getEntitlement();
+    return entitlement.isActive;
+  },
+
+  /**
+   * 檢查是否可以領取完整農場獎勵
+   */
+  async canClaimFullRewards(): Promise<boolean> {
+    const entitlement = await this.getEntitlement();
+    return entitlement.isActive;
+  },
+
+  /**
+   * 檢查是否可以離線下載
+   */
+  async canDownloadOffline(): Promise<boolean> {
+    const entitlement = await this.getEntitlement();
+    return entitlement.isActive;
+  },
+
+  /**
+   * 檢查是否可以收藏文章
+   */
+  async canBookmarkArticle(): Promise<boolean> {
+    const entitlement = await this.getEntitlement();
+    return entitlement.isActive;
+  },
+
+  /**
+   * 取得免費版限制
+   */
+  getFreeTierLimits() {
+    return {
+      // 免費版只能閱讀指定入門文章
+      limitedArticleAccess: true,
+      // 免費版只能播放有限句子
+      limitedAudioPlayback: true,
+      maxSentencesPerDay: 3,
+      // 免費版只能查看基本單字卡
+      limitedWordCards: true,
+      // 免費版不能領取完整獎勵
+      limitedRewards: true,
+      // 免費版不能離線下載
+      noOfflineDownload: true,
+      // 免費版不能收藏
+      noBookmarking: true,
+    };
+  },
 };
