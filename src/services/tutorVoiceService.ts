@@ -50,14 +50,17 @@ class TutorVoiceService {
       return;
     }
 
-    // 2. 檢查自動播放設定
+    // 2. 解鎖音訊（確保可以播放）
+    await audioQueueService.unlockAudio();
+
+    // 3. 檢查自動播放設定
     const state = audioQueueService.getState();
     if (!state.autoPlayTutorVoice) {
       this.log("[AI_TTS] autoPlayTutorVoice is disabled, skipping playback");
       return;
     }
 
-    // 3. 檢查是否在錄音中
+    // 4. 檢查是否在錄音中
     if (state.recording) {
       this.log("[AI_TTS] Recording in progress, skipping playback");
       return;
