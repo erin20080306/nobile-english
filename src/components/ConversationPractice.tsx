@@ -251,12 +251,9 @@ export default function ConversationPractice({
   // Speak the opening tutor line once and unlock audio
   useEffect(() => {
     let openingTimer: number | undefined;
-    let hasPlayed = false;
     
     if (autoSpeak) {
       const playOpening = () => {
-        if (hasPlayed) return;
-        hasPlayed = true;
         void tutorVoiceService.playTutorReply(
           { reply: firstTutor.en, replyZh: firstTutor.zh, ttsCandidate: firstTutor.en, naturalness: 80, grammarTip: "", betterWay: "", zhExplain: "", encouragement: "" },
           {
@@ -269,26 +266,21 @@ export default function ConversationPractice({
         );
       };
       
-      // Try to play after a short delay
+      // Play immediately after component mounts
       openingTimer = window.setTimeout(() => {
         playOpening();
-      }, 200);
-      
-      // Also play on first user interaction (fallback for autoplay policy)
-      const onInteraction = () => {
-        playOpening();
-      };
-      document.addEventListener('click', onInteraction, { once: true });
-      document.addEventListener('touchstart', onInteraction, { once: true });
+      }, 100);
       
       return () => {
-        document.removeEventListener('click', onInteraction);
-        document.removeEventListener('touchstart', onInteraction);
+        mountedRef.current = false;
+        if (openingTimer) window.clearTimeout(openingTimer);
+        tutorVoiceService.stop();
+        audioQueueService.clearQueue();
+        stopListenRef.current?.();
       };
     }
     return () => {
       mountedRef.current = false;
-      if (openingTimer) window.clearTimeout(openingTimer);
       tutorVoiceService.stop();
       audioQueueService.clearQueue();
       stopListenRef.current?.();
