@@ -7,9 +7,17 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "prewarm:scene-audio": "tsx scripts/prewarm-scene-audio.ts",
-    "prewarm:all-scene-audio": "tsx scripts/prewarm-scene-audio.ts --all",
-    "prewarm:missing-audio": "tsx scripts/prewarm-scene-audio.ts --missing"
+    "dictionary:download": "npx tsx scripts/dictionary-download.ts",
+    "dictionary:import": "npx tsx scripts/dictionary-import.ts",
+    "dictionary:seed": "npx tsx scripts/dictionary-import.ts --seed-local --confirm",
+    "gemini:enrich": "npx tsx scripts/gemini-batch-enrichment.ts",
+    "daily-article:cron": "npx tsx scripts/daily-article-cron.ts",
+    "cap:sync": "npx cap sync",
+    "cap:ios": "npx cap open ios",
+    "cap:android": "npx cap open android",
+    "prewarm:scene-audio": "npx tsx scripts/prewarm-scene-audio.ts",
+    "prewarm:all-scene-audio": "npx tsx scripts/prewarm-scene-audio.ts --all",
+    "prewarm:missing-audio": "npx tsx scripts/prewarm-scene-audio.ts --missing"
   },
   "dependencies": {
     "@capacitor-community/apple-sign-in": "^7.1.0",

@@ -127,7 +127,7 @@ class DictionaryDownloader {
     try {
       await mkdir(this.downloadDir, { recursive: true });
 
-      const fileName = `${source.name}-${source.language}.${source.format === 'gz' ? 'json.gz' : source.format}`;
+      const fileName = `${source.name}.${source.format === 'gz' ? 'json.gz' : source.format}`;
       const filePath = join(this.downloadDir, fileName);
 
       console.log(`Downloading ${source.name} (${source.language})...`);

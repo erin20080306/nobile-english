@@ -264,7 +264,13 @@ export default function ConversationPractice({
       openingTimer = window.setTimeout(() => {
         void tutorVoiceService.playTutorReply(
           { reply: firstTutor.en, replyZh: firstTutor.zh, ttsCandidate: firstTutor.en, naturalness: 80, grammarTip: "", betterWay: "", zhExplain: "", encouragement: "" },
-          { languageCode: targetLanguage, voiceGender: selectedTutor.gender, voiceProfileId: selectedTutor.id }
+          {
+            languageCode: targetLanguage,
+            voiceGender: selectedTutor.gender,
+            voiceProfileId: selectedTutor.id,
+            onSpeakStart: () => setTutorVoiceActive(true),
+            onSpeakEnd: () => setTutorVoiceActive(false),
+          }
         );
       }, 90);
       
@@ -293,12 +299,13 @@ export default function ConversationPractice({
   }
 
   async function speak(text: string, animateTutor = true) {
-    setTutorVoiceActive(true);
     try {
       await tutorVoiceService.playManual(text, {
         languageCode: targetLanguage,
         voiceGender: selectedTutor.gender,
         voiceProfileId: selectedTutor.id,
+        onSpeakStart: animateTutor ? () => setTutorVoiceActive(true) : undefined,
+        onSpeakEnd: animateTutor ? () => setTutorVoiceActive(false) : undefined,
       });
     } catch (error) {
       setTutorVoiceActive(false);
@@ -369,6 +376,8 @@ export default function ConversationPractice({
         languageCode: targetLanguage,
         voiceGender: selectedTutor.gender,
         voiceProfileId: selectedTutor.id,
+        onSpeakStart: () => setTutorVoiceActive(true),
+        onSpeakEnd: () => setTutorVoiceActive(false),
       });
     }
   }

@@ -63,7 +63,12 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] flex flex-col px-6 pt-12 pb-8">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.2 }}
+      className="min-h-[100dvh] flex flex-col px-6 pt-12 pb-8"
+    >
       <div className="text-center">
         <div className="flex justify-center mb-2">
           <CheerImage size={120} />
@@ -117,7 +122,7 @@ export default function LoginPage() {
           立即註冊
         </button>
       </p>
-    </div>
+    </motion.div>
   );
 }
 

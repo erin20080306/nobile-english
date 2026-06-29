@@ -23,6 +23,8 @@ interface TutorVoiceOptions {
   audioVersionString?: string;
   sceneId?: string;
   sceneVersion?: string;
+  onSpeakStart?: () => void;
+  onSpeakEnd?: () => void;
 }
 
 class TutorVoiceService {
@@ -82,7 +84,7 @@ class TutorVoiceService {
 
     if (!audioUrl) {
       this.log("[AI_TTS] No audio URL, using Web Speech API fallback");
-      this.speakFallback(feedback.ttsCandidate!, options.languageCode);
+      this.speakFallback(feedback.ttsCandidate!, options.languageCode, options.onSpeakStart, options.onSpeakEnd);
       return;
     }
 
@@ -99,14 +101,17 @@ class TutorVoiceService {
       priority: 10, // 導師語音優先級高
       onStart: () => {
         this.isPlaying = true;
+        options.onSpeakStart?.();
         this.log("[AI_TTS] Tutor voice playback started");
       },
       onEnd: () => {
         this.isPlaying = false;
+        options.onSpeakEnd?.();
         this.log("[AI_TTS] Tutor voice playback ended");
       },
       onError: (error) => {
         this.isPlaying = false;
+        options.onSpeakEnd?.();
         this.log("[AI_TTS] Tutor voice playback error", {
           error: error.message,
         });
@@ -172,13 +177,13 @@ class TutorVoiceService {
   /**
    * Web Speech API fallback
    */
-  private speakFallback(text: string, languageCode: string): void {
+  private speakFallback(text: string, languageCode: string, onSpeakStart?: () => void, onSpeakEnd?: () => void): void {
     this.log("[AI_TTS] Using Web Speech API fallback", { text, languageCode });
     const opts = voiceForLanguage(languageCode as LearningLanguageCode);
     speechService.speak(text, {
       ...opts,
-      onStart: () => { this.isPlaying = true; },
-      onEnd: () => { this.isPlaying = false; },
+      onStart: () => { this.isPlaying = true; onSpeakStart?.(); },
+      onEnd: () => { this.isPlaying = false; onSpeakEnd?.(); },
     });
   }
 
@@ -201,7 +206,7 @@ class TutorVoiceService {
     const audioUrl = await this.getTtsAudioUrl(text, options);
     if (!audioUrl) {
       this.log("[AI_TTS] No audio URL for manual playback, using Web Speech API fallback");
-      this.speakFallback(text, options.languageCode);
+      this.speakFallback(text, options.languageCode, options.onSpeakStart, options.onSpeakEnd);
       return;
     }
 
@@ -213,14 +218,17 @@ class TutorVoiceService {
       priority: 20, // 手動播放優先級最高
       onStart: () => {
         this.isPlaying = true;
+        options.onSpeakStart?.();
         this.log("[AI_TTS] Manual playback started");
       },
       onEnd: () => {
         this.isPlaying = false;
+        options.onSpeakEnd?.();
         this.log("[AI_TTS] Manual playback ended");
       },
       onError: (error) => {
         this.isPlaying = false;
+        options.onSpeakEnd?.();
         this.log("[AI_TTS] Manual playback error", {
           error: error.message,
         });

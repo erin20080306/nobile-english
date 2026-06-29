@@ -14,7 +14,12 @@ export default function ScenesPage() {
   const themes = sceneService.getThemes();
 
   return (
-    <div className="min-h-[100dvh] flex flex-col">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.2 }}
+      className="min-h-[100dvh] flex flex-col"
+    >
       <AppHeader title="場景主題" subtitle="選一個主題開始練習" back={false} />
       <div className="px-5 grid gap-3">
         {themes.map((t, i) => {
@@ -46,6 +51,6 @@ export default function ScenesPage() {
         })}
       </div>
       <BottomNav />
-    </div>
+    </motion.div>
   );
 }

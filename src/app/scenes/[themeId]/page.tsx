@@ -26,7 +26,12 @@ export default function ThemeScenesPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] pb-10">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.2 }}
+      className="min-h-[100dvh] pb-10"
+    >
       <AppHeader title={`${theme.emoji} ${theme.name}`} subtitle={theme.enName} />
       <div className="px-5 grid gap-3">
         {scenes.map((s, i) => {
@@ -63,6 +68,6 @@ export default function ThemeScenesPage() {
           );
         })}
       </div>
-    </div>
+    </motion.div>
   );
 }
