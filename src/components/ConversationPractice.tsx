@@ -369,27 +369,16 @@ export default function ConversationPractice({
       return;
     }
 
-    // Play learner speech (optional, lower priority)
+    // Play tutor reply (guaranteed, highest priority)
     if (autoSpeak) {
-      void tutorVoiceService.playManual(trimmed, {
+      // Immediately play tutor reply without delay
+      void tutorVoiceService.playTutorReply(fb, {
         languageCode: targetLanguage,
         voiceGender: selectedTutor.gender,
         voiceProfileId: selectedTutor.id,
+        onSpeakStart: () => setTutorVoiceActive(true),
+        onSpeakEnd: () => setTutorVoiceActive(false),
       });
-    }
-
-    // Play tutor reply (higher priority, guaranteed)
-    if (autoSpeak) {
-      // Small delay to ensure tutor reply plays after learner speech starts
-      setTimeout(() => {
-        void tutorVoiceService.playTutorReply(fb, {
-          languageCode: targetLanguage,
-          voiceGender: selectedTutor.gender,
-          voiceProfileId: selectedTutor.id,
-          onSpeakStart: () => setTutorVoiceActive(true),
-          onSpeakEnd: () => setTutorVoiceActive(false),
-        });
-      }, 100);
     }
   }
 

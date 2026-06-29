@@ -51,7 +51,13 @@ class TutorVoiceService {
     }
 
     // 2. 解鎖音訊（確保可以播放）
-    await audioQueueService.unlockAudio();
+    try {
+      await audioQueueService.unlockAudio();
+    } catch (error) {
+      this.log("[AI_TTS] Audio unlock failed, continuing anyway", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
 
     // 3. 檢查自動播放設定
     const state = audioQueueService.getState();
@@ -102,7 +108,7 @@ class TutorVoiceService {
       id: `tutor-${Date.now()}`,
       url: audioUrl,
       text: feedback.ttsCandidate,
-      priority: 10, // 導師語音優先級高
+      priority: 30, // 導師語音優先級最高（高於手動播放的 20）
       onStart: () => {
         this.isPlaying = true;
         options.onSpeakStart?.();
