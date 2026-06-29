@@ -344,20 +344,10 @@ export default function ConversationPractice({
     // Unlock audio on first user interaction
     await audioQueueService.unlockAudio();
 
-    let learnerSpeechDone = Promise.resolve();
-    if (autoSpeak) {
-      learnerSpeechDone = tutorVoiceService.playManual(trimmed, {
-        languageCode: targetLanguage,
-        voiceGender: selectedTutor.gender,
-        voiceProfileId: selectedTutor.id,
-      });
-    }
-
+    // Get AI tutor feedback first
     const fb = await aiTutorService.feedback(activeScene, trimmed, turn + 1, history, persona);
     feedbacksRef.current = [...feedbacksRef.current, fb];
     const reachedMax = userTurnsRef.current.length >= MAX_PRACTICE_TURNS;
-    await learnerSpeechDone;
-    if (!mountedRef.current) return;
 
     setMsgs((m) => {
       const copy = [...m];
@@ -368,6 +358,7 @@ export default function ConversationPractice({
     });
     setTurn((t) => t + 1);
     setBusy(false);
+
     if (reachedMax) {
       finishedRef.current = true;
       tutorVoiceService.stop();
@@ -377,14 +368,28 @@ export default function ConversationPractice({
       window.setTimeout(() => finishWith(userTurnsRef.current, feedbacksRef.current, true), 550);
       return;
     }
+
+    // Play learner speech (optional, lower priority)
     if (autoSpeak) {
-      void tutorVoiceService.playTutorReply(fb, {
+      void tutorVoiceService.playManual(trimmed, {
         languageCode: targetLanguage,
         voiceGender: selectedTutor.gender,
         voiceProfileId: selectedTutor.id,
-        onSpeakStart: () => setTutorVoiceActive(true),
-        onSpeakEnd: () => setTutorVoiceActive(false),
       });
+    }
+
+    // Play tutor reply (higher priority, guaranteed)
+    if (autoSpeak) {
+      // Small delay to ensure tutor reply plays after learner speech starts
+      setTimeout(() => {
+        void tutorVoiceService.playTutorReply(fb, {
+          languageCode: targetLanguage,
+          voiceGender: selectedTutor.gender,
+          voiceProfileId: selectedTutor.id,
+          onSpeakStart: () => setTutorVoiceActive(true),
+          onSpeakEnd: () => setTutorVoiceActive(false),
+        });
+      }, 100);
     }
   }
 
