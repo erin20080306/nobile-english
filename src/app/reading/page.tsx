@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { BookOpen, Play, Pause, SkipBack, SkipForward, Volume2, Settings, Bookmark, CheckCircle } from "lucide-react";
+import { BookOpen, Play, Pause, SkipBack, SkipForward, Volume2, Settings, Bookmark, CheckCircle, ArrowLeft } from "lucide-react";
 import type { LearningLanguageCode } from "@/types";
 import { getLearningLanguage } from "@/data/learningLanguages";
 import { audioQueueService } from "@/services/audioQueueService";
@@ -24,6 +25,7 @@ interface ReadingArticle {
 }
 
 export default function DailyReadingPage() {
+  const router = useRouter();
   const [selectedLanguage, setSelectedLanguage] = useState<LearningLanguageCode>("en");
   const [article, setArticle] = useState<ReadingArticle | null>(null);
   const [loading, setLoading] = useState(true);
@@ -193,11 +195,23 @@ export default function DailyReadingPage() {
 
   if (!article) {
     return (
-      <div className="min-h-screen bg-cream flex items-center justify-center p-4">
+      <div className="min-h-screen bg-cream flex flex-col items-center justify-center p-4">
+        <button
+          onClick={() => router.back()}
+          className="absolute top-4 left-4 p-2 rounded-full bg-sand text-ink hover:bg-sand/80 transition-colors"
+        >
+          <ArrowLeft size={24} />
+        </button>
         <div className="text-center">
           <BookOpen size={48} className="text-lilacDeep mx-auto mb-4" />
           <h2 className="text-xl font-bold text-ink mb-2">今日文章尚未準備好</h2>
           <p className="text-inkSoft mb-4">請稍後再試或切換其他語言</p>
+          <button
+            onClick={() => router.back()}
+            className="px-4 py-2 bg-lilacDeep text-white rounded-full"
+          >
+            返回
+          </button>
         </div>
       </div>
     );
@@ -208,8 +222,14 @@ export default function DailyReadingPage() {
       {/* Header */}
       <div className="sticky top-0 bg-cream/95 backdrop-blur border-b border-sand p-4 z-10">
         <div className="max-w-2xl mx-auto">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold text-ink">{article.title}</h1>
+          <div className="flex items-center gap-3 mb-4">
+            <button
+              onClick={() => router.back()}
+              className="p-2 rounded-full bg-sand text-ink hover:bg-sand/80 transition-colors"
+            >
+              <ArrowLeft size={24} />
+            </button>
+            <h1 className="text-2xl font-bold text-ink flex-1">{article.title}</h1>
             <button
               onClick={toggleBookmark}
               className={`p-2 rounded-full ${bookmarked ? "text-peachDeep" : "text-inkSoft"}`}
