@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { motion } from "framer-motion";
 import { Volume2, Star, Target, BookOpen, Mic } from "lucide-react";
 import { sceneService } from "@/services/sceneService";
 import { learningService } from "@/services/learningService";
@@ -180,7 +181,12 @@ export default function ScenePracticePage() {
 
   // ---- Preview phase ----
   return (
-    <div className="min-h-[100dvh] pb-28">
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.2 }}
+      className="min-h-[100dvh] pb-28"
+    >
       <AppHeader title={scene.name} subtitle={`${scene.enName} · ${languageInfo.flag} ${languageInfo.zhName}`} />
 
       <div className="px-5 space-y-4">
@@ -314,6 +320,6 @@ export default function ScenePracticePage() {
         showChinese={showZh}
         onClose={() => setActiveWord(null)}
       />
-    </div>
+    </motion.div>
   );
 }
