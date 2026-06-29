@@ -192,13 +192,24 @@ async function grantFarmReward(
   cropType?: string
 ): Promise<any> {
   try {
+    // 先取得當前農場狀態
+    const { data: gardenState, error: fetchError } = await supabase
+      .from('garden_state')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (fetchError) {
+      return { type: rewardType, success: false, error: 'Failed to fetch garden state' };
+    }
+
     // 根據獎勵類型發放到農場系統
     switch (rewardType) {
       case 'coins':
         // 加金幣
         const { error: coinsError } = await supabase
           .from('garden_state')
-          .update({ coins: supabase.raw(`coins + ${rewardAmount}`) })
+          .update({ coins: (gardenState.coins || 0) + rewardAmount })
           .eq('user_id', userId);
 
         if (coinsError) throw coinsError;
@@ -208,7 +219,7 @@ async function grantFarmReward(
         // 加種子
         const { error: seedsError } = await supabase
           .from('garden_state')
-          .update({ seeds: supabase.raw(`seeds + ${rewardAmount}`) })
+          .update({ seeds: (gardenState.seeds || 0) + rewardAmount })
           .eq('user_id', userId);
 
         if (seedsError) throw seedsError;
@@ -218,7 +229,7 @@ async function grantFarmReward(
         // 加水滴
         const { error: waterError } = await supabase
           .from('garden_state')
-          .update({ water: supabase.raw(`water + ${rewardAmount}`) })
+          .update({ water: (gardenState.water || 0) + rewardAmount })
           .eq('user_id', userId);
 
         if (waterError) throw waterError;
