@@ -254,10 +254,9 @@ export default function ConversationPractice({
     let hasPlayed = false;
     
     if (autoSpeak) {
-      const playOpening = async () => {
+      const playOpening = () => {
         if (hasPlayed) return;
         hasPlayed = true;
-        await audioQueueService.unlockAudio();
         void tutorVoiceService.playTutorReply(
           { reply: firstTutor.en, replyZh: firstTutor.zh, ttsCandidate: firstTutor.en, naturalness: 80, grammarTip: "", betterWay: "", zhExplain: "", encouragement: "" },
           {
@@ -272,12 +271,12 @@ export default function ConversationPractice({
       
       // Try to play after a short delay
       openingTimer = window.setTimeout(() => {
-        void playOpening();
+        playOpening();
       }, 150);
       
       // Also play on first user interaction (fallback for autoplay policy)
       const onInteraction = () => {
-        void playOpening();
+        playOpening();
       };
       document.addEventListener('click', onInteraction, { once: true });
       document.addEventListener('touchstart', onInteraction, { once: true });
