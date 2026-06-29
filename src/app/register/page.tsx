@@ -6,7 +6,7 @@ import type { EnglishLevel } from "@/types";
 import { authService } from "@/services/authService";
 import { Toggle } from "@/components/ui";
 import AppHeader from "@/components/AppHeader";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, Apple } from "lucide-react";
 
 const goals = ["旅遊英文", "職場英文", "日常會話", "面試英文", "考試英文"];
 const levels: EnglishLevel[] = ["Beginner", "Elementary", "Intermediate", "Upper-Intermediate", "Advanced"];
@@ -70,6 +70,19 @@ export default function RegisterPage() {
           </span>
           <span className="flex-1">
             <span className="block font-extrabold text-ink">建議使用 Google 帳號綁定</span>
+            <span className="block text-sm text-inkSoft">一個帳號只綁定 1 支手機，同手機可切換多位學習者。</span>
+          </span>
+        </button>
+
+        <button
+          onClick={() => router.push("/login")}
+          className="card !py-4 w-full text-left flex items-center gap-3 active:scale-[0.99] transition"
+        >
+          <span className="h-11 w-11 rounded-2xl bg-black flex items-center justify-center text-white">
+            <Apple size={20} />
+          </span>
+          <span className="flex-1">
+            <span className="block font-extrabold text-ink">或使用 Apple 帳號綁定</span>
             <span className="block text-sm text-inkSoft">一個帳號只綁定 1 支手機，同手機可切換多位學習者。</span>
           </span>
         </button>

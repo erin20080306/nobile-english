@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Mail, Lock, ShieldCheck } from "lucide-react";
+import { Mail, Lock, ShieldCheck, Apple } from "lucide-react";
 import { authService } from "@/services/authService";
 import CheerImage from "@/components/CheerImage";
 
@@ -35,6 +35,33 @@ export default function LoginPage() {
     go(res.user);
   }
 
+  async function handleApple() {
+    try {
+      const { SignInWithApple } = await import("@capacitor-community/apple-sign-in");
+      const result = await SignInWithApple.authorize({
+        clientId: "com.mobileenglish.app",
+        redirectURI: "https://nobile-english.vercel.app",
+        scopes: "email name",
+        state: "123456",
+        nonce: "nonce",
+      });
+
+      if (result.response) {
+        // In production, send this to backend to verify with Apple
+        // For now, create a mock user
+        const mockUser = {
+          id: result.response.user || "apple_" + Date.now(),
+          email: result.response.email || "apple@example.com",
+          name: result.response.givenName || "Apple User",
+          onboarded: false,
+        };
+        go(mockUser);
+      }
+    } catch (error) {
+      setError("Apple 登入失敗");
+    }
+  }
+
   return (
     <div className="min-h-[100dvh] flex flex-col px-6 pt-12 pb-8">
       <div className="text-center">
@@ -49,13 +76,24 @@ export default function LoginPage() {
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         onClick={handleGoogle}
-        className="mt-6 w-full rounded-3xl bg-gradient-to-r from-lilacDeep to-peachDeep text-white font-bold py-4 shadow-soft flex items-center justify-center gap-2 active:scale-95 transition"
+        className="mt-6 w-full rounded-3xl bg-white text-ink font-bold py-4 shadow-soft flex items-center justify-center gap-2 active:scale-95 transition border-2 border-lilac"
       >
-        <ShieldCheck size={20} />
-        使用 Google 帳號登入並綁定本手機
+        <ShieldCheck size={20} className="text-lilacDeep" />
+        使用 Google 帳號登入
       </motion.button>
+
+      <motion.button
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        onClick={handleApple}
+        className="mt-3 w-full rounded-3xl bg-black text-white font-bold py-4 shadow-soft flex items-center justify-center gap-2 active:scale-95 transition"
+      >
+        <Apple size={20} />
+        使用 Apple 帳號登入
+      </motion.button>
+
       <p className="text-center text-xs text-inkSoft mt-2">
-        一個 Google 帳號只能綁定 1 支手機；同一支手機可切換多位學習者。
+        一個帳號只能綁定 1 支手機；同一支手機可切換多位學習者。
       </p>
 
       <div className="flex items-center gap-3 my-5">

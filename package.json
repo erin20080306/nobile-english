@@ -12,6 +12,7 @@
     "prewarm:missing-audio": "tsx scripts/prewarm-scene-audio.ts --missing"
   },
   "dependencies": {
+    "@capacitor-community/apple-sign-in": "^7.1.0",
     "@capacitor/android": "^8.4.1",
     "@capacitor/cli": "^8.4.1",
     "@capacitor/core": "^8.4.1",
