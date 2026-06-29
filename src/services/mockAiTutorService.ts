@@ -715,6 +715,7 @@ function multilingualFeedback(scene: Scene, userInput: string, turn: number): Tu
     return {
       reply: next.en,
       replyZh: next.zh,
+      ttsCandidate: next.en,
       naturalness: 78,
       grammarTip: "文法可理解，建議補上更多細節。",
       betterWay: userInput.trim(),

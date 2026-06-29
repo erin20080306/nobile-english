@@ -2,6 +2,88 @@
 
 Last updated: 2026-06-30
 
+## AI tutor follow-up voice autoplay fix
+
+Status: implemented. Desktop browser/service smoke tests completed for mock fallback; mobile microphone and valid OpenAI-key testing still require a real device/key environment.
+
+### Root cause fixed
+
+- The opening tutor line played because `ConversationPractice` explicitly passed `ttsCandidate: firstTutor.en`.
+- Follow-up tutor feedback was displayed after the learner replied, but `tutorVoiceService.playTutorReply()` returned early whenever `feedback.ttsCandidate` was missing.
+- The English branch inside `multilingualFeedback()` returned `reply` and `replyZh` but did not include `ttsCandidate`.
+- When OpenAI was not configured, failed, or fell back to local mock feedback, visible tutor text could exist while follow-up tutor audio was skipped.
+
+### Completed in code
+
+- `src/services/mockAiTutorService.ts`
+  - Added `ttsCandidate: next.en` to the `multilingualFeedback()` English branch.
+
+- `src/services/aiTutorService.ts`
+  - Added client-side `normalizeTutorFeedback()`.
+  - Ensures every returned `TutorFeedback` has string `reply`, `replyZh`, and a trimmed `ttsCandidate`.
+  - If `reply` exists and `ttsCandidate` is missing, `ttsCandidate` falls back to `reply`.
+
+- `src/app/api/tutor/route.ts`
+  - Added server-side `normalizeTutorFeedback()` for OpenAI and local fallback responses.
+  - Keeps future fallback sources on the same TutorFeedback contract.
+
+- `src/services/tutorVoiceService.ts`
+  - Resolves `ttsText` from `feedback.ttsCandidate?.trim() || feedback.reply?.trim() || ""`.
+  - Uses `ttsText` for `/api/tts/get-or-create`, Audio Queue text, and Web Speech fallback.
+  - Does not read `replyZh`, `grammarTip`, `zhExplain`, or Chinese encouragement as TTS text.
+  - Adds explicit `[AI_TTS]` logs for feedback receipt, reply presence, ttsCandidate presence, resolved text, cache hit/miss, audio URL, fallback, queue enqueue, playback started/ended, and skip reasons.
+  - Skips playback without false errors when both `reply` and `ttsCandidate` are blank.
+
+- `src/services/audioQueueService.ts`
+  - Logs recording-blocked playback as `[AI_TTS] playback skipped reason`.
+  - Logs signed URL load errors and `audio.play()` rejection reasons.
+  - Moves item `onStart` until after `audio.play()` succeeds, avoiding false "playback started" state.
+
+- `src/components/ConversationPractice.tsx`
+  - Added `waitForTutorPlaybackReady()` for voice-input submissions only.
+  - Stops speech recognition, clears listening state, stops known microphone tracks when present, clears recording state, waits 300 ms, then confirms queue recording state before follow-up tutor playback.
+  - Text-input submissions still reset stale recording state without adding the 300 ms voice delay.
+  - Auto-play-off submissions now log `[AI_TTS] playback skipped reason` while leaving manual playback buttons visible.
+
+### Verified locally
+
+- TypeScript:
+  - `npx tsc --noEmit` passed.
+
+- Production build:
+  - `npm run build` passed.
+
+- Lint:
+  - `npm run lint` and `CI=1 npm run lint` still open Next.js' interactive ESLint setup prompt because the project has no ESLint config. No lint rules were executed.
+
+- API mock fallback, five languages:
+  - Local dev server `/api/tutor` returned `source: "local"` for English, Japanese, Korean, Italian, and Spanish.
+  - All five returned non-empty `reply`.
+  - All five returned non-empty `ttsCandidate`.
+  - All five had `ttsCandidate === reply`.
+
+- English browser smoke test:
+  - Opened `/scenes/cafe/cafe-1`.
+  - Started ConversationPractice.
+  - Opening tutor line logged `tutor feedback received`, `reply exists`, `ttsCandidate exists`, `resolved ttsText`, `cache miss`, `fallback used`, and `playback ended`.
+  - Submitted `I would like a medium latte, please.`
+  - AI feedback and the follow-up tutor reply appeared.
+  - Follow-up tutor reply logged the same playback path through resolved `ttsText` and fallback playback.
+  - In this automation browser, audio unlock failed and TTS returned no playable signed URL, so Web Speech fallback was used. Physical audible output was not independently verified.
+
+- Auto-play disabled browser smoke test:
+  - Turned `自動朗讀` off.
+  - Submitted another text reply.
+  - User text and AI feedback remained visible.
+  - Console logged `[AI_TTS] playback skipped reason` from `ConversationPractice`.
+  - Manual speaker buttons remained on the message UI.
+
+### Not yet verified
+
+- Valid OpenAI API response autoplay was not verified in this pass because the local API test environment returned `source: "local"` rather than `source: "openai"`.
+- Real mobile speech-recognition behavior was not verified on a physical phone. The voice-input readiness helper is implemented, but confirming that the device does not capture tutor audio requires real mobile microphone testing.
+- Browser UI smoke for Japanese, Korean, Italian, and Spanish autoplay was not completed through settings-page interaction because `/settings` required login in this local session. Their API feedback/TTS contract was verified as described above.
+
 ## Phase 1 - Five-language dictionary import
 
 Status: implemented and smoke-tested for Phase 1 dry-run/import tooling.

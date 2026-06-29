@@ -79,8 +79,25 @@ interface TutorRequest {
 function fallback(body: TutorRequest, status = 200) {
   return NextResponse.json({
     source: "local",
-    feedback: mockAiTutorService.feedback(body.scene, body.userInput, body.turn, body.history || []),
+    feedback: normalizeTutorFeedback(mockAiTutorService.feedback(body.scene, body.userInput, body.turn, body.history || [])),
   }, { status });
+}
+
+function normalizeTutorFeedback(feedback: Partial<TutorFeedback>): TutorFeedback {
+  const reply = String(feedback.reply || "");
+  const replyZh = String(feedback.replyZh || "");
+  const naturalness = Number(feedback.naturalness);
+
+  return {
+    reply,
+    replyZh,
+    ttsCandidate: String(feedback.ttsCandidate || reply || "").trim(),
+    naturalness: Number.isFinite(naturalness) ? naturalness : 70,
+    grammarTip: String(feedback.grammarTip || ""),
+    betterWay: String(feedback.betterWay || ""),
+    zhExplain: String(feedback.zhExplain || ""),
+    encouragement: String(feedback.encouragement || ""),
+  };
 }
 
 function safeJson(text: string) {
@@ -166,7 +183,7 @@ export async function POST(req: Request) {
       "";
     const parsed = safeJson(outputText);
     const local = mockAiTutorService.feedback(body.scene, body.userInput, body.turn, body.history || []);
-    const feedback: TutorFeedback = {
+    const feedback = normalizeTutorFeedback({
       reply: String(parsed.reply || local.reply),
       replyZh: String(parsed.replyZh || local.replyZh),
       ttsCandidate: String(parsed.ttsCandidate || parsed.reply || local.reply),
@@ -175,7 +192,7 @@ export async function POST(req: Request) {
       betterWay: String(parsed.betterWay || local.betterWay),
       zhExplain: String(parsed.zhExplain || local.zhExplain),
       encouragement: String(parsed.encouragement || local.encouragement),
-    };
+    });
     return NextResponse.json({ source: "openai", model: MODEL, feedback });
   } catch {
     return fallback(body);

@@ -237,7 +237,9 @@ class AudioQueueService {
     }
 
     if (this.state.recording) {
-      this.log("[AI_TTS] Queue processing skipped - recording");
+      this.log("[AI_TTS] playback skipped reason", {
+        reason: "recording still active",
+      });
       return;
     }
 
@@ -300,7 +302,10 @@ class AudioQueueService {
 
         this.audio!.onerror = () => {
           clearTimeout(timeout);
-          reject(new Error("Audio load error"));
+          this.log("[AI_TTS] playback skipped reason", {
+            reason: "signed URL 失效",
+          });
+          reject(new Error("signed URL invalid or audio load error"));
         };
 
         this.audio!.onloadedmetadata = () => {
@@ -310,11 +315,20 @@ class AudioQueueService {
 
       // 播放
       this.setState({ state: "playing" });
-      item.onStart?.();
 
       this.log("[AI_TTS] Calling audio.play()");
-      await this.audio.play();
+      try {
+        await this.audio.play();
+      } catch (error) {
+        this.log("[AI_TTS] playback skipped reason", {
+          reason: "audio.play() 被拒絕",
+          error: error instanceof Error ? error.message : String(error),
+          errorName: error instanceof Error ? error.name : "Unknown",
+        });
+        throw new Error(`audio.play() rejected: ${error instanceof Error ? error.message : String(error)}`);
+      }
       this.log("[AI_TTS] audio.play() succeeded");
+      item.onStart?.();
 
       // 等待播放結束
       await new Promise<void>((resolve) => {
@@ -498,8 +512,8 @@ class AudioQueueService {
       platform: this.platform,
       browser: this.browser,
     };
-    
-    console.log(`[AI_TTS] ${message}`, logData);
+
+    console.log(message.startsWith("[AI_TTS]") ? message : `[AI_TTS] ${message}`, logData);
   }
 }
 

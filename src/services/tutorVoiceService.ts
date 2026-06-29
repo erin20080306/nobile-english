@@ -37,20 +37,31 @@ class TutorVoiceService {
     feedback: TutorFeedback,
     options: TutorVoiceOptions
   ): Promise<void> {
-    this.log("[AI_TTS] playTutorReply called", {
-      hasTtsCandidate: !!feedback.ttsCandidate,
+    const replyText = feedback.reply?.trim() || "";
+    const ttsCandidate = feedback.ttsCandidate?.trim() || "";
+    const ttsText = ttsCandidate || replyText || "";
+
+    this.log("[AI_TTS] tutor feedback received", {
+      languageCode: options.languageCode,
       reply: feedback.reply,
       replyZh: feedback.replyZh,
-      languageCode: options.languageCode,
+      ttsCandidate: feedback.ttsCandidate,
+    });
+    this.log("[AI_TTS] reply exists", { exists: !!replyText });
+    this.log("[AI_TTS] ttsCandidate exists", { exists: !!ttsCandidate });
+    this.log("[AI_TTS] resolved ttsText", {
+      exists: !!ttsText,
+      text: ttsText,
     });
 
-    // 1. 檢查是否有 ttsCandidate
-    if (!feedback.ttsCandidate) {
-      this.log("[AI_TTS] No ttsCandidate, skipping playback");
+    if (!ttsText) {
+      this.log("[AI_TTS] playback skipped reason", {
+        reason: !replyText && !ttsCandidate ? "reply 空白 / ttsCandidate 空白" : "resolved ttsText 空白",
+      });
       return;
     }
 
-    // 2. 強制解鎖音訊（確保可以播放）
+    // 1. 強制解鎖音訊（確保可以播放）
     try {
       await audioQueueService.unlockAudio();
     } catch (error) {
@@ -59,75 +70,81 @@ class TutorVoiceService {
       });
     }
 
-    // 3. 檢查自動播放設定
+    // 2. 檢查自動播放設定
     const state = audioQueueService.getState();
     if (!state.autoPlayTutorVoice) {
-      this.log("[AI_TTS] autoPlayTutorVoice is disabled, skipping playback");
+      this.log("[AI_TTS] playback skipped reason", {
+        reason: "autoPlayTutorVoice 關閉",
+      });
       return;
     }
 
-    // 4. 強制停止錄音狀態（確保可以播放）
     if (state.recording) {
-      this.log("[AI_TTS] Recording in progress, forcing stop");
-      this.setRecording(false);
+      this.log("[AI_TTS] playback skipped reason", {
+        reason: "recording still active",
+      });
+      return;
     }
 
-    // 5. 清空佇列並停止當前播放，確保導師語音優先播放
+    // 3. 清空佇列並停止當前播放，確保導師語音優先播放
     audioQueueService.clearQueue();
     this.stop();
 
     // 4. 取得音檔 URL
     this.log("[AI_TTS] Fetching TTS audio URL", {
-      text: feedback.ttsCandidate,
+      text: ttsText,
       languageCode: options.languageCode,
     });
 
     let audioUrl: string | null = null;
     try {
-      audioUrl = await this.getTtsAudioUrl(feedback.ttsCandidate, options);
-      this.log("[AI_TTS] TTS audio URL received", {
-        url: audioUrl ? "received" : "null",
-      });
+      audioUrl = await this.getTtsAudioUrl(ttsText, options);
+      if (audioUrl) this.log("[AI_TTS] audio URL received", { url: "received" });
     } catch (error) {
-      this.log("[AI_TTS] Failed to get TTS audio URL", {
+      this.log("[AI_TTS] playback skipped reason", {
+        reason: "TTS API 失敗",
         error: error instanceof Error ? error.message : String(error),
       });
+      this.speakFallback(ttsText, options.languageCode, options.onSpeakStart, options.onSpeakEnd);
       return;
     }
 
     if (!audioUrl) {
-      this.log("[AI_TTS] No audio URL, using Web Speech API fallback");
-      this.speakFallback(feedback.ttsCandidate!, options.languageCode, options.onSpeakStart, options.onSpeakEnd);
+      this.log("[AI_TTS] playback skipped reason", {
+        reason: "TTS API 失敗或無有效 signed URL",
+      });
+      this.speakFallback(ttsText, options.languageCode, options.onSpeakStart, options.onSpeakEnd);
       return;
     }
 
     // 5. 加入 Audio Queue
-    this.log("[AI_TTS] Enqueueing audio to queue", {
+    this.log("[AI_TTS] queue enqueue", {
       url: audioUrl,
-      text: feedback.ttsCandidate,
+      text: ttsText,
     });
 
     audioQueueService.enqueue({
       id: `tutor-${Date.now()}`,
       url: audioUrl,
-      text: feedback.ttsCandidate,
+      text: ttsText,
       priority: 30, // 導師語音優先級最高（高於手動播放的 20）
       onStart: () => {
         this.isPlaying = true;
         options.onSpeakStart?.();
-        this.log("[AI_TTS] Tutor voice playback started");
+        this.log("[AI_TTS] playback started");
       },
       onEnd: () => {
         this.isPlaying = false;
         options.onSpeakEnd?.();
-        this.log("[AI_TTS] Tutor voice playback ended");
+        this.log("[AI_TTS] playback ended");
       },
       onError: (error) => {
         this.isPlaying = false;
-        this.log("[AI_TTS] Tutor voice playback error", {
+        this.log("[AI_TTS] playback skipped reason", {
+          reason: error.message.includes("play()") ? "audio.play() 被拒絕" : "signed URL 失效",
           error: error.message,
         });
-        this.speakFallback(feedback.ttsCandidate!, options.languageCode, options.onSpeakStart, options.onSpeakEnd);
+        this.speakFallback(ttsText, options.languageCode, options.onSpeakStart, options.onSpeakEnd);
       },
     });
   }
@@ -171,16 +188,32 @@ class TutorVoiceService {
         cached: data.cached,
         hasSignedUrl: !!data.signedUrl,
       });
+      this.log(data.cached ? "[AI_TTS] cache hit" : "[AI_TTS] cache miss", {
+        id: data.id,
+        status: data.status,
+      });
 
       const url: string | null = data.signedUrl || null;
       // Stub provider returns stub:// URLs which cannot be played — treat as null
       if (url && url.startsWith("stub://")) {
-        this.log("[AI_TTS] Stub URL detected, falling back to Web Speech API");
+        this.log("[AI_TTS] playback skipped reason", {
+          reason: "stub URL",
+        });
+        this.log("[AI_TTS] fallback used", {
+          reason: "stub URL",
+        });
+        return null;
+      }
+      if (!url) {
+        this.log("[AI_TTS] playback skipped reason", {
+          reason: "signed URL 失效",
+        });
         return null;
       }
       return url;
     } catch (error) {
-      this.log("[AI_TTS] TTS API request error", {
+      this.log("[AI_TTS] playback skipped reason", {
+        reason: "TTS API 失敗",
         error: error instanceof Error ? error.message : String(error),
       });
       return null;
@@ -191,20 +224,35 @@ class TutorVoiceService {
    * Web Speech API fallback
    */
   private speakFallback(text: string, languageCode: string, onSpeakStart?: () => void, onSpeakEnd?: () => void): void {
-    this.log("[AI_TTS] Using Web Speech API fallback", { text, languageCode });
+    this.log("[AI_TTS] fallback used", { text, languageCode });
     const opts = voiceForLanguage(languageCode as LearningLanguageCode);
     const result = speechService.speak(text, {
       ...opts,
-      onStart: () => { this.isPlaying = true; onSpeakStart?.(); },
-      onEnd: () => { this.isPlaying = false; onSpeakEnd?.(); },
+      onStart: () => {
+        this.isPlaying = true;
+        onSpeakStart?.();
+        this.log("[AI_TTS] playback started", { fallback: true });
+      },
+      onEnd: () => {
+        this.isPlaying = false;
+        onSpeakEnd?.();
+        this.log("[AI_TTS] playback ended", { fallback: true });
+      },
       onError: (msg) => {
-        this.log("[AI_TTS] Web Speech API error", { error: msg });
+        this.log("[AI_TTS] playback skipped reason", {
+          reason: "Web Speech fallback 失敗",
+          error: msg,
+        });
         this.isPlaying = false;
         onSpeakEnd?.();
       },
     });
     this.log("[AI_TTS] Web Speech API speak result", { ok: result.ok, message: result.message });
     if (!result.ok) {
+      this.log("[AI_TTS] playback skipped reason", {
+        reason: "Web Speech fallback 失敗",
+        error: result.message,
+      });
       this.isPlaying = false;
       onSpeakEnd?.();
     }
@@ -228,7 +276,7 @@ class TutorVoiceService {
     // 取得音檔 URL
     const audioUrl = await this.getTtsAudioUrl(text, options);
     if (!audioUrl) {
-      this.log("[AI_TTS] No audio URL for manual playback, using Web Speech API fallback");
+      this.log("[AI_TTS] fallback used", { reason: "manual playback no audio URL" });
       this.speakFallback(text, options.languageCode, options.onSpeakStart, options.onSpeakEnd);
       return;
     }

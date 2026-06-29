@@ -24,6 +24,7 @@ interface Msg {
 
 const MIN_PRACTICE_TURNS = 5;
 const MAX_PRACTICE_TURNS = 7;
+const TUTOR_PLAYBACK_READY_DELAY_MS = 300;
 const TUTOR_FALLBACK_PHOTO = "/assets/tutors/tutor-fallback.svg";
 
 const SCENE_PERSONAS: Record<string, string[]> = {
@@ -237,6 +238,8 @@ export default function ConversationPractice({
   const endRef = useRef<HTMLDivElement>(null);
   const mountedRef = useRef(true);
   const stopListenRef = useRef<(() => void) | null>(null);
+  const voiceRecognitionEndedRef = useRef(true);
+  const activeMicrophoneStreamRef = useRef<MediaStream | null>(null);
   const voiceDraftRef = useRef("");
   const voiceSubmitHandledRef = useRef(false);
   const historyRef = useRef<string[]>([]);
@@ -297,6 +300,38 @@ export default function ConversationPractice({
     if (mountedRef.current) setTutorSpeaking(active);
   }
 
+  function delay(ms: number) {
+    return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+  }
+
+  function stopKnownMicrophoneTracks() {
+    const stream = activeMicrophoneStreamRef.current;
+    if (!stream) return;
+    stream.getTracks().forEach((track) => track.stop());
+    activeMicrophoneStreamRef.current = null;
+  }
+
+  async function waitForSpeechRecognitionEnd(timeoutMs = 450) {
+    const startedAt = Date.now();
+    while (!voiceRecognitionEndedRef.current && Date.now() - startedAt < timeoutMs) {
+      await delay(50);
+    }
+  }
+
+  async function waitForTutorPlaybackReady(): Promise<void> {
+    stopListenRef.current?.();
+    stopListenRef.current = null;
+    setListening(false);
+    await waitForSpeechRecognitionEnd();
+    stopKnownMicrophoneTracks();
+    tutorVoiceService.setRecording(false);
+    await delay(TUTOR_PLAYBACK_READY_DELAY_MS);
+    if (audioQueueService.getState().recording) {
+      tutorVoiceService.setRecording(false);
+      await delay(50);
+    }
+  }
+
   async function speak(text: string, animateTutor = true) {
     try {
       await tutorVoiceService.playManual(text, {
@@ -318,18 +353,24 @@ export default function ConversationPractice({
     learningService.setSpeechRate(targetLanguage, next);
   }
 
-  async function handleSend(text: string) {
+  async function handleSend(text: string, options: { fromVoiceInput?: boolean } = {}) {
     const trimmed = text.trim();
     if (!trimmed || busy || finishedRef.current) return;
     setBusy(true);
     setInput("");
 
-    // Reset recording state to ensure tutor voice can play
-    if (listening) {
+    if (options.fromVoiceInput) {
       stopListenRef.current?.();
       setListening(false);
+      tutorVoiceService.setRecording(false);
+    } else if (listening) {
+      stopListenRef.current?.();
+      stopListenRef.current = null;
+      setListening(false);
+      tutorVoiceService.setRecording(false);
+    } else {
+      tutorVoiceService.setRecording(false);
     }
-    tutorVoiceService.setRecording(false);
 
     setMsgs((m) => [...m, { role: "user", en: trimmed, zh: "" }]);
     const history = [...historyRef.current];
@@ -371,13 +412,20 @@ export default function ConversationPractice({
 
     // Play tutor reply (guaranteed, highest priority)
     if (autoSpeak) {
-      // Immediately play tutor reply without delay
+      if (options.fromVoiceInput) {
+        await waitForTutorPlaybackReady();
+      }
       void tutorVoiceService.playTutorReply(fb, {
         languageCode: targetLanguage,
         voiceGender: selectedTutor.gender,
         voiceProfileId: selectedTutor.id,
         onSpeakStart: () => setTutorVoiceActive(true),
         onSpeakEnd: () => setTutorVoiceActive(false),
+      });
+    } else {
+      console.log("[AI_TTS] playback skipped reason", {
+        reason: "autoPlayTutorVoice 關閉",
+        source: "ConversationPractice",
       });
     }
   }
@@ -390,6 +438,7 @@ export default function ConversationPractice({
     }
     tutorVoiceService.stop();
     tutorVoiceService.setRecording(true);
+    voiceRecognitionEndedRef.current = false;
     voiceDraftRef.current = "";
     voiceSubmitHandledRef.current = false;
     setVoiceDraft("");
@@ -404,13 +453,19 @@ export default function ConversationPractice({
       },
       onError: (msg) => {
         voiceSubmitHandledRef.current = true;
+        voiceRecognitionEndedRef.current = true;
         voiceDraftRef.current = "";
+        stopListenRef.current = null;
+        stopKnownMicrophoneTracks();
         tutorVoiceService.setRecording(false);
         flashToast(msg);
         setListening(false);
         setVoiceDraft("");
       },
       onEnd: () => {
+        voiceRecognitionEndedRef.current = true;
+        stopListenRef.current = null;
+        stopKnownMicrophoneTracks();
         tutorVoiceService.setRecording(false);
         finishVoiceInput(true);
       },
@@ -430,7 +485,7 @@ export default function ConversationPractice({
     setVoiceDraft("");
     if (spoken) {
       setInput(spoken);
-      void handleSend(spoken);
+      void handleSend(spoken, { fromVoiceInput: true });
     } else if (showEmptyToast) {
       flashToast("沒有辨識到語音，請再試一次或改用打字回覆。");
     }

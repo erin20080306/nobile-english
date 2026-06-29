@@ -7,6 +7,23 @@ import { mockAiTutorService } from "./mockAiTutorService";
 
 const USE_REMOTE = true;
 
+function normalizeTutorFeedback(feedback: Partial<TutorFeedback>): TutorFeedback {
+  const reply = String(feedback.reply || "");
+  const replyZh = String(feedback.replyZh || "");
+  const naturalness = Number(feedback.naturalness);
+
+  return {
+    reply,
+    replyZh,
+    ttsCandidate: String(feedback.ttsCandidate || reply || "").trim(),
+    naturalness: Number.isFinite(naturalness) ? naturalness : 70,
+    grammarTip: String(feedback.grammarTip || ""),
+    betterWay: String(feedback.betterWay || ""),
+    zhExplain: String(feedback.zhExplain || ""),
+    encouragement: String(feedback.encouragement || ""),
+  };
+}
+
 export const aiTutorService = {
   isRemoteEnabled() {
     return USE_REMOTE;
@@ -26,14 +43,14 @@ export const aiTutorService = {
           body: JSON.stringify({ scene, userInput, turn, history, persona }),
         });
         if (res.ok) {
-          const data = (await res.json()) as { feedback?: TutorFeedback };
-          if (data.feedback) return data.feedback;
+          const data = (await res.json()) as { feedback?: Partial<TutorFeedback> };
+          if (data.feedback) return normalizeTutorFeedback(data.feedback);
         }
       } catch {
         // Local fallback below keeps the practice usable offline.
       }
     }
-    return mockAiTutorService.feedback(scene, userInput, turn, history);
+    return normalizeTutorFeedback(mockAiTutorService.feedback(scene, userInput, turn, history));
   },
 
   // Summarize a finished dialogue into a score breakdown.
