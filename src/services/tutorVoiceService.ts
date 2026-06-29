@@ -87,6 +87,7 @@ class TutorVoiceService {
 
     if (!audioUrl) {
       this.log("[AI_TTS] No audio URL, using Web Speech API fallback");
+      options.onSpeakStart?.(); // Trigger animation immediately
       this.speakFallback(feedback.ttsCandidate!, options.languageCode, options.onSpeakStart, options.onSpeakEnd);
       return;
     }
