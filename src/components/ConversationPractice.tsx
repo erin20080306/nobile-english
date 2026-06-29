@@ -251,31 +251,40 @@ export default function ConversationPractice({
   // Speak the opening tutor line once and unlock audio
   useEffect(() => {
     let openingTimer: number | undefined;
+    let hasPlayed = false;
+    
     if (autoSpeak) {
-      // Unlock audio on first interaction, then play opening line
-      const unlockAndPlay = async () => {
+      const playOpening = async () => {
+        if (hasPlayed) return;
+        hasPlayed = true;
         await audioQueueService.unlockAudio();
-        openingTimer = window.setTimeout(() => {
-          void tutorVoiceService.playTutorReply(
-            { reply: firstTutor.en, replyZh: firstTutor.zh, ttsCandidate: firstTutor.en, naturalness: 80, grammarTip: "", betterWay: "", zhExplain: "", encouragement: "" },
-            {
-              languageCode: targetLanguage,
-              voiceGender: selectedTutor.gender,
-              voiceProfileId: selectedTutor.id,
-              onSpeakStart: () => setTutorVoiceActive(true),
-              onSpeakEnd: () => setTutorVoiceActive(false),
-            }
-          );
-        }, 100);
+        void tutorVoiceService.playTutorReply(
+          { reply: firstTutor.en, replyZh: firstTutor.zh, ttsCandidate: firstTutor.en, naturalness: 80, grammarTip: "", betterWay: "", zhExplain: "", encouragement: "" },
+          {
+            languageCode: targetLanguage,
+            voiceGender: selectedTutor.gender,
+            voiceProfileId: selectedTutor.id,
+            onSpeakStart: () => setTutorVoiceActive(true),
+            onSpeakEnd: () => setTutorVoiceActive(false),
+          }
+        );
       };
       
-      // Add click listener to unlock audio and play
-      document.addEventListener('click', unlockAndPlay, { once: true });
-      document.addEventListener('touchstart', unlockAndPlay, { once: true });
+      // Try to play after a short delay
+      openingTimer = window.setTimeout(() => {
+        void playOpening();
+      }, 150);
+      
+      // Also play on first user interaction (fallback for autoplay policy)
+      const onInteraction = () => {
+        void playOpening();
+      };
+      document.addEventListener('click', onInteraction, { once: true });
+      document.addEventListener('touchstart', onInteraction, { once: true });
       
       return () => {
-        document.removeEventListener('click', unlockAndPlay);
-        document.removeEventListener('touchstart', unlockAndPlay);
+        document.removeEventListener('click', onInteraction);
+        document.removeEventListener('touchstart', onInteraction);
       };
     }
     return () => {
