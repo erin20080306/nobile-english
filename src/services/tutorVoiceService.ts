@@ -17,7 +17,7 @@ interface TutorVoiceOptions {
   voiceGender?: string;
   voiceProfileId?: string;
   audioFormat?: string;
-  audioVersion?: string;
+  audioVersionString?: string;
   sceneId?: string;
   sceneVersion?: string;
 }
@@ -128,7 +128,7 @@ class TutorVoiceService {
           voiceGender: options.voiceGender,
           voiceProfileId: options.voiceProfileId,
           audioFormat: options.audioFormat,
-          audioVersion: options.audioVersion,
+          audioVersionString: options.audioVersionString,
           sceneId: options.sceneId,
           sceneVersion: options.sceneVersion,
         }),
