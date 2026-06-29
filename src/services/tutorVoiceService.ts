@@ -184,11 +184,17 @@ class TutorVoiceService {
   private speakFallback(text: string, languageCode: string, onSpeakStart?: () => void, onSpeakEnd?: () => void): void {
     this.log("[AI_TTS] Using Web Speech API fallback", { text, languageCode });
     const opts = voiceForLanguage(languageCode as LearningLanguageCode);
-    speechService.speak(text, {
+    const result = speechService.speak(text, {
       ...opts,
       onStart: () => { this.isPlaying = true; onSpeakStart?.(); },
       onEnd: () => { this.isPlaying = false; onSpeakEnd?.(); },
+      onError: (msg) => {
+        this.log("[AI_TTS] Web Speech API error", { error: msg });
+        this.isPlaying = false;
+        onSpeakEnd?.();
+      },
     });
+    this.log("[AI_TTS] Web Speech API speak result", { ok: result.ok, message: result.message });
   }
 
   /**
