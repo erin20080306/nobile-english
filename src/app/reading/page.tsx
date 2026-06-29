@@ -6,6 +6,7 @@ import { BookOpen, Play, Pause, SkipBack, SkipForward, Volume2, Settings, Bookma
 import type { LearningLanguageCode } from "@/types";
 import { getLearningLanguage } from "@/data/learningLanguages";
 import { audioQueueService } from "@/services/audioQueueService";
+import WordSheet from "@/components/WordSheet";
 
 interface ReadingArticle {
   id: string;
@@ -33,6 +34,7 @@ export default function DailyReadingPage() {
   const [autoScroll, setAutoScroll] = useState(true);
   const [completed, setCompleted] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
+  const [selectedWord, setSelectedWord] = useState<{ word: string; sentence?: string } | null>(null);
 
   const languageInfo = getLearningLanguage(selectedLanguage);
 
@@ -46,6 +48,10 @@ export default function DailyReadingPage() {
       element?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }, [currentSentenceIndex, autoScroll]);
+
+  useEffect(() => {
+    audioQueueService.setPlaybackRate(playbackSpeed);
+  }, [playbackSpeed]);
 
   async function loadTodayArticle() {
     setLoading(true);
@@ -136,9 +142,42 @@ export default function DailyReadingPage() {
     // TODO: 呼叫 API 保存收藏狀態
   }
 
-  function markAsCompleted() {
-    setCompleted(true);
-    // TODO: 呼叫 API 保存完成狀態並領取獎勵
+  async function markAsCompleted() {
+    if (!article) return;
+
+    try {
+      const response = await fetch('/api/articles/complete', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('supabase_token') || ''}`,
+        },
+        body: JSON.stringify({
+          articleId: article.id,
+          languageCode: selectedLanguage,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setCompleted(true);
+        console.log('Article completed with rewards:', data.rewards);
+      } else {
+        const error = await response.text();
+        console.error('Failed to complete article:', error);
+      }
+    } catch (error) {
+      console.error('Failed to complete article:', error);
+    }
+  }
+
+  function handleWordClick(e: React.MouseEvent, sentence: string) {
+    const selection = window.getSelection();
+    const selectedText = selection?.toString().trim();
+
+    if (selectedText) {
+      setSelectedWord({ word: selectedText, sentence });
+    }
   }
 
   if (loading) {
@@ -211,7 +250,12 @@ export default function DailyReadingPage() {
                   : "border-transparent bg-white"
               }`}
             >
-              <p className="text-lg text-ink mb-2">{sentence.sentence_text}</p>
+              <p 
+                className="text-lg text-ink mb-2 cursor-pointer"
+                onClick={(e) => handleWordClick(e, sentence.sentence_text)}
+              >
+                {sentence.sentence_text}
+              </p>
               {showChinese && (
                 <p className="text-sm text-inkSoft">{sentence.sentence_zh_tw}</p>
               )}
@@ -328,6 +372,16 @@ export default function DailyReadingPage() {
           </div>
         </div>
       </div>
+
+      {/* Word Sheet */}
+      {selectedWord && (
+        <WordSheet
+          word={selectedWord.word}
+          sentence={selectedWord.sentence}
+          language={selectedLanguage}
+          onClose={() => setSelectedWord(null)}
+        />
+      )}
     </div>
   );
 }

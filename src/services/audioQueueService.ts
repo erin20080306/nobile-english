@@ -35,6 +35,7 @@ interface AudioState {
   audioUnlocked: boolean;
   autoPlayTutorVoice: boolean;
   recording: boolean;
+  playbackRate: number;
 }
 
 class AudioQueueService {
@@ -47,6 +48,7 @@ class AudioQueueService {
     audioUnlocked: false,
     autoPlayTutorVoice: true,
     recording: false,
+    playbackRate: 1.0,
   };
   private listeners: Set<(state: AudioState) => void> = new Set();
   private platform: string = "web";
@@ -282,6 +284,7 @@ class AudioQueueService {
       this.audio.src = item.url;
       this.audio.volume = 1;
       this.audio.muted = false;
+      this.audio.playbackRate = this.state.playbackRate;
 
       // 等待 canplay
       await new Promise<void>((resolve, reject) => {
@@ -430,6 +433,30 @@ class AudioQueueService {
     });
 
     this.state.autoPlayTutorVoice = autoPlay;
+  }
+
+  /**
+   * 設定播放速度
+   */
+  setPlaybackRate(rate: number): void {
+    this.log("[AI_TTS] Set playback rate", {
+      rate,
+      previous: this.state.playbackRate,
+    });
+
+    this.state.playbackRate = rate;
+
+    // 如果正在播放，即時應用新速度
+    if (this.audio && this.state.state === "playing") {
+      this.audio.playbackRate = rate;
+    }
+  }
+
+  /**
+   * 取得播放速度
+   */
+  getPlaybackRate(): number {
+    return this.state.playbackRate;
   }
 
   /**
