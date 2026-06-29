@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "prewarm:scene-audio": "tsx scripts/prewarm-scene-audio.ts",
+    "prewarm:all-scene-audio": "tsx scripts/prewarm-scene-audio.ts --all",
+    "prewarm:missing-audio": "tsx scripts/prewarm-scene-audio.ts --missing"
   },
   "dependencies": {
     "next": "14.2.5",
