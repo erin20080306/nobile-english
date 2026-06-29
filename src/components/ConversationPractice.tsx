@@ -325,6 +325,13 @@ export default function ConversationPractice({
     setBusy(true);
     setInput("");
 
+    // Reset recording state to ensure tutor voice can play
+    if (listening) {
+      stopListenRef.current?.();
+      setListening(false);
+    }
+    tutorVoiceService.setRecording(false);
+
     setMsgs((m) => [...m, { role: "user", en: trimmed, zh: "" }]);
     const history = [...historyRef.current];
     historyRef.current.push(trimmed);
