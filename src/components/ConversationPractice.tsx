@@ -261,7 +261,9 @@ export default function ConversationPractice({
       document.addEventListener('click', unlockAudio, { once: true });
       document.addEventListener('touchstart', unlockAudio, { once: true });
       
-      openingTimer = window.setTimeout(() => {
+      openingTimer = window.setTimeout(async () => {
+        // Ensure audio is unlocked before playing
+        await audioQueueService.unlockAudio();
         void tutorVoiceService.playTutorReply(
           { reply: firstTutor.en, replyZh: firstTutor.zh, ttsCandidate: firstTutor.en, naturalness: 80, grammarTip: "", betterWay: "", zhExplain: "", encouragement: "" },
           {
