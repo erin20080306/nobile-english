@@ -10,7 +10,10 @@
  */
 
 import { audioQueueService } from "./audioQueueService";
+import { speechService } from "./speechService";
+import { voiceForLanguage } from "@/data/learningLanguages";
 import type { TutorFeedback } from "@/types";
+import type { LearningLanguageCode } from "@/types";
 
 interface TutorVoiceOptions {
   languageCode: string;
@@ -78,7 +81,8 @@ class TutorVoiceService {
     }
 
     if (!audioUrl) {
-      this.log("[AI_TTS] No audio URL returned, skipping playback");
+      this.log("[AI_TTS] No audio URL, using Web Speech API fallback");
+      this.speakFallback(feedback.ttsCandidate!, options.languageCode);
       return;
     }
 
@@ -150,13 +154,32 @@ class TutorVoiceService {
         hasSignedUrl: !!data.signedUrl,
       });
 
-      return data.signedUrl || null;
+      const url: string | null = data.signedUrl || null;
+      // Stub provider returns stub:// URLs which cannot be played — treat as null
+      if (url && url.startsWith("stub://")) {
+        this.log("[AI_TTS] Stub URL detected, falling back to Web Speech API");
+        return null;
+      }
+      return url;
     } catch (error) {
       this.log("[AI_TTS] TTS API request error", {
         error: error instanceof Error ? error.message : String(error),
       });
       return null;
     }
+  }
+
+  /**
+   * Web Speech API fallback
+   */
+  private speakFallback(text: string, languageCode: string): void {
+    this.log("[AI_TTS] Using Web Speech API fallback", { text, languageCode });
+    const opts = voiceForLanguage(languageCode as LearningLanguageCode);
+    speechService.speak(text, {
+      ...opts,
+      onStart: () => { this.isPlaying = true; },
+      onEnd: () => { this.isPlaying = false; },
+    });
   }
 
   /**
@@ -177,7 +200,8 @@ class TutorVoiceService {
     // 取得音檔 URL
     const audioUrl = await this.getTtsAudioUrl(text, options);
     if (!audioUrl) {
-      this.log("[AI_TTS] No audio URL for manual playback");
+      this.log("[AI_TTS] No audio URL for manual playback, using Web Speech API fallback");
+      this.speakFallback(text, options.languageCode);
       return;
     }
 
