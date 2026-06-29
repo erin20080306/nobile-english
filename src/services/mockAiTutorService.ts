@@ -730,6 +730,7 @@ function multilingualFeedback(scene: Scene, userInput: string, turn: number): Tu
   return {
     reply: next.en,
     replyZh: next.zh,
+    ttsCandidate: next.en,
     naturalness,
     grammarTip: `使用${lang.zhName}時，盡量用完整句並補上地點、時間或需求。`,
     betterWay,
@@ -948,6 +949,7 @@ export const mockAiTutorService = {
     return {
       reply: next.en,
       replyZh: next.zh,
+      ttsCandidate: next.en,
       naturalness,
       grammarTip,
       betterWay,
