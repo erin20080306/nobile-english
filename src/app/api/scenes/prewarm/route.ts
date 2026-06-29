@@ -3,23 +3,30 @@ import { createClient } from '@supabase/supabase-js';
 
 /**
  * 場景發布時自動預熱單字卡 API
- * 
+ *
  * 當場景發布時，自動觸發單字卡預熱流程
  * POST /api/scenes/prewarm
- * 
+ *
  * Body:
  * {
  *   sceneId: string
  * }
  */
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-);
-
 export async function POST(request: NextRequest) {
   try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return NextResponse.json(
+        { error: 'Supabase environment variables not configured' },
+        { status: 500 }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
     const body = await request.json();
     const { sceneId } = body;
 
@@ -53,7 +60,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. 觸發預熱流程
-    const prewarmResult = await triggerPrewarm(sceneId);
+    const prewarmResult = await triggerPrewarm(sceneId, supabase);
 
     return NextResponse.json({
       success: true,
@@ -69,7 +76,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function triggerPrewarm(sceneId: string): Promise<any> {
+async function triggerPrewarm(sceneId: string, supabase: any): Promise<any> {
   // 這裡可以呼叫預熱 script 或直接實作預熱邏輯
   // 為了簡化，這裡提供基本實作
 
@@ -77,7 +84,7 @@ async function triggerPrewarm(sceneId: string): Promise<any> {
   const results: any[] = [];
 
   for (const language of languages) {
-    const result = await prewarmSceneLanguage(sceneId, language);
+    const result = await prewarmSceneLanguage(sceneId, language, supabase);
     results.push(result);
   }
 
@@ -88,7 +95,7 @@ async function triggerPrewarm(sceneId: string): Promise<any> {
   };
 }
 
-async function prewarmSceneLanguage(sceneId: string, language: string): Promise<any> {
+async function prewarmSceneLanguage(sceneId: string, language: string, supabase: any): Promise<any> {
   // 1. 獲取場景句子
   const { data: sentences, error: sentencesError } = await supabase
     .from('scene_sentences')
