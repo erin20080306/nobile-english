@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   Flame, Star, MessageSquare, Trophy, Volume2, Languages, ChevronRight,
-  BookOpen, Sparkles, GraduationCap, Wand2, Search,
+  BookOpen, Sparkles, GraduationCap, Wand2, Search, Newspaper,
 } from "lucide-react";
 import type { GardenState, Stats, UserSettings, EnglishLevel } from "@/types";
 import { useUser } from "@/hooks/useUser";
@@ -204,6 +204,27 @@ export default function Dashboard() {
               <p className="text-lg font-extrabold text-ink">語言小農場</p>
               <p className="truncate text-sm font-semibold text-inkSoft">
                 🪙 {garden?.coins ?? 0} 金幣 · 💧 {garden?.water ?? 0} 水滴 · 🧺 {garden?.harvests ?? 0} 收成
+              </p>
+            </div>
+            <ChevronRight className="relative text-inkSoft" />
+          </div>
+        </button>
+      </div>
+
+      {/* Daily Reading Article */}
+      <div className="px-5 mt-4">
+        <button
+          onClick={() => router.push("/reading")}
+          className="relative w-full overflow-hidden rounded-[30px] bg-gradient-to-br from-lilac via-white to-sky p-4 text-left shadow-soft active:scale-[0.98] transition"
+        >
+          <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-white/50" />
+          <div className="relative flex items-center gap-3">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-3xl bg-white text-3xl shadow-softer">📰</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-inkSoft">每日閱讀</p>
+              <p className="text-lg font-extrabold text-ink">五語閱讀文章</p>
+              <p className="truncate text-sm font-semibold text-inkSoft">
+                🌍 五種語言 · 🔊 語音播放 · 📚 單字卡
               </p>
             </div>
             <ChevronRight className="relative text-inkSoft" />
