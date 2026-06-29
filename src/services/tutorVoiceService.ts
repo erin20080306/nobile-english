@@ -97,7 +97,6 @@ class TutorVoiceService {
 
     if (!audioUrl) {
       this.log("[AI_TTS] No audio URL, using Web Speech API fallback");
-      options.onSpeakStart?.(); // Trigger animation immediately
       this.speakFallback(feedback.ttsCandidate!, options.languageCode, options.onSpeakStart, options.onSpeakEnd);
       return;
     }
@@ -125,10 +124,10 @@ class TutorVoiceService {
       },
       onError: (error) => {
         this.isPlaying = false;
-        options.onSpeakEnd?.();
         this.log("[AI_TTS] Tutor voice playback error", {
           error: error.message,
         });
+        this.speakFallback(feedback.ttsCandidate!, options.languageCode, options.onSpeakStart, options.onSpeakEnd);
       },
     });
   }
@@ -205,6 +204,10 @@ class TutorVoiceService {
       },
     });
     this.log("[AI_TTS] Web Speech API speak result", { ok: result.ok, message: result.message });
+    if (!result.ok) {
+      this.isPlaying = false;
+      onSpeakEnd?.();
+    }
   }
 
   /**

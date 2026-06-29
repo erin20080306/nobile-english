@@ -43,7 +43,7 @@ export default function ThemeScenesPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.03 }}
               onClick={() => router.push(`/scenes/${themeId}/${s.id}`)}
-              className="card text-left active:scale-[0.98] transition relative overflow-hidden"
+              className="card text-left transition-colors relative overflow-hidden"
               style={sceneCardStyle(theme.color, 0.24, themeId)}
             >
               {done && (

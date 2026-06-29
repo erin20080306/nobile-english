@@ -77,25 +77,23 @@ export default function LoginPage() {
         <p className="text-inkSoft">登入繼續你的英文旅程</p>
       </div>
 
-      <motion.button
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
+      <button
+        type="button"
         onClick={handleGoogle}
-        className="mt-6 w-full rounded-3xl bg-white text-ink font-bold py-4 shadow-soft flex items-center justify-center gap-2 active:scale-95 transition border-2 border-lilac"
+        className="mt-6 w-full rounded-3xl bg-white text-ink font-bold py-4 shadow-soft flex items-center justify-center gap-2 transition-colors border-2 border-lilac"
       >
         <ShieldCheck size={20} className="text-lilacDeep" />
         使用 Google 帳號登入
-      </motion.button>
+      </button>
 
-      <motion.button
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
+      <button
+        type="button"
         onClick={handleApple}
-        className="mt-3 w-full rounded-3xl bg-black text-white font-bold py-4 shadow-soft flex items-center justify-center gap-2 active:scale-95 transition"
+        className="mt-3 w-full rounded-3xl bg-black text-white font-bold py-4 shadow-soft flex items-center justify-center gap-2 transition-colors"
       >
         <Apple size={20} />
         使用 Apple 帳號登入
-      </motion.button>
+      </button>
 
       <p className="text-center text-xs text-inkSoft mt-2">
         一個帳號只能綁定 1 支手機；同一支手機可切換多位學習者。

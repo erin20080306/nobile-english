@@ -131,7 +131,7 @@ function ScenerPicker({
         {/* Tutor selector banner */}
         <button
           onClick={() => setShowTutorModal(true)}
-          className="w-full flex items-center gap-4 bg-white rounded-[30px] px-4 py-4 shadow-softer mb-4 active:scale-95 transition"
+          className="w-full flex items-center gap-4 bg-white rounded-[30px] px-4 py-4 shadow-softer mb-4 transition-colors"
         >
           <TutorAvatar tutor={currentTutor} size={64} />
           <div className="flex-1 text-left min-w-0">
@@ -157,11 +157,11 @@ function ScenerPicker({
         )}
 
         <div className="grid grid-cols-1 gap-3 mb-4">
-          <button onClick={onFreeMode} className="w-full card !p-4 text-left active:scale-95 transition bg-gradient-to-r from-peach to-peachDeep text-white">
+          <button onClick={onFreeMode} className="w-full card !p-4 text-left transition-colors bg-gradient-to-r from-peach to-peachDeep text-white">
             <p className="font-bold">自由對話</p>
             <p className="text-xs opacity-90">可自由聊天，也可直接請 AI 建立練習主題</p>
           </button>
-          <button onClick={() => router.push("/custom-scene")} className="w-full card !p-4 text-left active:scale-95 transition bg-white">
+          <button onClick={() => router.push("/custom-scene")} className="w-full card !p-4 text-left transition-colors bg-white">
             <div className="flex items-center gap-2">
               <Wand2 size={18} className="text-lilacDeep" />
               <p className="font-bold text-ink">自訂場景練習</p>
@@ -179,7 +179,7 @@ function ScenerPicker({
                   <button
                     key={s.id}
                     onClick={() => onPick(s)}
-                    className="relative h-36 rounded-3xl p-4 text-left active:scale-95 transition overflow-hidden shadow-soft flex flex-col justify-between"
+                    className="relative h-36 rounded-3xl p-4 text-left transition-colors overflow-hidden shadow-soft flex flex-col justify-between"
                     style={sceneCardStyle(t.color, 0.16, t.id)}
                   >
                     <div className="relative z-10 min-w-0">

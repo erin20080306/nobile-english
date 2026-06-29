@@ -31,7 +31,7 @@ export default function ScenesPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.04 }}
               onClick={() => router.push(`/scenes/${t.id}`)}
-              className="card flex items-center gap-4 text-left active:scale-[0.98] transition overflow-hidden"
+              className="card flex items-center gap-4 text-left transition-colors overflow-hidden"
               style={sceneCardStyle(t.color, 0.22, t.id)}
             >
               <span className="text-4xl">{t.emoji}</span>
