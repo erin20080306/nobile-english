@@ -8,6 +8,14 @@
 5. [App Store Connect 設定](#app-store-connect-設定)
 6. [Google Play Console 設定](#google-play-console-設定)
 7. [測試步驟](#測試步驟)
+
+---
+
+## 專案架構說明
+
+本專案保留現有 React、TypeScript、Vercel API、Supabase、OpenAI、Gemini、Google Chirp 3 HD、TTS cache、STT、五語單字卡資料庫、場景片語索引、使用者收藏、複習紀錄、農場遊戲資料、金幣、種子、水滴、收成、裝備、房屋、物品與所有既有 UI。
+
+使用 Capacitor 將現有 React Web App 包裝成原生 iOS 與 Android App，不重寫成 Swift 或 Kotlin。
 8. [App Review Notes 範本](#app-review-notes-範本)
 
 ---
