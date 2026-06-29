@@ -50,7 +50,7 @@ class TutorVoiceService {
       return;
     }
 
-    // 2. 解鎖音訊（確保可以播放）
+    // 2. 強制解鎖音訊（確保可以播放）
     try {
       await audioQueueService.unlockAudio();
     } catch (error) {
@@ -66,10 +66,10 @@ class TutorVoiceService {
       return;
     }
 
-    // 4. 檢查是否在錄音中
+    // 4. 強制停止錄音狀態（確保可以播放）
     if (state.recording) {
-      this.log("[AI_TTS] Recording in progress, skipping playback");
-      return;
+      this.log("[AI_TTS] Recording in progress, forcing stop");
+      this.setRecording(false);
     }
 
     // 4. 取得音檔 URL
