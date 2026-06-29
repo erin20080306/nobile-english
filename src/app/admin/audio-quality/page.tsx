@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Play, Pause, Volume2, CheckCircle, XCircle, RefreshCw } from "lucide-react";
