@@ -6,8 +6,10 @@ import type {
   PremiumEntitlement,
 } from "@/types/subscription";
 
-// Mock implementation for web. Will be replaced with RevenueCat in native app.
-const MOCK_OFFERINGS: SubscriptionOffering[] = [
+const REVENUECAT_PUBLIC_API_KEY = process.env.NEXT_PUBLIC_REVENUECAT_PUBLIC_API_KEY || "";
+
+// Fallback offerings for web or when RevenueCat is not configured
+const FALLBACK_OFFERINGS: SubscriptionOffering[] = [
   {
     id: "monthly",
     packageId: "mobileenglish_monthly_399",
@@ -32,15 +34,21 @@ const MOCK_OFFERINGS: SubscriptionOffering[] = [
 
 export const subscriptionService = {
   async configure(userId: string): Promise<void> {
-    // No-op for web mock
+    if (!REVENUECAT_PUBLIC_API_KEY) {
+      console.warn("RevenueCat public API key not configured");
+      return;
+    }
+    // RevenueCat will be configured in native app
+    // For web, this is a no-op
   },
 
   async getOfferings(): Promise<SubscriptionOffering[]> {
-    return MOCK_OFFERINGS;
+    return FALLBACK_OFFERINGS;
   },
 
   async purchase(productId: string): Promise<PurchaseResult> {
-    // Mock purchase for web - will redirect to Stripe or similar
+    // In native app, this will call RevenueCat
+    // For web, return error
     return {
       success: false,
       error: "Web purchases not implemented yet. Please use native app.",
@@ -48,6 +56,8 @@ export const subscriptionService = {
   },
 
   async restorePurchases(): Promise<RestoreResult> {
+    // In native app, this will call RevenueCat
+    // For web, return error
     return {
       success: false,
       restoredCount: 0,
@@ -56,10 +66,14 @@ export const subscriptionService = {
   },
 
   async getCustomerInfo(): Promise<CustomerInfo | null> {
+    // In native app, this will call RevenueCat
+    // For web, return null
     return null;
   },
 
   async getEntitlement(): Promise<PremiumEntitlement> {
+    // In native app, this will call RevenueCat
+    // For web, return inactive
     return {
       isActive: false,
       expiresAt: null,
@@ -70,6 +84,7 @@ export const subscriptionService = {
   },
 
   async openManageSubscriptions(): Promise<void> {
-    // No-op for web
+    // In native app, this will open native subscription management
+    // For web, no-op
   },
 };
