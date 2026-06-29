@@ -1,124 +1,182 @@
 #!/usr/bin/env node
 /**
- * 五語字典下載 Script
- * 
- * 支援語言：
- * - en: 英文 (Kaikki/Wiktextract, WordNet, CMU Pronouncing Dictionary)
- * - ja: 日文 (JMdict, KANJIDIC2)
- * - ko: 韓文 (Kaikki/Wiktextract Korean)
- * - it: 義大利文 (Kaikki/Wiktextract Italian)
- * - es: 西班牙文 (Kaikki/Wiktextract Spanish)
- * 
- * 使用方式：
- * pnpm dictionary:download --language=en
- * pnpm dictionary:download --language=ja
- * pnpm dictionary:download --all
+ * Five-language dictionary downloader.
+ *
+ * Use dry-run/source filtering for smoke checks before downloading large files:
+ *   npm run dictionary:download -- --language=en --source=cmudict --dry-run
+ *   npm run dictionary:download -- --language=ja --source=kanjidic2
  */
 
-import { createWriteStream } from 'fs';
-import { pipeline } from 'stream/promises';
-import { createGunzip } from 'zlib';
-import { Readable } from 'stream';
-import { join } from 'path';
-import { mkdir } from 'fs/promises';
+import { createReadStream, createWriteStream } from "fs";
+import { mkdir, writeFile } from "fs/promises";
+import { join } from "path";
+import { Readable, Transform } from "stream";
+import { pipeline } from "stream/promises";
+import { createGunzip } from "zlib";
+
+type LanguageCode = "en" | "ja" | "ko" | "it" | "es";
+type OutputFormat = "json" | "jsonl" | "xml" | "txt";
 
 interface DictionarySource {
   name: string;
-  language: string;
+  language: LanguageCode;
   url: string;
   license: string;
   attribution: string;
   version?: string;
-  format: 'json' | 'xml' | 'txt' | 'gz';
+  outputFormat: OutputFormat;
+  compressed?: boolean;
 }
 
-const DICTIONARY_SOURCES: Record<string, DictionarySource[]> = {
+interface DownloadOptions {
+  languages: LanguageCode[];
+  sources: string[];
+  dryRun: boolean;
+  checkSources: boolean;
+}
+
+const DICTIONARY_SOURCES: Record<LanguageCode, DictionarySource[]> = {
   en: [
     {
-      name: 'wiktextract-en',
-      language: 'en',
-      url: 'https://github.com/tatuylonen/wiktextract/raw/master/data/en/wiktextract-en.json.gz',
-      license: 'CC BY-SA 4.0',
-      attribution: 'Wiktionary contributors',
-      format: 'gz',
+      name: "wiktextract-en",
+      language: "en",
+      url: "https://github.com/tatuylonen/wiktextract/raw/master/data/en/wiktextract-en.json.gz",
+      license: "CC BY-SA 4.0",
+      attribution: "Wiktionary contributors",
+      outputFormat: "jsonl",
+      compressed: true,
     },
     {
-      name: 'wordnet',
-      language: 'en',
-      url: 'https://github.com/globalwordnet/english-wordnet/raw/master/src/wordnet/wn-data-en.json',
-      license: 'MIT',
-      attribution: 'Princeton University',
-      format: 'json',
+      name: "wordnet",
+      language: "en",
+      url: "https://github.com/globalwordnet/english-wordnet/raw/master/src/wordnet/wn-data-en.json",
+      license: "MIT",
+      attribution: "Princeton University / Open English WordNet",
+      outputFormat: "json",
     },
     {
-      name: 'cmudict',
-      language: 'en',
-      url: 'https://github.com/cmusphinx/cmudict/raw/master/cmudict.dict',
-      license: 'BSD-3-Clause',
-      attribution: 'Carnegie Mellon University',
-      format: 'txt',
+      name: "cmudict",
+      language: "en",
+      url: "https://github.com/cmusphinx/cmudict/raw/master/cmudict.dict",
+      license: "BSD-3-Clause",
+      attribution: "Carnegie Mellon University",
+      outputFormat: "txt",
     },
   ],
   ja: [
     {
-      name: 'jmdict',
-      language: 'ja',
-      url: 'https://github.com/datasets-io/jmdict/raw/master/JMdict_e.gz',
-      license: 'CC BY-SA 3.0',
-      attribution: 'EDRDG',
-      format: 'gz',
+      name: "jmdict",
+      language: "ja",
+      url: "http://ftp.edrdg.org/pub/Nihongo/JMdict_e.gz",
+      license: "CC BY-SA 3.0",
+      attribution: "EDRDG",
+      outputFormat: "xml",
+      compressed: true,
     },
     {
-      name: 'kanjidic2',
-      language: 'ja',
-      url: 'https://github.com/datasets-io/kanjidic2/raw/master/kanjidic2.xml.gz',
-      license: 'CC BY-SA 3.0',
-      attribution: 'EDRDG',
-      format: 'gz',
+      name: "kanjidic2",
+      language: "ja",
+      url: "http://ftp.edrdg.org/pub/Nihongo/kanjidic2.xml.gz",
+      license: "CC BY-SA 3.0",
+      attribution: "EDRDG",
+      outputFormat: "xml",
+      compressed: true,
     },
   ],
   ko: [
     {
-      name: 'wiktextract-ko',
-      language: 'ko',
-      url: 'https://github.com/tatuylonen/wiktextract/raw/master/data/ko/wiktextract-ko.json.gz',
-      license: 'CC BY-SA 4.0',
-      attribution: 'Wiktionary contributors',
-      format: 'gz',
+      name: "wiktextract-ko",
+      language: "ko",
+      url: "https://github.com/tatuylonen/wiktextract/raw/master/data/ko/wiktextract-ko.json.gz",
+      license: "CC BY-SA 4.0",
+      attribution: "Wiktionary contributors",
+      outputFormat: "jsonl",
+      compressed: true,
     },
   ],
   it: [
     {
-      name: 'wiktextract-it',
-      language: 'it',
-      url: 'https://github.com/tatuylonen/wiktextract/raw/master/data/it/wiktextract-it.json.gz',
-      license: 'CC BY-SA 4.0',
-      attribution: 'Wiktionary contributors',
-      format: 'gz',
+      name: "wiktextract-it",
+      language: "it",
+      url: "https://github.com/tatuylonen/wiktextract/raw/master/data/it/wiktextract-it.json.gz",
+      license: "CC BY-SA 4.0",
+      attribution: "Wiktionary contributors",
+      outputFormat: "jsonl",
+      compressed: true,
     },
   ],
   es: [
     {
-      name: 'wiktextract-es',
-      language: 'es',
-      url: 'https://github.com/tatuylonen/wiktextract/raw/master/data/es/wiktextract-es.json.gz',
-      license: 'CC BY-SA 4.0',
-      attribution: 'Wiktionary contributors',
-      format: 'gz',
+      name: "wiktextract-es",
+      language: "es",
+      url: "https://github.com/tatuylonen/wiktextract/raw/master/data/es/wiktextract-es.json.gz",
+      license: "CC BY-SA 4.0",
+      attribution: "Wiktionary contributors",
+      outputFormat: "jsonl",
+      compressed: true,
     },
   ],
 };
 
 class DictionaryDownloader {
-  private dataDir: string;
-  private downloadDir: string;
+  private dataDir = join(process.cwd(), "data", "dictionary");
+  private downloadDir = join(this.dataDir, "downloads");
 
-  constructor() {
-    this.dataDir = join(process.cwd(), 'data', 'dictionary');
-    this.downloadDir = join(this.dataDir, 'downloads');
+  async downloadAll(options: DownloadOptions): Promise<void> {
+    await mkdir(this.downloadDir, { recursive: true });
+    const results = [];
+
+    for (const language of options.languages) {
+      for (const source of this.sourcesForLanguage(language, options.sources)) {
+        if (options.dryRun) {
+          const paths = this.pathsForSource(source);
+          console.log(`[dry-run] ${source.language}/${source.name}`);
+          console.log(`  url: ${source.url}`);
+          console.log(`  output: ${paths.outputPath}`);
+          console.log(`  license: ${source.license}`);
+          results.push({ source, result: { success: true, dryRun: true, filePath: paths.outputPath } });
+          continue;
+        }
+
+        if (options.checkSources) {
+          const ok = await this.checkSource(source);
+          results.push({ source, result: { success: ok } });
+          continue;
+        }
+
+        const result = await this.downloadSource(source);
+        results.push({ source, result });
+      }
+    }
+
+    await this.saveDownloadRecord(results);
   }
 
-  async downloadSource(source: DictionarySource): Promise<{
+  private sourcesForLanguage(language: LanguageCode, sourceFilters: string[]): DictionarySource[] {
+    const sources = DICTIONARY_SOURCES[language] || [];
+    if (sourceFilters.length === 0) return sources;
+    return sources.filter(source => sourceFilters.includes(source.name));
+  }
+
+  private pathsForSource(source: DictionarySource): { compressedPath: string; outputPath: string } {
+    const outputPath = join(this.downloadDir, `${source.name}.${source.outputFormat}`);
+    return {
+      compressedPath: `${outputPath}.gz`,
+      outputPath,
+    };
+  }
+
+  private async checkSource(source: DictionarySource): Promise<boolean> {
+    console.log(`Checking ${source.name}...`);
+    let response = await fetch(source.url, { method: "HEAD" });
+    if (!response.ok) {
+      response = await fetch(source.url, { method: "GET", headers: { Range: "bytes=0-0" } });
+    }
+    console.log(`${source.name}: HTTP ${response.status} ${response.statusText}`);
+    return response.ok || response.status === 206;
+  }
+
+  private async downloadSource(source: DictionarySource): Promise<{
     success: boolean;
     filePath?: string;
     size?: number;
@@ -126,161 +184,116 @@ class DictionaryDownloader {
   }> {
     try {
       await mkdir(this.downloadDir, { recursive: true });
-
-      const fileName = `${source.name}.${source.format === 'gz' ? 'json.gz' : source.format}`;
-      const filePath = join(this.downloadDir, fileName);
+      const { compressedPath, outputPath } = this.pathsForSource(source);
+      const targetPath = source.compressed ? compressedPath : outputPath;
 
       console.log(`Downloading ${source.name} (${source.language})...`);
-
       const response = await fetch(source.url);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-
-      const contentLength = response.headers.get('content-length');
-      const total = contentLength ? parseInt(contentLength, 10) : 0;
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('Failed to get response reader');
+      if (!response.body) {
+        throw new Error("Response body is empty.");
       }
 
-      const chunks: Buffer[] = [];
+      const total = Number(response.headers.get("content-length") || 0);
       let loaded = 0;
+      const progress = new Transform({
+        transform(chunk, _encoding, callback) {
+          loaded += chunk.length;
+          if (total > 0) {
+            const pct = Math.min(100, Math.floor((loaded / total) * 100));
+            process.stdout.write(`\rProgress: ${pct}% (${loaded}/${total} bytes)`);
+          } else {
+            process.stdout.write(`\rDownloaded: ${loaded} bytes`);
+          }
+          callback(null, chunk);
+        },
+      });
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      await pipeline(
+        Readable.fromWeb(response.body as any),
+        progress,
+        createWriteStream(targetPath)
+      );
+      process.stdout.write("\n");
 
-        chunks.push(Buffer.from(value));
-        loaded += value.length;
-
-        if (total > 0) {
-          const progress = Math.floor((loaded / total) * 100);
-          process.stdout.write(`\rProgress: ${progress}% (${loaded}/${total} bytes)`);
-        }
+      if (source.compressed) {
+        await pipeline(
+          createReadStream(targetPath),
+          createGunzip(),
+          createWriteStream(outputPath)
+        );
       }
 
-      process.stdout.write('\n');
-
-      // 寫入檔案
-      const fileStream = createWriteStream(filePath);
-      await pipeline(Readable.from(chunks), fileStream);
-
-      // 如果是 gzip，解壓縮
-      if (source.format === 'gz') {
-        const jsonPath = filePath.replace('.gz', '');
-        await this.decompressGzip(filePath, jsonPath);
-        
-        return {
-          success: true,
-          filePath: jsonPath,
-          size: loaded,
-        };
-      }
-
-      return {
-        success: true,
-        filePath,
-        size: loaded,
-      };
+      console.log(`Saved ${source.name}: ${outputPath}`);
+      return { success: true, filePath: outputPath, size: loaded };
     } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
+      const message = error instanceof Error ? error.message : "Unknown error";
+      console.error(`Failed ${source.name}: ${message}`);
+      return { success: false, error: message };
     }
-  }
-
-  private async decompressGzip(inputPath: string, outputPath: string): Promise<void> {
-    const fs = await import('fs');
-    const input = fs.createReadStream(inputPath);
-    const gunzip = createGunzip();
-    const output = createWriteStream(outputPath);
-
-    await pipeline(input, gunzip, output);
-  }
-
-  async downloadLanguage(language: string): Promise<void> {
-    const sources = DICTIONARY_SOURCES[language];
-    if (!sources) {
-      console.error(`Unknown language: ${language}`);
-      return;
-    }
-
-    console.log(`\n=== Downloading ${language} dictionary sources ===\n`);
-
-    const results = [];
-    for (const source of sources) {
-      const result = await this.downloadSource(source);
-      results.push({ source, result });
-
-      if (result.success) {
-        console.log(`✓ Downloaded ${source.name}: ${result.filePath} (${result.size} bytes)`);
-      } else {
-        console.error(`✗ Failed to download ${source.name}: ${result.error}`);
-      }
-    }
-
-    // 保存下載記錄
-    await this.saveDownloadRecord(language, results);
-  }
-
-  async downloadAll(): Promise<void> {
-    const languages = Object.keys(DICTIONARY_SOURCES);
-    
-    for (const language of languages) {
-      await this.downloadLanguage(language);
-    }
-
-    console.log('\n=== All downloads completed ===');
   }
 
   private async saveDownloadRecord(
-    language: string,
     results: Array<{ source: DictionarySource; result: any }>
   ): Promise<void> {
     const record = {
-      language,
       downloadedAt: new Date().toISOString(),
       sources: results.map(({ source, result }) => ({
         name: source.name,
+        language: source.language,
         success: result.success,
+        dryRun: Boolean(result.dryRun),
         filePath: result.filePath,
         size: result.size,
         error: result.error,
+        license: source.license,
+        attribution: source.attribution,
+        version: source.version,
       })),
     };
 
-    const recordPath = join(this.downloadDir, `${language}-download-record.json`);
-    const recordStream = createWriteStream(recordPath);
-    recordStream.write(JSON.stringify(record, null, 2));
-    recordStream.end();
+    await writeFile(join(this.downloadDir, "download-record.json"), JSON.stringify(record, null, 2));
   }
 }
 
-// CLI interface
+function parseCliOptions(args: string[]): DownloadOptions {
+  const allFlag = args.includes("--all");
+  const languageFlag = args.find(arg => arg.startsWith("--language="));
+  const sourceFlags = args.filter(arg => arg.startsWith("--source=") || arg.startsWith("--sources="));
+
+  return {
+    languages: allFlag
+      ? ["en", "ja", "ko", "it", "es"]
+      : languageFlag
+        ? [languageFlag.split("=")[1] as LanguageCode]
+        : [],
+    sources: sourceFlags.flatMap(flag => flag.split("=")[1].split(",").map(value => value.trim()).filter(Boolean)),
+    dryRun: args.includes("--dry-run"),
+    checkSources: args.includes("--check-sources"),
+  };
+}
+
+function printUsage(): void {
+  console.log("Usage:");
+  console.log("  npm run dictionary:download -- --language=en --source=cmudict --dry-run");
+  console.log("  npm run dictionary:download -- --language=ja --source=kanjidic2");
+  console.log("  npm run dictionary:download -- --all --check-sources");
+  console.log("  npm run dictionary:download -- --all");
+}
+
 async function main() {
-  const args = process.argv.slice(2);
-  const languageFlag = args.find(arg => arg.startsWith('--language='));
-  const allFlag = args.includes('--all');
-
-  const downloader = new DictionaryDownloader();
-
-  if (allFlag) {
-    await downloader.downloadAll();
-  } else if (languageFlag) {
-    const language = languageFlag.split('=')[1];
-    await downloader.downloadLanguage(language);
-  } else {
-    console.log('Usage:');
-    console.log('  pnpm dictionary:download --language=en');
-    console.log('  pnpm dictionary:download --language=ja');
-    console.log('  pnpm dictionary:download --language=ko');
-    console.log('  pnpm dictionary:download --language=it');
-    console.log('  pnpm dictionary:download --language=es');
-    console.log('  pnpm dictionary:download --all');
+  const options = parseCliOptions(process.argv.slice(2));
+  if (options.languages.length === 0) {
+    printUsage();
+    return;
   }
+
+  await new DictionaryDownloader().downloadAll(options);
 }
 
-main().catch(console.error);
+main().catch(error => {
+  console.error(error instanceof Error ? error.message : error);
+  process.exitCode = 1;
+});
