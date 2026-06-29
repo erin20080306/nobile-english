@@ -51,13 +51,13 @@ export async function peekTtsAsset(input: GetOrCreateInput): Promise<PeekResult>
   if (!voice) throw new Error(`no voice profile for language: ${input.languageCode}`);
 
   const audioFormat = input.audioFormat || "m4a";
-  const audioVersion = input.audioVersion ?? 1;
+  const audioVersionString = input.audioVersionString ?? "v2_loud";
   const textHash = computeTextHash({
     provider: provider.name,
     providerModel: provider.model,
     languageCode: voice.languageCode,
     voiceProfileId: voice.id,
-    audioVersion,
+    audioVersionString,
     normalizedText,
   });
 
@@ -68,7 +68,7 @@ export async function peekTtsAsset(input: GetOrCreateInput): Promise<PeekResult>
     voiceProfileId: voice.id,
     textHash,
     audioFormat,
-    audioVersion,
+    audioVersionString,
   });
 
   return {
@@ -100,14 +100,14 @@ export async function getOrCreateTtsAsset(
   const voiceProfileId = voice.id;
 
   const audioFormat = input.audioFormat || "m4a";
-  const audioVersion = input.audioVersion ?? 1;
+  const audioVersionString = input.audioVersionString ?? "v2_loud";
 
   const textHash = computeTextHash({
     provider: provider.name,
     providerModel: provider.model,
     languageCode: voice.languageCode,
     voiceProfileId,
-    audioVersion,
+    audioVersionString,
     normalizedText,
   });
 
@@ -118,7 +118,7 @@ export async function getOrCreateTtsAsset(
     voiceProfileId,
     textHash,
     audioFormat,
-    audioVersion,
+    audioVersionString,
   };
 
   // 1) Fast path: already cached and ready -> never call the provider.
@@ -134,7 +134,7 @@ export async function getOrCreateTtsAsset(
     normalizedText,
     textHash,
     audioFormat,
-    audioVersion,
+    audioVersionString,
     assetType: input.assetType,
     sceneId: input.sceneId,
     sceneVersion: input.sceneVersion,

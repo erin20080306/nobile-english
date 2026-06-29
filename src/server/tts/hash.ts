@@ -1,14 +1,14 @@
 import { createHash } from "crypto";
-import type { AudioFormat } from "./types";
+import type { AudioFormat, AudioVersionString } from "./types";
 
-// text_hash = sha256(provider | providerModel | languageCode | voiceProfileId | audioVersion | normalizedText)
+// text_hash = sha256(provider | providerModel | languageCode | voiceProfileId | audioVersionString | normalizedText)
 // The fields are joined with a separator that cannot appear in ids to avoid collisions.
 export function computeTextHash(params: {
   provider: string;
   providerModel: string;
   languageCode: string;
   voiceProfileId: string;
-  audioVersion: number;
+  audioVersionString: AudioVersionString;
   normalizedText: string;
 }): string {
   const parts = [
@@ -16,7 +16,7 @@ export function computeTextHash(params: {
     params.providerModel,
     params.languageCode,
     params.voiceProfileId,
-    String(params.audioVersion),
+    params.audioVersionString,
     params.normalizedText,
   ];
   return createHash("sha256").update(parts.join("\u0000")).digest("hex");
@@ -30,7 +30,7 @@ export function assetCacheKey(params: {
   voiceProfileId: string;
   textHash: string;
   audioFormat: AudioFormat;
-  audioVersion: number;
+  audioVersionString: AudioVersionString;
 }): string {
   return [
     params.provider,
@@ -39,6 +39,6 @@ export function assetCacheKey(params: {
     params.voiceProfileId,
     params.textHash,
     params.audioFormat,
-    String(params.audioVersion),
+    params.audioVersionString,
   ].join("|");
 }

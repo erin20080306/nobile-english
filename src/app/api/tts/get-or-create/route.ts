@@ -40,7 +40,7 @@ export async function POST(req: Request) {
       voiceGender: body.voiceGender,
       voiceProfileId: body.voiceProfileId,
       audioFormat: body.audioFormat,
-      audioVersion: body.audioVersion,
+      audioVersionString: body.audioVersionString,
       sceneId: body.sceneId,
       sceneVersion: body.sceneVersion,
     });

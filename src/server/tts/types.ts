@@ -25,7 +25,11 @@ export type TtsAssetType =
 
 export type TtsAssetStatus = "generating" | "ready" | "failed";
 
+export type TtsProcessingStatus = "none" | "pending" | "processing" | "ready" | "failed";
+
 export type AudioFormat = "m4a" | "mp3";
+
+export type AudioVersionString = "v1" | "v2_loud";
 
 export interface VoiceProfile {
   id: string;
@@ -54,6 +58,16 @@ export interface TtsAudioAsset {
   status: TtsAssetStatus;
   createdAt: string;
   updatedAt: string;
+  // v2_loud fields
+  rawAudioPath: string | null;
+  processedAudioPath: string | null;
+  audioVersionString: AudioVersionString;
+  integratedLufs: number | null;
+  truePeakDbtp: number | null;
+  loudnessRangeLu: number | null;
+  processingStatus: TtsProcessingStatus;
+  processingError: string | null;
+  processedAt: string | null;
 }
 
 // Identity used for the unique index / text_hash composition.
@@ -64,7 +78,7 @@ export interface TtsAssetKey {
   voiceProfileId: string;
   textHash: string;
   audioFormat: AudioFormat;
-  audioVersion: number;
+  audioVersionString: AudioVersionString;
 }
 
 export interface GetOrCreateInput {
@@ -76,7 +90,7 @@ export interface GetOrCreateInput {
   voiceGender?: VoiceGender;
   voiceProfileId?: string;
   audioFormat?: AudioFormat;
-  audioVersion?: number;
+  audioVersionString?: AudioVersionString;
   sceneId?: string;
   sceneVersion?: number;
 }

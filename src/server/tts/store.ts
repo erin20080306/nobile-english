@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { assetCacheKey } from "./hash";
 import type {
   AudioFormat,
+  AudioVersionString,
   SynthesisOutput,
   TtsAssetType,
   TtsAudioAsset,
@@ -15,7 +16,7 @@ export interface ReserveInput {
   normalizedText: string;
   textHash: string;
   audioFormat: AudioFormat;
-  audioVersion: number;
+  audioVersionString: AudioVersionString;
   assetType: TtsAssetType;
   sceneId?: string;
   sceneVersion?: number;
@@ -32,7 +33,7 @@ export interface TtsAssetStore {
     voiceProfileId: string;
     textHash: string;
     audioFormat: AudioFormat;
-    audioVersion: number;
+    audioVersionString: AudioVersionString;
   }): Promise<TtsAudioAsset | null>;
 
   // Atomically returns an existing row or creates one with status 'generating'.
@@ -59,7 +60,7 @@ class InMemoryTtsAssetStore implements TtsAssetStore {
     voiceProfileId: string;
     textHash: string;
     audioFormat: AudioFormat;
-    audioVersion: number;
+    audioVersionString: AudioVersionString;
   }): Promise<TtsAudioAsset | null> {
     const id = this.byKey.get(assetCacheKey(params));
     if (!id) return null;
@@ -85,13 +86,23 @@ class InMemoryTtsAssetStore implements TtsAssetStore {
       audioFormat: input.audioFormat,
       audioPath: null,
       durationMs: null,
-      audioVersion: input.audioVersion,
+      audioVersion: 1, // Keep for backward compatibility
       assetType: input.assetType,
       sceneId: input.sceneId ?? null,
       sceneVersion: input.sceneVersion ?? null,
       status: "generating",
       createdAt: nowIso(),
       updatedAt: nowIso(),
+      // v2_loud fields
+      rawAudioPath: null,
+      processedAudioPath: null,
+      audioVersionString: input.audioVersionString,
+      integratedLufs: null,
+      truePeakDbtp: null,
+      loudnessRangeLu: null,
+      processingStatus: "none",
+      processingError: null,
+      processedAt: null,
     };
     this.byId.set(asset.id, asset);
     this.byKey.set(key, asset.id);
