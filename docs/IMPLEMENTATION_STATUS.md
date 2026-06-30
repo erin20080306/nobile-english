@@ -1,6 +1,100 @@
 # Implementation Status
 
-Last updated: 2026-06-30
+Last updated: 2026-07-01
+
+## Database word-review vocabulary targets
+
+Status: implemented in app/API/import tooling. Supabase production import still needs to be run with real Supabase service-role credentials.
+
+### Target counts
+
+- English: 16,000 total review words, interpreted as the existing 8,000 plus 8,000 more.
+- Italian: 10,000 review words.
+- Spanish: 10,000 review words.
+- Japanese: 10,000 review words.
+- Korean: 10,000 review words.
+
+### Completed in code
+
+- `src/app/api/vocabulary/review-pool/route.ts`
+  - Added a server route for word-review vocabulary pools.
+  - Reads from Supabase `dictionary_entries`.
+  - Uses `frequency_rank` and learner level to return a bounded review pool instead of shipping the full database to the client.
+  - Supports English Advanced target 16,000 and Japanese/Korean/Italian/Spanish Advanced target 10,000.
+  - Returns `source: "local"` with a reason when Supabase env vars are missing or the DB query fails.
+
+- `src/services/wordReviewService.ts`
+  - Added `buildDatabaseSession()` for database-first word review sessions.
+  - Keeps the existing local word-review memory and learning-record behavior.
+  - Falls back to existing local vocabulary if the database pool is unavailable.
+  - Allows answer choices to use the database pool from the current session.
+
+- `src/app/word-review/page.tsx`
+  - The existing UI now reads the database pool when the learner starts a review.
+  - Added a compact loading/status message showing database vs local fallback.
+  - Did not redesign the page.
+
+- `scripts/dictionary-import.ts`
+  - During import, assigns `frequency_rank` by source order.
+  - Assigns CEFR buckets by rank:
+    - A1: 1-1,500
+    - A2: 1,501-2,500
+    - B1: 2,501-4,000
+    - B2: 4,001-6,000
+    - C1: 6,001+
+
+- `scripts/dictionary-review-targets.ts`
+  - Added one command to download/import the review targets.
+  - Does not call OpenAI, Gemini, TTS, or paid AI APIs.
+
+- `package.json`
+  - Added `dictionary:seed-review-targets`.
+
+- `supabase/migrations/20260701_dictionary_review_pool_indexes.sql`
+  - Added review-pool indexes for `language_code + frequency_rank`, `language_code + cefr_level + frequency_rank`, and `language_code + display_word`.
+
+### How to seed production Supabase
+
+After Supabase env vars are available locally or in the deployment shell:
+
+```bash
+npm run dictionary:seed-review-targets -- --confirm --report-json
+```
+
+For a single language:
+
+```bash
+npm run dictionary:seed-review-targets -- --language=en --confirm --report-json
+```
+
+### Verified locally
+
+- TypeScript:
+  - `npx tsc --noEmit` passed.
+- Production build:
+  - `npm run build` passed.
+- Lint:
+  - `CI=1 npm run lint` still opens Next.js' interactive ESLint setup prompt because the project has no ESLint config. No lint rules were executed.
+- Review-target script dry-run:
+  - `npm run dictionary:seed-review-targets -- --language=en` passed after adding `tsx` as a dev dependency.
+  - The dry-run listed the English 16,000 target and skipped Supabase import without downloading the large source file.
+- External source checks:
+  - `wiktextract-en` / kaikki.org English: HTTP 200 OK.
+  - `wiktextract-it` / kaikki.org Italian: HTTP 200 OK.
+  - `wiktextract-es` / kaikki.org Spanish: HTTP 200 OK.
+  - `wiktextract-ko` / kaikki.org Korean: HTTP 200 OK.
+  - `jmdict`: HTTP 200 OK.
+- API fallback smoke test:
+  - Local dev server returned HTTP 200 for `/api/vocabulary/review-pool?language=en&level=Advanced&limit=30&seed=smoke`.
+  - Response was `source: "local"` with reason `Supabase vocabulary environment variables are not configured.`
+  - Response target count was `16000`.
+- Supabase import was not executed because this working copy does not contain real Supabase service-role credentials.
+
+### Not yet verified
+
+- Production Supabase row counts after confirmed import.
+- Vercel production word-review page reading `source: "database"` after import.
+- Full end-to-end mobile performance with 10,000+ rows per non-English language.
 
 ## AI tutor follow-up voice autoplay fix
 

@@ -58,6 +58,8 @@ interface NormalizedEntry {
   examples_json: Array<{ text: string; translation?: string }>;
   synonyms_json: string[];
   antonyms_json: string[];
+  cefr_level: string | null;
+  frequency_rank: number | null;
   surfaceForms: Array<{ surface_form: string; normalized_form: string; form_type: "inflection" | "conjugation" | "declension" | "variant" }>;
   source: DictionarySourceInfo;
 }
@@ -276,6 +278,14 @@ function uniqueStrings(values: string[]): string[] {
   return Array.from(new Set(values.map(cleanText).filter(Boolean)));
 }
 
+function cefrForRank(rank: number): string {
+  if (rank <= 1500) return "A1";
+  if (rank <= 2500) return "A2";
+  if (rank <= 4000) return "B1";
+  if (rank <= 6000) return "B2";
+  return "C1";
+}
+
 class DictionaryImporter {
   private supabase: SupabaseClient | null;
   private dataDir: string;
@@ -423,6 +433,8 @@ class DictionaryImporter {
       seenInSource.add(dedupeKey);
 
       stats.validCount++;
+      cleaned.frequency_rank = cleaned.frequency_rank || stats.validCount;
+      cleaned.cefr_level = cleaned.cefr_level || cefrForRank(stats.validCount);
       batch.push(cleaned);
 
       if (batch.length >= options.batchSize) {
@@ -582,6 +594,8 @@ class DictionaryImporter {
       examples_json: entry.examples_json,
       synonyms_json: entry.synonyms_json,
       antonyms_json: entry.antonyms_json,
+      cefr_level: entry.cefr_level,
+      frequency_rank: entry.frequency_rank,
       source_name: entry.source.name,
       source_license: entry.source.license,
       source_attribution: entry.source.attribution,
@@ -611,6 +625,8 @@ class DictionaryImporter {
     if (entry.examples_json.length > 0) payload.examples_json = entry.examples_json;
     if (entry.synonyms_json.length > 0) payload.synonyms_json = entry.synonyms_json;
     if (entry.antonyms_json.length > 0) payload.antonyms_json = entry.antonyms_json;
+    if (entry.cefr_level) payload.cefr_level = entry.cefr_level;
+    if (entry.frequency_rank) payload.frequency_rank = entry.frequency_rank;
 
     return payload;
   }
@@ -796,6 +812,8 @@ class DictionaryImporter {
         .slice(0, 8),
       synonyms_json: compactStrings(entry.synonyms || [], 12),
       antonyms_json: compactStrings(entry.antonyms || [], 12),
+      cefr_level: null,
+      frequency_rank: null,
       surfaceForms,
       source,
     };

@@ -40,11 +40,10 @@ const DICTIONARY_SOURCES: Record<LanguageCode, DictionarySource[]> = {
     {
       name: "wiktextract-en",
       language: "en",
-      url: "https://github.com/tatuylonen/wiktextract/raw/master/data/en/wiktextract-en.json.gz",
+      url: "https://kaikki.org/dictionary/English/kaikki.org-dictionary-English.jsonl",
       license: "CC BY-SA 4.0",
       attribution: "Wiktionary contributors",
       outputFormat: "jsonl",
-      compressed: true,
     },
     {
       name: "wordnet",
@@ -87,33 +86,30 @@ const DICTIONARY_SOURCES: Record<LanguageCode, DictionarySource[]> = {
     {
       name: "wiktextract-ko",
       language: "ko",
-      url: "https://github.com/tatuylonen/wiktextract/raw/master/data/ko/wiktextract-ko.json.gz",
+      url: "https://kaikki.org/dictionary/Korean/kaikki.org-dictionary-Korean.jsonl",
       license: "CC BY-SA 4.0",
       attribution: "Wiktionary contributors",
       outputFormat: "jsonl",
-      compressed: true,
     },
   ],
   it: [
     {
       name: "wiktextract-it",
       language: "it",
-      url: "https://github.com/tatuylonen/wiktextract/raw/master/data/it/wiktextract-it.json.gz",
+      url: "https://kaikki.org/dictionary/Italian/kaikki.org-dictionary-Italian.jsonl",
       license: "CC BY-SA 4.0",
       attribution: "Wiktionary contributors",
       outputFormat: "jsonl",
-      compressed: true,
     },
   ],
   es: [
     {
       name: "wiktextract-es",
       language: "es",
-      url: "https://github.com/tatuylonen/wiktextract/raw/master/data/es/wiktextract-es.json.gz",
+      url: "https://kaikki.org/dictionary/Spanish/kaikki.org-dictionary-Spanish.jsonl",
       license: "CC BY-SA 4.0",
       attribution: "Wiktionary contributors",
       outputFormat: "jsonl",
-      compressed: true,
     },
   ],
 };

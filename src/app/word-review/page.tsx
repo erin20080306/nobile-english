@@ -235,6 +235,8 @@ export default function WordReviewPage() {
   const [revealed, setRevealed] = useState(false);
   const [readyToFinish, setReadyToFinish] = useState(false);
   const [score, setScore] = useState<WordReviewScore | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [poolStatus, setPoolStatus] = useState("");
 
   useEffect(() => {
     const currentUser = authService.getCurrentUser();
@@ -253,22 +255,35 @@ export default function WordReviewPage() {
   const questionKind = current?.questionKind || "meaningChoice";
   const isWordChoice = questionKind === "wordChoice";
   const isFillQuestion = questionKind === "wordFill";
+  const choicePool = useMemo(() => session?.words.map((item) => item.word) || [], [session]);
   const choices = useMemo(
-    () => current ? wordReviewService.choicesFor(current.word, session?.language || language, current.questionKind) : [],
-    [current, language, session?.language]
+    () => current ? wordReviewService.choicesFor(current.word, session?.language || language, current.questionKind, choicePool) : [],
+    [choicePool, current, language, session?.language]
   );
   const progress = session ? Math.round(((index + (revealed ? 1 : 0)) / Math.max(session.words.length, 1)) * 100) : 0;
 
-  function startReview() {
+  async function startReview() {
+    if (starting) return;
     void unlockAnswerAudio();
-    const next = wordReviewService.buildSession({ language, level, count, learnedPercent });
-    setSession(next);
-    setIndex(0);
-    setSelected("");
-    setTypedAnswer("");
-    setRevealed(false);
-    setReadyToFinish(false);
-    setScore(null);
+    setStarting(true);
+    setPoolStatus("正在讀取單字資料庫...");
+    try {
+      const result = await wordReviewService.buildDatabaseSession({ language, level, count, learnedPercent });
+      setSession(result.session);
+      setIndex(0);
+      setSelected("");
+      setTypedAnswer("");
+      setRevealed(false);
+      setReadyToFinish(false);
+      setScore(null);
+      setPoolStatus(
+        result.source === "database"
+          ? `已讀取資料庫單字 ${result.poolSize} 筆${result.targetCount ? ` / 目標 ${result.targetCount.toLocaleString()} 筆` : ""}`
+          : `使用本機備援單字${result.reason ? `：${result.reason}` : ""}`
+      );
+    } finally {
+      setStarting(false);
+    }
   }
 
   function answer(rawAnswer: string) {
@@ -337,7 +352,7 @@ export default function WordReviewPage() {
               ))}
             </div>
           </div>
-          <button onClick={startReview} className="btn-primary w-full flex items-center justify-center gap-2">
+          <button onClick={() => { void startReview(); }} disabled={starting} className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-60">
             <RotateCcw size={18} /> 再複習一輪
           </button>
           <button onClick={() => router.push("/records?tab=word")} className="w-full rounded-3xl bg-white py-3 font-bold text-ink shadow-softer">
@@ -551,9 +566,10 @@ export default function WordReviewPage() {
           </div>
         </div>
 
-        <button onPointerDown={() => { void unlockAnswerAudio(); }} onClick={startReview} className="btn-primary w-full">
-          開始單字複習
+        <button onPointerDown={() => { void unlockAnswerAudio(); }} onClick={() => { void startReview(); }} disabled={starting} className="btn-primary w-full disabled:opacity-60">
+          {starting ? "讀取資料庫中..." : "開始單字複習"}
         </button>
+        {poolStatus && <p className="text-center text-xs font-bold text-inkSoft">{poolStatus}</p>}
       </div>
       <BottomNav />
     </div>

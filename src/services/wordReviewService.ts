@@ -50,6 +50,22 @@ export interface WordReviewScore {
   nextReviewCount: number;
 }
 
+export interface WordReviewDatabaseSessionResult {
+  session: WordReviewSession;
+  source: "database" | "local";
+  poolSize: number;
+  targetCount?: number;
+  reason?: string;
+}
+
+interface ReviewPoolApiResponse {
+  source?: "database" | "local";
+  words?: Word[];
+  poolSize?: number;
+  targetCount?: number;
+  reason?: string;
+}
+
 interface WordMemory {
   word: string;
   language: LearningLanguageCode;
@@ -69,12 +85,42 @@ interface WordReviewMemory {
   lastOptions?: Pick<WordReviewOptions, "language" | "count" | "learnedPercent">;
 }
 
-const LEVEL_LIMITS: Record<EnglishLevel, number> = {
-  Beginner: 1500,
-  Elementary: 2500,
-  Intermediate: 4000,
-  "Upper-Intermediate": 6000,
-  Advanced: 8000,
+const LEVEL_LIMITS: Record<LearningLanguageCode, Record<EnglishLevel, number>> = {
+  en: {
+    Beginner: 1500,
+    Elementary: 2500,
+    Intermediate: 4000,
+    "Upper-Intermediate": 6000,
+    Advanced: 16000,
+  },
+  ja: {
+    Beginner: 1500,
+    Elementary: 2500,
+    Intermediate: 4000,
+    "Upper-Intermediate": 6000,
+    Advanced: 10000,
+  },
+  ko: {
+    Beginner: 1500,
+    Elementary: 2500,
+    Intermediate: 4000,
+    "Upper-Intermediate": 6000,
+    Advanced: 10000,
+  },
+  it: {
+    Beginner: 1500,
+    Elementary: 2500,
+    Intermediate: 4000,
+    "Upper-Intermediate": 6000,
+    Advanced: 10000,
+  },
+  es: {
+    Beginner: 1500,
+    Elementary: 2500,
+    Intermediate: 4000,
+    "Upper-Intermediate": 6000,
+    Advanced: 10000,
+  },
 };
 
 function nowIso() {
@@ -123,8 +169,12 @@ function uniqueWords(words: Word[]) {
 
 function levelWords(language: LearningLanguageCode, level: EnglishLevel) {
   const all = uniqueWords(vocabularyService.all(language).filter((word) => matchesLanguage(word, language)));
-  const limit = Math.min(all.length, LEVEL_LIMITS[level] || all.length);
+  const limit = Math.min(all.length, LEVEL_LIMITS[language]?.[level] || all.length);
   return all.slice(0, limit);
+}
+
+function normalizePoolWords(words: Word[], language: LearningLanguageCode) {
+  return uniqueWords(words.filter((word) => matchesLanguage(word, language)));
 }
 
 function savedLearnedWords(language: LearningLanguageCode) {
@@ -201,6 +251,47 @@ function answerText(answer: WordReviewAnswer) {
   return `${answer.word}: ${answer.correct ? "OK" : `missed (${selected})`}`;
 }
 
+function buildSessionFromPool(options: WordReviewOptions, poolWords: Word[]): WordReviewSession {
+  const language = options.language;
+  const memory = getMemory();
+  const count = clamp(options.count, 1, 30);
+  const learnedPercent = clamp(options.learnedPercent, 0, 100);
+  const pool = normalizePoolWords(poolWords, language);
+  const saved = savedLearnedWords(language);
+  const learned = uniqueWords([...saved, ...memoryWords(language, pool, memory)]);
+  const learnedTarget = Math.min(learned.length, Math.round(count * (learnedPercent / 100)));
+  const excluded = new Set<string>();
+  const selectedLearned = takeWords(sortLearned(learned, memory, language), learnedTarget, excluded, language);
+  const selectedNew = takeWords(pool, count - selectedLearned.length, excluded, language);
+  const fill = takeWords([...learned, ...pool], count - selectedLearned.length - selectedNew.length, excluded, language);
+  const selected = [...selectedLearned, ...selectedNew, ...fill].slice(0, count);
+  const questionKinds = pickQuestionKinds(selected);
+
+  memory.lastOptions = { language, count, learnedPercent };
+  saveMemory(memory);
+
+  return {
+    id: makeId(),
+    language,
+    level: options.level,
+    count,
+    learnedPercent,
+    startedAt: nowIso(),
+    words: selected.map((word, index) => {
+      const key = wordKey(language, word.word);
+      const mem = memory.byWord[key];
+      const savedWord = saved.some((item) => wordKey(language, item.word) === key);
+      return {
+        word,
+        source: mem || savedWord ? "learned" : "level",
+        dueReason: mem?.wrong && mem.wrong > mem.correct ? "missed" : savedWord ? "saved" : mem ? "due" : "new",
+        questionKind: questionKinds[index],
+      };
+    }),
+    answers: [],
+  };
+}
+
 export const wordReviewService = {
   getLastOptions(): Partial<WordReviewOptions> | null {
     return getMemory().lastOptions || null;
@@ -211,44 +302,55 @@ export const wordReviewService = {
   },
 
   buildSession(options: WordReviewOptions): WordReviewSession {
-    const language = options.language;
-    const memory = getMemory();
-    const count = clamp(options.count, 1, 30);
-    const learnedPercent = clamp(options.learnedPercent, 0, 100);
-    const pool = levelWords(language, options.level);
-    const saved = savedLearnedWords(language);
-    const learned = uniqueWords([...saved, ...memoryWords(language, pool, memory)]);
-    const learnedTarget = Math.min(learned.length, Math.round(count * (learnedPercent / 100)));
-    const excluded = new Set<string>();
-    const selectedLearned = takeWords(sortLearned(learned, memory, language), learnedTarget, excluded, language);
-    const selectedNew = takeWords(pool, count - selectedLearned.length, excluded, language);
-    const fill = takeWords([...learned, ...pool], count - selectedLearned.length - selectedNew.length, excluded, language);
-    const selected = [...selectedLearned, ...selectedNew, ...fill].slice(0, count);
-    const questionKinds = pickQuestionKinds(selected);
+    return buildSessionFromPool(options, levelWords(options.language, options.level));
+  },
 
-    memory.lastOptions = { language, count, learnedPercent };
-    saveMemory(memory);
-
-    return {
-      id: makeId(),
-      language,
-      level: options.level,
-      count,
-      learnedPercent,
-      startedAt: nowIso(),
-      words: selected.map((word, index) => {
-        const key = wordKey(language, word.word);
-        const mem = memory.byWord[key];
-        const savedWord = saved.some((item) => wordKey(language, item.word) === key);
-        return {
-          word,
-          source: mem || savedWord ? "learned" : "level",
-          dueReason: mem?.wrong && mem.wrong > mem.correct ? "missed" : savedWord ? "saved" : mem ? "due" : "new",
-          questionKind: questionKinds[index],
-        };
-      }),
-      answers: [],
+  async buildDatabaseSession(options: WordReviewOptions): Promise<WordReviewDatabaseSessionResult> {
+    const localSession = () => {
+      const session = buildSessionFromPool(options, levelWords(options.language, options.level));
+      return { session, source: "local" as const, poolSize: session.words.length };
     };
+
+    if (typeof window === "undefined") return localSession();
+
+    try {
+      const seed = `${new Date().toISOString().slice(0, 10)}:${options.language}:${options.level}:${options.count}:${options.learnedPercent}`;
+      const params = new URLSearchParams({
+        language: options.language,
+        level: options.level,
+        limit: "900",
+        seed,
+      });
+      const response = await fetch(`/api/vocabulary/review-pool?${params.toString()}`, { cache: "no-store" });
+      if (!response.ok) {
+        const fallback = localSession();
+        return { ...fallback, reason: `Vocabulary API HTTP ${response.status}` };
+      }
+
+      const data = await response.json() as ReviewPoolApiResponse;
+      const words = Array.isArray(data.words) ? data.words : [];
+      if (data.source === "database" && words.length > 0) {
+        return {
+          session: buildSessionFromPool(options, words),
+          source: "database",
+          poolSize: data.poolSize || words.length,
+          targetCount: data.targetCount,
+        };
+      }
+
+      const fallback = localSession();
+      return {
+        ...fallback,
+        targetCount: data.targetCount,
+        reason: data.reason || "Database vocabulary pool is empty.",
+      };
+    } catch (error) {
+      const fallback = localSession();
+      return {
+        ...fallback,
+        reason: error instanceof Error ? error.message : "Vocabulary API request failed.",
+      };
+    }
   },
 
   correctChoiceFor(target: Word, questionKind: WordReviewQuestionKind = "meaningChoice"): string {
@@ -263,10 +365,11 @@ export const wordReviewService = {
     return normalizeAnswer(choice) === normalizeAnswer(optionText(target, questionKind));
   },
 
-  choicesFor(target: Word, language: LearningLanguageCode, questionKind: WordReviewQuestionKind = "meaningChoice"): string[] {
+  choicesFor(target: Word, language: LearningLanguageCode, questionKind: WordReviewQuestionKind = "meaningChoice", pool?: Word[]): string[] {
     if (questionKind === "wordFill") return [];
     const correct = optionText(target, questionKind);
-    const all = vocabularyService.all(language)
+    const sourceWords = pool && pool.length > 0 ? pool : vocabularyService.all(language);
+    const all = sourceWords
       .filter((word) => matchesLanguage(word, language) && word.word !== target.word)
       .map((word) => optionText(word, questionKind))
       .filter((text) => text && text !== correct);
