@@ -1,326 +1,221 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { getOrCreateTtsAsset } from "@/server/tts/service";
+import type { LearningLanguageCode } from "@/types";
 
-/**
- * 文章預存流程 API
- * 
- * POST /api/articles/prewarm
- * 
- * Body:
- * {
- *   articleId: string
- * }
- * 
- * 預存流程：
- * 1. 提取片語與單字
- * 2. 建立 reading_article_lexeme_links
- * 3. 預熱單字卡與片語卡
- * 4. 預生成文章句子語音
- */
+export const runtime = "nodejs";
+
+interface Token {
+  text: string;
+  lemma: string;
+  startIndex: number;
+  endIndex: number;
+}
+
+function environment() {
+  return {
+    supabaseUrl: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    cronSecret: process.env.CRON_SECRET,
+  };
+}
+
+function authorized(request: NextRequest, secret?: string): boolean {
+  if (!secret) return process.env.NODE_ENV !== "production";
+  return request.headers.get("x-cron-secret") === secret || request.headers.get("authorization") === `Bearer ${secret}`;
+}
+
+function localeFor(language: LearningLanguageCode): string {
+  return ({ en: "en", ja: "ja", ko: "ko", it: "it", es: "es" } as const)[language];
+}
+
+function tokenize(text: string, language: LearningLanguageCode): Token[] {
+  const segmenter = new Intl.Segmenter(localeFor(language), { granularity: "word" });
+  const seen = new Set<string>();
+  const tokens: Token[] = [];
+
+  for (const item of segmenter.segment(text)) {
+    if (!item.isWordLike) continue;
+    const value = item.segment.trim();
+    const key = `${item.index}:${value}`;
+    if (!value || seen.has(key)) continue;
+    seen.add(key);
+    tokens.push({
+      text: value,
+      lemma: language === "en" || language === "it" || language === "es" ? value.toLocaleLowerCase(localeFor(language)) : value,
+      startIndex: item.index,
+      endIndex: item.index + value.length,
+    });
+  }
+  return tokens;
+}
+
+async function buildLexemeLinks(supabase: ReturnType<typeof createClient>, articleId: string, language: LearningLanguageCode, sentences: Array<{ id: string; sentence_text: string }>) {
+  const tokenRows = sentences.flatMap((sentence) => tokenize(sentence.sentence_text, language).map((token) => ({ ...token, sentenceId: sentence.id })));
+  const lemmas = Array.from(new Set(tokenRows.map((token) => token.lemma))).slice(0, 500);
+  const { data: entries, error: entriesError } = lemmas.length
+    ? await supabase
+        .from("dictionary_entries")
+        .select("id, lemma")
+        .eq("language_code", language)
+        .in("lemma", lemmas)
+    : { data: [], error: null };
+  if (entriesError) throw new Error("Failed to find dictionary entries for reading article");
+
+  const entryByLemma = new Map((entries || []).map((entry) => [String(entry.lemma), entry.id]));
+  const rows = tokenRows.map((token) => ({
+    article_id: articleId,
+    sentence_id: token.sentenceId,
+    language_code: language,
+    start_index: token.startIndex,
+    end_index: token.endIndex,
+    display_text: token.text,
+    dictionary_entry_id: entryByLemma.get(token.lemma) || null,
+    phrase_priority: 0,
+  }));
+
+  const { error: removeError } = await supabase.from("reading_article_lexeme_links").delete().eq("article_id", articleId);
+  if (removeError) throw new Error("Failed to refresh reading lexeme links");
+  if (rows.length === 0) return 0;
+
+  const { error: insertError } = await supabase.from("reading_article_lexeme_links").insert(rows);
+  if (insertError) throw new Error("Failed to save reading lexeme links");
+  return rows.length;
+}
+
+async function prewarmAudio(
+  supabase: ReturnType<typeof createClient>,
+  articleId: string,
+  language: LearningLanguageCode,
+  sentences: Array<{ id: string; sentence_text: string; estimated_duration_ms: number }>
+) {
+  let cacheHits = 0;
+  let cacheMisses = 0;
+  let failures = 0;
+
+  for (const sentence of sentences) {
+    try {
+      const result = await getOrCreateTtsAsset({
+        text: sentence.sentence_text,
+        languageCode: language,
+        assetType: "reading_sentence",
+        audioVersionString: "v2_loud",
+      });
+      if (result.cached) cacheHits += 1;
+      else cacheMisses += 1;
+
+      const usablePath = result.asset.status === "ready" && result.asset.audioPath && !result.asset.audioPath.startsWith("stub://")
+        ? result.asset.audioPath
+        : null;
+      const status = usablePath ? "ready" : "failed";
+      if (!usablePath) failures += 1;
+
+      const { error } = await supabase.from("reading_article_audio_assets").upsert({
+        article_id: articleId,
+        sentence_id: sentence.id,
+        language_code: language,
+        tts_asset_id: result.asset.id,
+        // Stable provider/storage path only. Signed URLs are generated at read time.
+        audio_path: usablePath,
+        duration_ms: result.asset.durationMs || sentence.estimated_duration_ms,
+        audio_version: 2,
+        status,
+      }, { onConflict: "article_id,sentence_id,language_code" });
+      if (error) throw new Error("Failed to save article audio metadata");
+    } catch (error) {
+      failures += 1;
+      await supabase.from("reading_article_audio_assets").upsert({
+        article_id: articleId,
+        sentence_id: sentence.id,
+        language_code: language,
+        audio_path: null,
+        duration_ms: sentence.estimated_duration_ms,
+        audio_version: 2,
+        status: "failed",
+      }, { onConflict: "article_id,sentence_id,language_code" });
+      console.error("Reading sentence prewarm failed", error);
+    }
+  }
+
+  return { cacheHits, cacheMisses, failures };
+}
+
+async function refreshReadyState(supabase: ReturnType<typeof createClient>, articleId: string, topicId: string, sentenceCount: number) {
+  const { data: audioRows, error: audioError } = await supabase
+    .from("reading_article_audio_assets")
+    .select("status")
+    .eq("article_id", articleId);
+  if (audioError) throw new Error("Failed to validate article audio state");
+  const audioReady = (audioRows || []).length === sentenceCount && (audioRows || []).every((asset) => asset.status === "ready");
+  const { error: articleUpdateError } = await supabase
+    .from("reading_articles")
+    .update({ status: audioReady ? "ready" : "draft" })
+    .eq("id", articleId);
+  if (articleUpdateError) throw new Error("Failed to update article ready state");
+
+  const { data: articles, error: articlesError } = await supabase
+    .from("reading_articles")
+    .select("language_code, status")
+    .eq("topic_id", topicId);
+  if (articlesError) throw new Error("Failed to validate topic ready state");
+  const expected = new Set(["en", "ja", "ko", "it", "es"]);
+  const topicReady = (articles || []).length === expected.size &&
+    (articles || []).every((article) => expected.has(article.language_code) && article.status === "ready");
+  const { error: topicUpdateError } = await supabase
+    .from("reading_article_topics")
+    .update({ status: topicReady ? "ready" : "draft" })
+    .eq("id", topicId);
+  if (topicUpdateError) throw new Error("Failed to update topic ready state");
+
+  return { articleReady: audioReady, topicReady };
+}
 
 export async function POST(request: NextRequest) {
+  const env = environment();
+  if (!authorized(request, env.cronSecret)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!env.supabaseUrl || !env.serviceRoleKey) return NextResponse.json({ error: "Supabase service configuration is missing" }, { status: 500 });
+
+  let body: { articleId?: string };
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    body = (await request.json()) as { articleId?: string };
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  if (!body.articleId) return NextResponse.json({ error: "articleId is required" }, { status: 400 });
 
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return NextResponse.json(
-        { error: 'Supabase environment variables not configured' },
-        { status: 500 }
-      );
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    const body = await request.json();
-    const { articleId } = body;
-
-    if (!articleId) {
-      return NextResponse.json(
-        { error: 'articleId is required' },
-        { status: 400 }
-      );
-    }
-
-    // 1. 取得文章資訊
+  const supabase = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } });
+  try {
     const { data: article, error: articleError } = await supabase
-      .from('reading_articles')
-      .select('*')
-      .eq('id', articleId)
+      .from("reading_articles")
+      .select("id, topic_id, language_code, status")
+      .eq("id", body.articleId)
       .single();
+    if (articleError || !article) return NextResponse.json({ error: "Article not found" }, { status: 404 });
+    if (article.status === "published") return NextResponse.json({ error: "Published articles cannot be regenerated" }, { status: 409 });
 
-    if (articleError || !article) {
-      return NextResponse.json(
-        { error: 'Article not found' },
-        { status: 404 }
-      );
-    }
-
-    // 2. 取得文章句子
     const { data: sentences, error: sentencesError } = await supabase
-      .from('reading_article_sentences')
-      .select('*')
-      .eq('article_id', articleId)
-      .order('sentence_order');
-
-    if (sentencesError || !sentences) {
-      return NextResponse.json(
-        { error: 'Failed to fetch sentences' },
-        { status: 500 }
-      );
+      .from("reading_article_sentences")
+      .select("id, sentence_text, estimated_duration_ms")
+      .eq("article_id", article.id)
+      .order("sentence_order");
+    if (sentencesError || !sentences || sentences.length < 6 || sentences.length > 10) {
+      return NextResponse.json({ error: "Article must contain 6 to 10 sentences before prewarm" }, { status: 400 });
     }
 
-    // 3. 建立詞形連結
-    const lexemeLinks = await buildLexemeLinks(
-      supabase,
-      articleId,
-      article.language_code,
-      sentences
-    );
-
-    // 4. 預熱單字卡與片語卡
-    const prewarmResult = await prewarmVocabularyCards(
-      supabase,
-      articleId,
-      article.language_code,
-      lexemeLinks
-    );
-
-    // 5. 預生成文章句子語音
-    const audioResult = await prewarmArticleAudio(
-      supabase,
-      articleId,
-      article.language_code,
-      sentences
-    );
+    const language = article.language_code as LearningLanguageCode;
+    const lexemeLinks = await buildLexemeLinks(supabase, article.id, language, sentences);
+    const audio = await prewarmAudio(supabase, article.id, language, sentences);
+    const state = await refreshReadyState(supabase, article.id, article.topic_id, sentences.length);
 
     return NextResponse.json({
       success: true,
-      articleId,
-      lexemeLinksCount: lexemeLinks.length,
-      prewarmResult,
-      audioResult,
+      articleId: article.id,
+      lexemeLinks,
+      audio,
+      ...state,
     });
   } catch (error) {
-    console.error('Article prewarm error:', error);
-    return NextResponse.json(
-      { error: 'Failed to prewarm article' },
-      { status: 500 }
-    );
+    console.error("Daily article prewarm error", error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to prewarm article" }, { status: 500 });
   }
-}
-
-async function buildLexemeLinks(
-  supabase: any,
-  articleId: string,
-  languageCode: string,
-  sentences: any[]
-): Promise<any[]> {
-  const links: any[] = [];
-
-  for (const sentence of sentences) {
-    const text = sentence.sentence_text;
-    const wordsAndPhrases = extractWordsAndPhrases(text, languageCode);
-
-    for (const item of wordsAndPhrases) {
-      // 查詢字典條目
-      const { data: dictionaryEntry } = await supabase
-        .from('dictionary_entries')
-        .select('id')
-        .eq('lemma', item.lemma)
-        .eq('language_code', languageCode)
-        .limit(1)
-        .maybeSingle();
-
-      const link = {
-        id: `lexeme_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        article_id: articleId,
-        sentence_id: sentence.id,
-        language_code: languageCode,
-        start_index: item.startIndex,
-        end_index: item.endIndex,
-        display_text: item.text,
-        dictionary_entry_id: dictionaryEntry?.id || null,
-        phrase_priority: item.isPhrase ? 10 : 0,
-      };
-
-      const { error: insertError } = await supabase
-        .from('reading_article_lexeme_links')
-        .insert(link);
-
-      if (!insertError) {
-        links.push(link);
-      }
-    }
-  }
-
-  return links;
-}
-
-function extractWordsAndPhrases(text: string, languageCode: string): any[] {
-  const items: any[] = [];
-  const words = text.split(/\s+/);
-  let currentIndex = 0;
-
-  // 簡單實作：先提取單字，片語需要更複雜的 NLP
-  for (const word of words) {
-    const startIndex = text.indexOf(word, currentIndex);
-    if (startIndex !== -1) {
-      items.push({
-        text: word,
-        lemma: word.toLowerCase(),
-        isPhrase: false,
-        startIndex,
-        endIndex: startIndex + word.length,
-      });
-      currentIndex = startIndex + word.length;
-    }
-  }
-
-  // TODO: 實作片語提取（需要更複雜的 NLP）
-  // 可以使用既有片語庫進行匹配
-
-  return items;
-}
-
-async function prewarmVocabularyCards(
-  supabase: any,
-  articleId: string,
-  languageCode: string,
-  lexemeLinks: any[]
-): Promise<any> {
-  let cardsCreated = 0;
-  let cardsCached = 0;
-
-  for (const link of lexemeLinks) {
-    if (!link.dictionary_entry_id) {
-      // 如果沒有對應的字典條目，可以選擇建立新的
-      continue;
-    }
-
-    // 檢查是否已有快取
-    const { data: existingCard } = await supabase
-      .from('cached_dictionary_entries')
-      .select('id')
-      .eq('id', link.dictionary_entry_id)
-      .maybeSingle();
-
-    if (existingCard) {
-      cardsCached++;
-      continue;
-    }
-
-    // 從字典條目建立快取
-    const { data: dictionaryEntry } = await supabase
-      .from('dictionary_entries')
-      .select('*')
-      .eq('id', link.dictionary_entry_id)
-      .single();
-
-    if (dictionaryEntry) {
-      const { error: insertError } = await supabase
-        .from('cached_dictionary_entries')
-        .insert({
-          id: dictionaryEntry.id,
-          lemma: dictionaryEntry.lemma,
-          language_code: dictionaryEntry.language_code,
-          part_of_speech: dictionaryEntry.part_of_speech,
-          phonetic: dictionaryEntry.phonetic,
-          definition_zh_tw: dictionaryEntry.definition_zh_tw,
-          example_sentence: dictionaryEntry.example_sentence,
-          example_zh_tw: dictionaryEntry.example_zh_tw,
-          cached_at: new Date().toISOString(),
-          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 天
-        });
-
-      if (!insertError) {
-        cardsCreated++;
-      }
-    }
-  }
-
-  return {
-    cardsCreated,
-    cardsCached,
-  };
-}
-
-async function prewarmArticleAudio(
-  supabase: any,
-  articleId: string,
-  languageCode: string,
-  sentences: any[]
-): Promise<any> {
-  let audioCreated = 0;
-  let audioCached = 0;
-  let audioFailed = 0;
-
-  for (const sentence of sentences) {
-    // 檢查是否已有音檔
-    const { data: existingAudio } = await supabase
-      .from('reading_article_audio_assets')
-      .select('*')
-      .eq('article_id', articleId)
-      .eq('sentence_id', sentence.id)
-      .eq('language_code', languageCode)
-      .maybeSingle();
-
-    if (existingAudio && existingAudio.status === 'ready') {
-      audioCached++;
-      continue;
-    }
-
-    // 呼叫 TTS get-or-create API
-    try {
-      const ttsResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/tts/get-or-create`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: sentence.sentence_text,
-          languageCode: languageCode,
-          assetType: 'reading_sentence',
-        }),
-      });
-
-      if (ttsResponse.ok) {
-        const ttsData = await ttsResponse.json();
-
-        // 建立或更新音檔記錄
-        const audioData = {
-          article_id: articleId,
-          sentence_id: sentence.id,
-          language_code: languageCode,
-          tts_asset_id: ttsData.id,
-          audio_path: ttsData.signedUrl,
-          duration_ms: sentence.estimated_duration_ms,
-          audio_version: 1,
-          status: 'ready',
-        };
-
-        if (existingAudio) {
-          await supabase
-            .from('reading_article_audio_assets')
-            .update(audioData)
-            .eq('id', existingAudio.id);
-        } else {
-          await supabase
-            .from('reading_article_audio_assets')
-            .insert(audioData);
-        }
-
-        audioCreated++;
-      } else {
-        audioFailed++;
-      }
-    } catch (error) {
-      console.error('Failed to generate TTS for sentence:', error);
-      audioFailed++;
-    }
-  }
-
-  return {
-    audioCreated,
-    audioCached,
-    audioFailed,
-  };
 }
