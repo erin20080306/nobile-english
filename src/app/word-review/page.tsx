@@ -16,21 +16,117 @@ import BottomNav from "@/components/BottomNav";
 const countOptions = [5, 10, 15, 20, 25, 30];
 const learnedOptions = [0, 25, 50, 75, 100];
 
-async function playAnswerSound(correct: boolean) {
+let answerAudioContext: AudioContext | null = null;
+const answerSoundUrls: Partial<Record<"correct" | "wrong", string>> = {};
+
+function getAnswerAudioContext(): AudioContext | null {
+  if (typeof window === "undefined") return null;
+  const audioWindow = window as typeof window & { webkitAudioContext?: typeof AudioContext };
+  const AudioContextClass = audioWindow.AudioContext || audioWindow.webkitAudioContext;
+  if (!AudioContextClass) return null;
+  if (!answerAudioContext || answerAudioContext.state === "closed") {
+    answerAudioContext = new AudioContextClass();
+  }
+  return answerAudioContext;
+}
+
+function writeAscii(view: DataView, offset: number, text: string) {
+  for (let index = 0; index < text.length; index += 1) {
+    view.setUint8(offset + index, text.charCodeAt(index));
+  }
+}
+
+function makeAnswerSoundUrl(correct: boolean) {
+  if (typeof window === "undefined") return "";
+  const key = correct ? "correct" : "wrong";
+  if (answerSoundUrls[key]) return answerSoundUrls[key] || "";
+
+  const sampleRate = 11025;
+  const duration = correct ? 0.32 : 0.26;
+  const sampleCount = Math.floor(sampleRate * duration);
+  const dataBytes = sampleCount * 2;
+  const buffer = new ArrayBuffer(44 + dataBytes);
+  const view = new DataView(buffer);
+
+  writeAscii(view, 0, "RIFF");
+  view.setUint32(4, 36 + dataBytes, true);
+  writeAscii(view, 8, "WAVE");
+  writeAscii(view, 12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeAscii(view, 36, "data");
+  view.setUint32(40, dataBytes, true);
+
+  for (let index = 0; index < sampleCount; index += 1) {
+    const time = index / sampleRate;
+    const split = correct ? 0.13 : 0.11;
+    const frequency = correct ? (time < split ? 660 : 920) : (time < split ? 250 : 155);
+    const attack = Math.min(1, index / (sampleRate * 0.015));
+    const release = Math.max(0, 1 - index / sampleCount);
+    const sample = Math.sin(2 * Math.PI * frequency * time) * 0.38 * attack * release;
+    view.setInt16(44 + index * 2, Math.max(-1, Math.min(1, sample)) * 0x7fff, true);
+  }
+
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += 1) {
+    binary += String.fromCharCode(bytes[index]);
+  }
+  const url = `data:audio/wav;base64,${window.btoa(binary)}`;
+  answerSoundUrls[key] = url;
+  return url;
+}
+
+function playHtmlAnswerSound(correct: boolean) {
   if (typeof window === "undefined") return;
   try {
-    const audioWindow = window as typeof window & { webkitAudioContext?: typeof AudioContext };
-    const AudioContextClass = audioWindow.AudioContext || audioWindow.webkitAudioContext;
-    if (!AudioContextClass) return;
+    const audio = new Audio(makeAnswerSoundUrl(correct));
+    audio.volume = 0.75;
+    void audio.play().catch(() => undefined);
+  } catch {
+    // Ignore blocked fallback audio.
+  }
+}
 
-    const context = new AudioContextClass();
+async function unlockAnswerAudio() {
+  try {
+    const context = getAnswerAudioContext();
+    if (!context) return false;
     if (context.state === "suspended") await context.resume();
 
-    const start = context.currentTime + 0.01;
+    const source = context.createBufferSource();
+    const gain = context.createGain();
+    source.buffer = context.createBuffer(1, 1, context.sampleRate);
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    source.connect(gain);
+    gain.connect(context.destination);
+    source.start();
+    source.stop(context.currentTime + 0.01);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function playAnswerSound(correct: boolean) {
+  try {
+    const context = getAnswerAudioContext();
+    if (!context) {
+      playHtmlAnswerSound(correct);
+      return;
+    }
+    if (context.state === "suspended") await context.resume();
+
+    const start = context.currentTime + 0.015;
     const gain = context.createGain();
     gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.exponentialRampToValueAtTime(correct ? 0.18 : 0.16, start + 0.015);
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + (correct ? 0.34 : 0.26));
+    gain.gain.exponentialRampToValueAtTime(correct ? 0.32 : 0.28, start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + (correct ? 0.4 : 0.3));
     gain.connect(context.destination);
 
     const playTone = (frequency: number, offset: number, duration: number) => {
@@ -38,21 +134,22 @@ async function playAnswerSound(correct: boolean) {
       oscillator.type = correct ? "sine" : "triangle";
       oscillator.frequency.setValueAtTime(frequency, start + offset);
       oscillator.connect(gain);
+      oscillator.onended = () => oscillator.disconnect();
       oscillator.start(start + offset);
       oscillator.stop(start + offset + duration);
     };
 
     if (correct) {
-      playTone(660, 0, 0.11);
-      playTone(880, 0.11, 0.16);
+      playTone(660, 0, 0.13);
+      playTone(920, 0.13, 0.18);
     } else {
-      playTone(260, 0, 0.1);
-      playTone(170, 0.1, 0.14);
+      playTone(250, 0, 0.11);
+      playTone(155, 0.11, 0.16);
     }
 
-    window.setTimeout(() => { void context.close(); }, correct ? 480 : 380);
+    window.setTimeout(() => gain.disconnect(), correct ? 520 : 420);
   } catch {
-    // Sound is optional; answering should never fail because audio is blocked.
+    playHtmlAnswerSound(correct);
   }
 }
 
@@ -94,6 +191,7 @@ export default function WordReviewPage() {
   const progress = session ? Math.round(((index + (revealed ? 1 : 0)) / Math.max(session.words.length, 1)) * 100) : 0;
 
   function startReview() {
+    void unlockAnswerAudio();
     const next = wordReviewService.buildSession({ language, level, count, learnedPercent });
     setSession(next);
     setIndex(0);
@@ -278,7 +376,7 @@ export default function WordReviewPage() {
                 className={`rounded-3xl bg-white p-4 text-lg font-bold text-ink shadow-softer outline-none ${revealed ? "opacity-70" : ""}`}
               />
               {!revealed && (
-                <button disabled={!typedAnswer.trim()} className="btn-primary w-full disabled:opacity-50">
+                <button onPointerDown={() => { void unlockAnswerAudio(); }} disabled={!typedAnswer.trim()} className="btn-primary w-full disabled:opacity-50">
                   送出答案
                 </button>
               )}
@@ -292,6 +390,7 @@ export default function WordReviewPage() {
                   <button
                     key={`${choice}-${choiceIndex}`}
                     disabled={revealed}
+                    onPointerDown={() => { void unlockAnswerAudio(); }}
                     onClick={() => answer(choice)}
                     className={`rounded-3xl p-4 text-left font-bold shadow-softer transition active:scale-[0.98] ${
                       revealed && correct
@@ -383,7 +482,7 @@ export default function WordReviewPage() {
           </div>
         </div>
 
-        <button onClick={startReview} className="btn-primary w-full">
+        <button onPointerDown={() => { void unlockAnswerAudio(); }} onClick={startReview} className="btn-primary w-full">
           開始單字複習
         </button>
       </div>
