@@ -1,6 +1,8 @@
 -- 每日五語閱讀文章功能
 -- Migration: 20240629_daily_reading_articles
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- 1. 文章主題表
 CREATE TABLE IF NOT EXISTS reading_article_topics (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -174,20 +176,25 @@ ALTER TABLE daily_article_generation_log ENABLE ROW LEVEL SECURITY;
 -- RLS Policies
 
 -- reading_article_topics: 只有服務角色和管理者可以讀寫
+DROP POLICY IF EXISTS "Service role can manage reading_article_topics" ON reading_article_topics;
 CREATE POLICY "Service role can manage reading_article_topics" ON reading_article_topics
   FOR ALL USING (auth.role() = 'service_role');
 
 -- reading_articles: 只有服務角色和管理者可以讀寫，已發布的文章所有人可讀
+DROP POLICY IF EXISTS "Service role can manage reading_articles" ON reading_articles;
 CREATE POLICY "Service role can manage reading_articles" ON reading_articles
   FOR ALL USING (auth.role() = 'service_role');
 
+DROP POLICY IF EXISTS "Published articles are readable by everyone" ON reading_articles;
 CREATE POLICY "Published articles are readable by everyone" ON reading_articles
   FOR SELECT USING (status = 'published');
 
 -- reading_article_sentences: 只有服務角色和管理者可以讀寫，已發布文章的句子所有人可讀
+DROP POLICY IF EXISTS "Service role can manage reading_article_sentences" ON reading_article_sentences;
 CREATE POLICY "Service role can manage reading_article_sentences" ON reading_article_sentences
   FOR ALL USING (auth.role() = 'service_role');
 
+DROP POLICY IF EXISTS "Sentences from published articles are readable by everyone" ON reading_article_sentences;
 CREATE POLICY "Sentences from published articles are readable by everyone" ON reading_article_sentences
   FOR SELECT USING (
     EXISTS (
@@ -198,9 +205,11 @@ CREATE POLICY "Sentences from published articles are readable by everyone" ON re
   );
 
 -- reading_article_lexeme_links: 只有服務角色和管理者可以讀寫，已發布文章的連結所有人可讀
+DROP POLICY IF EXISTS "Service role can manage reading_article_lexeme_links" ON reading_article_lexeme_links;
 CREATE POLICY "Service role can manage reading_article_lexeme_links" ON reading_article_lexeme_links
   FOR ALL USING (auth.role() = 'service_role');
 
+DROP POLICY IF EXISTS "Lexeme links from published articles are readable by everyone" ON reading_article_lexeme_links;
 CREATE POLICY "Lexeme links from published articles are readable by everyone" ON reading_article_lexeme_links
   FOR SELECT USING (
     EXISTS (
@@ -211,9 +220,11 @@ CREATE POLICY "Lexeme links from published articles are readable by everyone" ON
   );
 
 -- reading_article_audio_assets: 只有服務角色和管理者可以讀寫，已發布文章的音檔所有人可讀
+DROP POLICY IF EXISTS "Service role can manage reading_article_audio_assets" ON reading_article_audio_assets;
 CREATE POLICY "Service role can manage reading_article_audio_assets" ON reading_article_audio_assets
   FOR ALL USING (auth.role() = 'service_role');
 
+DROP POLICY IF EXISTS "Audio assets from published articles are readable by everyone" ON reading_article_audio_assets;
 CREATE POLICY "Audio assets from published articles are readable by everyone" ON reading_article_audio_assets
   FOR SELECT USING (
     EXISTS (
@@ -224,9 +235,11 @@ CREATE POLICY "Audio assets from published articles are readable by everyone" ON
   );
 
 -- reading_article_questions: 只有服務角色和管理者可以讀寫，已發布文章的問題所有人可讀
+DROP POLICY IF EXISTS "Service role can manage reading_article_questions" ON reading_article_questions;
 CREATE POLICY "Service role can manage reading_article_questions" ON reading_article_questions
   FOR ALL USING (auth.role() = 'service_role');
 
+DROP POLICY IF EXISTS "Questions from published articles are readable by everyone" ON reading_article_questions;
 CREATE POLICY "Questions from published articles are readable by everyone" ON reading_article_questions
   FOR SELECT USING (
     EXISTS (
@@ -237,20 +250,25 @@ CREATE POLICY "Questions from published articles are readable by everyone" ON re
   );
 
 -- reading_article_progress: 使用者只能讀寫自己的進度
+DROP POLICY IF EXISTS "Users can read their own reading progress" ON reading_article_progress;
 CREATE POLICY "Users can read their own reading progress" ON reading_article_progress
   FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert their own reading progress" ON reading_article_progress;
 CREATE POLICY "Users can insert their own reading progress" ON reading_article_progress
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update their own reading progress" ON reading_article_progress;
 CREATE POLICY "Users can update their own reading progress" ON reading_article_progress
   FOR UPDATE USING (auth.uid() = user_id);
 
 -- reading_article_rewards: 只有服務角色和管理者可以讀寫
+DROP POLICY IF EXISTS "Service role can manage reading_article_rewards" ON reading_article_rewards;
 CREATE POLICY "Service role can manage reading_article_rewards" ON reading_article_rewards
   FOR ALL USING (auth.role() = 'service_role');
 
 -- daily_article_generation_log: 只有服務角色和管理者可以讀寫
+DROP POLICY IF EXISTS "Service role can manage daily_article_generation_log" ON daily_article_generation_log;
 CREATE POLICY "Service role can manage daily_article_generation_log" ON daily_article_generation_log
   FOR ALL USING (auth.role() = 'service_role');
 
@@ -263,23 +281,48 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_reading_article_topics_updated_at ON reading_article_topics;
 CREATE TRIGGER update_reading_article_topics_updated_at BEFORE UPDATE ON reading_article_topics
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_reading_articles_updated_at ON reading_articles;
 CREATE TRIGGER update_reading_articles_updated_at BEFORE UPDATE ON reading_articles
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_reading_article_sentences_updated_at ON reading_article_sentences;
 CREATE TRIGGER update_reading_article_sentences_updated_at BEFORE UPDATE ON reading_article_sentences
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_reading_article_lexeme_links_updated_at ON reading_article_lexeme_links;
 CREATE TRIGGER update_reading_article_lexeme_links_updated_at BEFORE UPDATE ON reading_article_lexeme_links
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_reading_article_audio_assets_updated_at ON reading_article_audio_assets;
 CREATE TRIGGER update_reading_article_audio_assets_updated_at BEFORE UPDATE ON reading_article_audio_assets
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_reading_article_questions_updated_at ON reading_article_questions;
 CREATE TRIGGER update_reading_article_questions_updated_at BEFORE UPDATE ON reading_article_questions
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_reading_article_progress_updated_at ON reading_article_progress;
 CREATE TRIGGER update_reading_article_progress_updated_at BEFORE UPDATE ON reading_article_progress
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT SELECT ON reading_articles TO anon, authenticated;
+GRANT SELECT ON reading_article_sentences TO anon, authenticated;
+GRANT SELECT ON reading_article_lexeme_links TO anon, authenticated;
+GRANT SELECT ON reading_article_audio_assets TO anon, authenticated;
+GRANT SELECT ON reading_article_questions TO anon, authenticated;
+GRANT SELECT ON reading_article_rewards TO anon, authenticated;
+GRANT SELECT, INSERT, UPDATE ON reading_article_progress TO authenticated;
+GRANT ALL ON reading_article_topics TO service_role;
+GRANT ALL ON reading_articles TO service_role;
+GRANT ALL ON reading_article_sentences TO service_role;
+GRANT ALL ON reading_article_lexeme_links TO service_role;
+GRANT ALL ON reading_article_audio_assets TO service_role;
+GRANT ALL ON reading_article_questions TO service_role;
+GRANT ALL ON reading_article_progress TO service_role;
+GRANT ALL ON reading_article_rewards TO service_role;
+GRANT ALL ON daily_article_generation_log TO service_role;

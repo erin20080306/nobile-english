@@ -21,7 +21,8 @@ export type TtsAssetType =
   | "tutor_hint"
   | "tutor_complete"
   | "word_pronunciation"
-  | "dynamic_tutor_reply";
+  | "dynamic_tutor_reply"
+  | "reading_sentence";
 
 export type TtsAssetStatus = "generating" | "ready" | "failed";
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getTaipeiDateString } from '@/server/articles/dates';
 
 /**
  * 今日文章 API
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
     const language = searchParams.get('language') || 'en';
 
     // 1. 取得今日日期
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTaipeiDateString();
 
     // 2. 取得今日已發布的 topic
     const { data: topic, error: topicError } = await supabase
@@ -91,14 +92,32 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 6. 取得文章測驗題目
+    // 6. 取得文章單字連結
+    const { data: lexemeLinks } = await supabase
+      .from('reading_article_lexeme_links')
+      .select(`
+        *,
+        dictionary_entries (
+          id,
+          display_word,
+          lemma,
+          part_of_speech,
+          definitions_zh_tw_json,
+          examples_json,
+          cefr_level
+        )
+      `)
+      .eq('article_id', article.id)
+      .order('sentence_id');
+
+    // 7. 取得文章測驗題目
     const { data: questions } = await supabase
       .from('reading_article_questions')
       .select('*')
       .eq('article_id', article.id)
       .order('question_order');
 
-    // 7. 組合回應
+    // 8. 組合回應
     const sentencesWithAudio = sentences.map(sentence => ({
       ...sentence,
       audio_url: audioMap.get(sentence.id) || null,
@@ -107,6 +126,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       ...article,
       sentences: sentencesWithAudio,
+      lexeme_links: lexemeLinks || [],
       questions: questions || [],
     });
   } catch (error) {

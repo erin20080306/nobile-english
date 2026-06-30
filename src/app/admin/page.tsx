@@ -171,15 +171,27 @@ export default function AdminPage() {
 
   async function runFullPipeline() {
     setLoadingAction("pipeline");
-    addLog("=== 一鍵建立今日文章（生成 + 發布）===", "info");
+    addLog("=== 一鍵建立今日文章（生成 + 預熱 + 發布）===", "info");
     try {
-      const res = await fetch("/api/articles/daily-create", { method: "POST" });
+      const res = await fetch("/api/articles/daily-create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prewarm: true, includeAudio: true }),
+      });
       const data = await res.json();
       if (res.ok && data.success) {
         if (data.skipped) {
           addLog(`ℹ️ 今日文章已存在，跳過生成`, "info");
         } else {
           addLog(`✅ 成功建立 ${data.articlesCreated}/5 篇文章，主題：${data.topic}`, "ok");
+          if (data.prewarm?.results?.length) {
+            const audioReady = data.prewarm.results.reduce(
+              (sum: number, item: { audioCreated?: number; audioCached?: number }) =>
+                sum + (item.audioCreated ?? 0) + (item.audioCached ?? 0),
+              0
+            );
+            addLog(`✅ 預熱完成：${data.prewarm.results.length} 篇，音檔 ${audioReady} 筆`, "ok");
+          }
           data.results?.forEach((r: { lang: string; success: boolean; title?: string; error?: string }) => {
             addLog(`  ${r.success ? "✅" : "❌"} ${r.lang}: ${r.title ?? r.error}`, r.success ? "ok" : "error");
           });

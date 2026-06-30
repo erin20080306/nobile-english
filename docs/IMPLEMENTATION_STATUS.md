@@ -2,6 +2,111 @@
 
 Last updated: 2026-07-01
 
+## Daily reading articles database and automation
+
+Status: implemented in code. Production Supabase still needs the daily reading article migration applied before the admin button and cron can create articles.
+
+### Root cause fixed
+
+- The admin backend error `PGRST205` / `Could not find the table 'public.reading_article_topics' in the schema cache` means the daily reading article tables were not created in Supabase Production.
+- `/api/articles/daily-create` was writing to `reading_article_topics`, `reading_articles`, `reading_article_sentences`, and `reading_article_questions`, so the flow could not start until the schema exists.
+- Article prewarm also had two practical blockers:
+  - `reading_article_lexeme_links.id` was being filled with a non-UUID string even though the table uses UUID ids.
+  - `reading_sentence` was not listed as an allowed TTS asset type.
+
+### Completed in code
+
+- `supabase/migrations/20240629_daily_reading_articles.sql`
+  - Made the daily article schema safer to rerun from Supabase SQL Editor.
+  - Added `DROP POLICY IF EXISTS` and `DROP TRIGGER IF EXISTS` before recreating policies/triggers.
+  - Added basic API grants for published article reads and service-role management.
+
+- `supabase/migrations/20260701_reading_sentence_tts_asset_type.sql`
+  - Adds the `reading_sentence` TTS asset type for article sentence prewarm.
+
+- `src/server/articles/dates.ts`
+  - Centralizes Taiwan-date calculation so daily articles are keyed by `Asia/Taipei` date rather than UTC date.
+
+- `src/server/articles/dailyCreate.ts`
+  - Extracts the one-click article creation flow from the API route.
+  - Uses dated topic keys like `coffee_shop_20260701` to avoid the old unique-key collision when a topic repeats.
+  - Creates and publishes five language articles for English, Japanese, Korean, Italian, and Spanish.
+  - Can optionally prewarm the created articles.
+
+- `src/server/articles/prewarm.ts`
+  - Creates article-to-dictionary lexeme links from the database vocabulary.
+  - Omits manual ids so Supabase generates valid UUIDs.
+  - Supports English/Italian/Spanish word tokenization and `Intl.Segmenter`-based Japanese/Korean tokenization when available.
+  - Prewarms article sentence audio through the existing TTS service using `reading_sentence`.
+
+- `src/app/api/articles/daily-create/route.ts`
+  - Now uses the shared article creation service.
+  - Returns a clear `READING_ARTICLE_SCHEMA_MISSING` error when Supabase tables are absent.
+
+- `src/app/api/articles/prewarm/route.ts`
+  - Accepts either a specific `articleId` or no body.
+  - With no body, prewarms today's five-language article set.
+
+- `src/app/api/articles/today/route.ts`
+  - Uses Taiwan date.
+  - Returns `lexeme_links` with dictionary-entry metadata when article prewarm has created links.
+
+- `src/app/api/articles/publish/route.ts`
+  - Allows the admin publish button to work without an explicit `topicId` by resolving today's ready topic.
+
+- `src/app/api/articles/cron/daily/route.ts`
+  - Adds a secured Vercel Cron endpoint.
+  - Requires `CRON_SECRET` in Production and checks `Authorization: Bearer <CRON_SECRET>`.
+  - Runs daily article creation with prewarm enabled.
+
+- `vercel.json`
+  - Adds a Vercel Cron schedule:
+    - `10 16 * * *` UTC
+    - This is 00:10 Asia/Taipei.
+
+- `src/app/admin/page.tsx`
+  - The existing one-click button now calls `daily-create` with `{ prewarm: true, includeAudio: true }`.
+  - UI layout was not redesigned.
+
+### Required production setup
+
+1. In Supabase SQL Editor, run:
+
+```sql
+-- supabase/migrations/20240629_daily_reading_articles.sql
+```
+
+2. If the TTS enum already exists in Production, run:
+
+```sql
+ALTER TYPE tts_asset_type ADD VALUE IF NOT EXISTS 'reading_sentence';
+```
+
+3. In Vercel Production environment variables, add:
+
+```text
+CRON_SECRET
+```
+
+4. Redeploy Production after adding `CRON_SECRET`.
+
+### Verified locally
+
+- TypeScript:
+  - `npx tsc --noEmit` passed.
+- Production build:
+  - `npm run build` passed.
+  - Build included `/api/articles/cron/daily`, `/api/articles/daily-create`, `/api/articles/prewarm`, `/api/articles/publish`, and `/api/articles/today` as dynamic routes.
+- Lint:
+  - `CI=1 npm run lint` still opens Next.js' interactive ESLint setup prompt because the project has no ESLint config. No lint rules were executed.
+
+### Not yet verified
+
+- Production Supabase daily article tables were not created from this Codex session; they must be applied in Supabase SQL Editor or through Supabase CLI.
+- Production `/api/articles/daily-create` cannot be confirmed until the Supabase migration is applied and Vercel deploys this commit.
+- Vercel Cron execution cannot be confirmed until `CRON_SECRET` is set and the next scheduled run fires.
+- Physical article sentence audio playback was not verified on a phone in this pass.
+
 ## Database word-review vocabulary targets
 
 Status: implemented in app/API/import tooling. Supabase production import still needs to be run with real Supabase service-role credentials.

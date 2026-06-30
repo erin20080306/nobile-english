@@ -14,6 +14,7 @@ const ASSET_TYPES = new Set<TtsAssetType>([
   "tutor_complete",
   "word_pronunciation",
   "dynamic_tutor_reply",
+  "reading_sentence",
 ]);
 
 export async function POST(req: Request) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getTaipeiDateString } from '@/server/articles/dates';
 
 /**
  * 文章發布 API
@@ -33,14 +34,40 @@ export async function POST(request: NextRequest) {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const body = await request.json();
-    const { topicId } = body;
+    let body: { topicId?: string } = {};
+    try {
+      body = await request.json();
+    } catch {
+      body = {};
+    }
+    let { topicId } = body;
 
     if (!topicId) {
-      return NextResponse.json(
-        { error: 'topicId is required' },
-        { status: 400 }
-      );
+      const today = getTaipeiDateString();
+      const { data: todayTopic, error: todayTopicError } = await supabase
+        .from('reading_article_topics')
+        .select('id, status')
+        .eq('publish_date', today)
+        .in('status', ['ready', 'published'])
+        .maybeSingle();
+
+      if (todayTopicError || !todayTopic) {
+        return NextResponse.json(
+          { error: 'topicId is required and no ready topic was found for today' },
+          { status: 400 }
+        );
+      }
+
+      if (todayTopic.status === 'published') {
+        return NextResponse.json({
+          success: true,
+          skipped: true,
+          topicId: todayTopic.id,
+          message: 'Topic is already published',
+        });
+      }
+
+      topicId = todayTopic.id as string;
     }
 
     // 1. 取得 topic 資訊
