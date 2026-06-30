@@ -10,7 +10,7 @@ export interface WordReviewOptions {
   learnedPercent: number;
 }
 
-export type WordReviewQuestionKind = "meaningChoice" | "wordChoice";
+export type WordReviewQuestionKind = "meaningChoice" | "wordChoice" | "wordFill";
 
 export interface WordReviewItem {
   word: Word;
@@ -170,7 +170,11 @@ function nextDueDate(correct: boolean, streak: number) {
 }
 
 function optionText(word: Word, questionKind: WordReviewQuestionKind) {
-  return questionKind === "wordChoice" ? word.word : word.zh || word.word;
+  return questionKind === "meaningChoice" ? word.zh || word.word : word.word;
+}
+
+function normalizeAnswer(text: string) {
+  return text.trim().toLowerCase().normalize("NFC");
 }
 
 function choiceScore(text: string, seed: number) {
@@ -178,14 +182,18 @@ function choiceScore(text: string, seed: number) {
 }
 
 function pickQuestionKinds(words: Word[]): WordReviewQuestionKind[] {
-  const wordChoiceCount = words.length >= 4 ? Math.max(1, Math.round(words.length * 0.35)) : words.length >= 2 ? 1 : 0;
-  const wordChoiceIndexes = new Set(
-    words
-      .map((_, index) => index)
-      .sort(() => Math.random() - 0.5)
-      .slice(0, wordChoiceCount)
-  );
-  return words.map((_, index) => wordChoiceIndexes.has(index) ? "wordChoice" : "meaningChoice");
+  const fillCount = words.length >= 5 ? Math.max(1, Math.round(words.length * 0.25)) : words.length >= 3 ? 1 : 0;
+  const wordChoiceCount = words.length >= 4 ? Math.max(1, Math.round(words.length * 0.25)) : words.length >= 2 ? 1 : 0;
+  const shuffledIndexes = words
+    .map((_, index) => index)
+    .sort(() => Math.random() - 0.5);
+  const fillIndexes = new Set(shuffledIndexes.slice(0, fillCount));
+  const wordChoiceIndexes = new Set(shuffledIndexes.slice(fillCount, fillCount + wordChoiceCount));
+  return words.map((_, index) => {
+    if (fillIndexes.has(index)) return "wordFill";
+    if (wordChoiceIndexes.has(index)) return "wordChoice";
+    return "meaningChoice";
+  });
 }
 
 function answerText(answer: WordReviewAnswer) {
@@ -247,11 +255,16 @@ export const wordReviewService = {
     return optionText(target, questionKind);
   },
 
+  isCorrectAnswer(answer: string, target: Word, questionKind: WordReviewQuestionKind = "meaningChoice"): boolean {
+    return normalizeAnswer(answer) === normalizeAnswer(optionText(target, questionKind));
+  },
+
   isCorrectChoice(choice: string, target: Word, questionKind: WordReviewQuestionKind = "meaningChoice"): boolean {
-    return choice === optionText(target, questionKind);
+    return this.isCorrectAnswer(choice, target, questionKind);
   },
 
   choicesFor(target: Word, language: LearningLanguageCode, questionKind: WordReviewQuestionKind = "meaningChoice"): string[] {
+    if (questionKind === "wordFill") return [];
     const correct = optionText(target, questionKind);
     const all = vocabularyService.all(language)
       .filter((word) => matchesLanguage(word, language) && word.word !== target.word)
