@@ -5,94 +5,64 @@ import type { LearningLanguageCode } from "@/types";
 
 export const runtime = "nodejs";
 
-interface Token {
-  text: string;
-  lemma: string;
-  startIndex: number;
-  endIndex: number;
-}
+type ArticleRow = { id: string; topic_id: string; language_code: LearningLanguageCode; status: string };
+type SentenceRow = { id: string; sentence_text: string; estimated_duration_ms: number };
+type AudioRow = { status: string };
+type TopicArticleRow = { language_code: string; status: string };
+type Token = { text: string; lemma: string; startIndex: number; endIndex: number };
 
-function environment() {
+function config() {
   return {
-    supabaseUrl: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
-    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-    cronSecret: process.env.CRON_SECRET,
+    url: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
+    key: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    secret: process.env.CRON_SECRET,
   };
 }
 
-function authorized(request: NextRequest, secret?: string): boolean {
+function allowed(request: NextRequest, secret?: string) {
   if (!secret) return process.env.NODE_ENV !== "production";
   return request.headers.get("x-cron-secret") === secret || request.headers.get("authorization") === `Bearer ${secret}`;
 }
 
-function localeFor(language: LearningLanguageCode): string {
-  return ({ en: "en", ja: "ja", ko: "ko", it: "it", es: "es" } as const)[language];
-}
-
 function tokenize(text: string, language: LearningLanguageCode): Token[] {
-  const segmenter = new Intl.Segmenter(localeFor(language), { granularity: "word" });
-  const seen = new Set<string>();
-  const tokens: Token[] = [];
-
-  for (const item of segmenter.segment(text)) {
-    if (!item.isWordLike) continue;
-    const value = item.segment.trim();
-    const key = `${item.index}:${value}`;
-    if (!value || seen.has(key)) continue;
-    seen.add(key);
-    tokens.push({
-      text: value,
-      lemma: language === "en" || language === "it" || language === "es" ? value.toLocaleLowerCase(localeFor(language)) : value,
-      startIndex: item.index,
-      endIndex: item.index + value.length,
+  const locale = ({ en: "en", ja: "ja", ko: "ko", it: "it", es: "es" } as const)[language];
+  const parts = Array.from(new Intl.Segmenter(locale, { granularity: "word" }).segment(text));
+  return parts
+    .filter((part) => part.isWordLike && part.segment.trim())
+    .map((part) => {
+      const value = part.segment.trim();
+      return {
+        text: value,
+        lemma: language === "en" || language === "it" || language === "es" ? value.toLocaleLowerCase(locale) : value,
+        startIndex: part.index,
+        endIndex: part.index + value.length,
+      };
     });
-  }
-  return tokens;
 }
 
-async function buildLexemeLinks(supabase: ReturnType<typeof createClient>, articleId: string, language: LearningLanguageCode, sentences: Array<{ id: string; sentence_text: string }>) {
-  const tokenRows = sentences.flatMap((sentence) => tokenize(sentence.sentence_text, language).map((token) => ({ ...token, sentenceId: sentence.id })));
-  const lemmas = Array.from(new Set(tokenRows.map((token) => token.lemma))).slice(0, 500);
-  const { data: entries, error: entriesError } = lemmas.length
-    ? await supabase
-        .from("dictionary_entries")
-        .select("id, lemma")
-        .eq("language_code", language)
-        .in("lemma", lemmas)
-    : { data: [], error: null };
-  if (entriesError) throw new Error("Failed to find dictionary entries for reading article");
-
-  const entryByLemma = new Map((entries || []).map((entry) => [String(entry.lemma), entry.id]));
-  const rows = tokenRows.map((token) => ({
+async function createLinks(supabase: ReturnType<typeof createClient>, articleId: string, language: LearningLanguageCode, sentences: SentenceRow[]) {
+  const rows = sentences.flatMap((sentence) => tokenize(sentence.sentence_text, language).map((token) => ({
     article_id: articleId,
-    sentence_id: token.sentenceId,
+    sentence_id: sentence.id,
     language_code: language,
     start_index: token.startIndex,
     end_index: token.endIndex,
     display_text: token.text,
-    dictionary_entry_id: entryByLemma.get(token.lemma) || null,
+    dictionary_entry_id: null,
     phrase_priority: 0,
-  }));
-
-  const { error: removeError } = await supabase.from("reading_article_lexeme_links").delete().eq("article_id", articleId);
-  if (removeError) throw new Error("Failed to refresh reading lexeme links");
-  if (rows.length === 0) return 0;
-
+  })));
+  const { error: deleteError } = await supabase.from("reading_article_lexeme_links").delete().eq("article_id", articleId);
+  if (deleteError) throw new Error("Failed to refresh reading lexeme links");
+  if (!rows.length) return 0;
   const { error: insertError } = await supabase.from("reading_article_lexeme_links").insert(rows);
   if (insertError) throw new Error("Failed to save reading lexeme links");
   return rows.length;
 }
 
-async function prewarmAudio(
-  supabase: ReturnType<typeof createClient>,
-  articleId: string,
-  language: LearningLanguageCode,
-  sentences: Array<{ id: string; sentence_text: string; estimated_duration_ms: number }>
-) {
+async function createAudio(supabase: ReturnType<typeof createClient>, articleId: string, language: LearningLanguageCode, sentences: SentenceRow[]) {
   let cacheHits = 0;
   let cacheMisses = 0;
   let failures = 0;
-
   for (const sentence of sentences) {
     try {
       const result = await getOrCreateTtsAsset({
@@ -101,28 +71,21 @@ async function prewarmAudio(
         assetType: "reading_sentence",
         audioVersionString: "v2_loud",
       });
-      if (result.cached) cacheHits += 1;
-      else cacheMisses += 1;
-
-      const usablePath = result.asset.status === "ready" && result.asset.audioPath && !result.asset.audioPath.startsWith("stub://")
-        ? result.asset.audioPath
-        : null;
-      const status = usablePath ? "ready" : "failed";
-      if (!usablePath) failures += 1;
-
+      if (result.cached) cacheHits += 1; else cacheMisses += 1;
+      const stablePath = result.asset.status === "ready" && result.asset.audioPath && !result.asset.audioPath.startsWith("stub://") ? result.asset.audioPath : null;
+      if (!stablePath) failures += 1;
       const { error } = await supabase.from("reading_article_audio_assets").upsert({
         article_id: articleId,
         sentence_id: sentence.id,
         language_code: language,
         tts_asset_id: result.asset.id,
-        // Stable provider/storage path only. Signed URLs are generated at read time.
-        audio_path: usablePath,
+        audio_path: stablePath,
         duration_ms: result.asset.durationMs || sentence.estimated_duration_ms,
         audio_version: 2,
-        status,
+        status: stablePath ? "ready" : "failed",
       }, { onConflict: "article_id,sentence_id,language_code" });
       if (error) throw new Error("Failed to save article audio metadata");
-    } catch (error) {
+    } catch {
       failures += 1;
       await supabase.from("reading_article_audio_assets").upsert({
         article_id: articleId,
@@ -133,87 +96,48 @@ async function prewarmAudio(
         audio_version: 2,
         status: "failed",
       }, { onConflict: "article_id,sentence_id,language_code" });
-      console.error("Reading sentence prewarm failed", error);
     }
   }
-
   return { cacheHits, cacheMisses, failures };
 }
 
-async function refreshReadyState(supabase: ReturnType<typeof createClient>, articleId: string, topicId: string, sentenceCount: number) {
-  const { data: audioRows, error: audioError } = await supabase
-    .from("reading_article_audio_assets")
-    .select("status")
-    .eq("article_id", articleId);
-  if (audioError) throw new Error("Failed to validate article audio state");
-  const audioReady = (audioRows || []).length === sentenceCount && (audioRows || []).every((asset) => asset.status === "ready");
-  const { error: articleUpdateError } = await supabase
-    .from("reading_articles")
-    .update({ status: audioReady ? "ready" : "draft" })
-    .eq("id", articleId);
-  if (articleUpdateError) throw new Error("Failed to update article ready state");
+async function updateReadyState(supabase: ReturnType<typeof createClient>, article: ArticleRow, sentenceCount: number) {
+  const { data: rawAudio } = await supabase.from("reading_article_audio_assets").select("status").eq("article_id", article.id);
+  const audioRows = (rawAudio || []) as AudioRow[];
+  const articleReady = audioRows.length === sentenceCount && audioRows.every((row) => row.status === "ready");
+  await supabase.from("reading_articles").update({ status: articleReady ? "ready" : "draft" }).eq("id", article.id);
 
-  const { data: articles, error: articlesError } = await supabase
-    .from("reading_articles")
-    .select("language_code, status")
-    .eq("topic_id", topicId);
-  if (articlesError) throw new Error("Failed to validate topic ready state");
+  const { data: rawArticles } = await supabase.from("reading_articles").select("language_code, status").eq("topic_id", article.topic_id);
+  const allArticles = (rawArticles || []) as TopicArticleRow[];
   const expected = new Set(["en", "ja", "ko", "it", "es"]);
-  const topicReady = (articles || []).length === expected.size &&
-    (articles || []).every((article) => expected.has(article.language_code) && article.status === "ready");
-  const { error: topicUpdateError } = await supabase
-    .from("reading_article_topics")
-    .update({ status: topicReady ? "ready" : "draft" })
-    .eq("id", topicId);
-  if (topicUpdateError) throw new Error("Failed to update topic ready state");
-
-  return { articleReady: audioReady, topicReady };
+  const topicReady = allArticles.length === 5 && allArticles.every((row) => expected.has(row.language_code) && row.status === "ready");
+  await supabase.from("reading_article_topics").update({ status: topicReady ? "ready" : "draft" }).eq("id", article.topic_id);
+  return { articleReady, topicReady };
 }
 
 export async function POST(request: NextRequest) {
-  const env = environment();
-  if (!authorized(request, env.cronSecret)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!env.supabaseUrl || !env.serviceRoleKey) return NextResponse.json({ error: "Supabase service configuration is missing" }, { status: 500 });
+  const env = config();
+  if (!allowed(request, env.secret)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!env.url || !env.key) return NextResponse.json({ error: "Supabase service configuration is missing" }, { status: 500 });
 
-  let body: { articleId?: string };
-  try {
-    body = (await request.json()) as { articleId?: string };
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
+  const body = await request.json().catch(() => ({})) as { articleId?: string };
   if (!body.articleId) return NextResponse.json({ error: "articleId is required" }, { status: 400 });
+  const supabase = createClient(env.url, env.key, { auth: { persistSession: false } });
 
-  const supabase = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } });
   try {
-    const { data: article, error: articleError } = await supabase
-      .from("reading_articles")
-      .select("id, topic_id, language_code, status")
-      .eq("id", body.articleId)
-      .single();
+    const { data: rawArticle, error: articleError } = await supabase.from("reading_articles").select("id, topic_id, language_code, status").eq("id", body.articleId).single();
+    const article = rawArticle as ArticleRow | null;
     if (articleError || !article) return NextResponse.json({ error: "Article not found" }, { status: 404 });
     if (article.status === "published") return NextResponse.json({ error: "Published articles cannot be regenerated" }, { status: 409 });
 
-    const { data: sentences, error: sentencesError } = await supabase
-      .from("reading_article_sentences")
-      .select("id, sentence_text, estimated_duration_ms")
-      .eq("article_id", article.id)
-      .order("sentence_order");
-    if (sentencesError || !sentences || sentences.length < 6 || sentences.length > 10) {
-      return NextResponse.json({ error: "Article must contain 6 to 10 sentences before prewarm" }, { status: 400 });
-    }
+    const { data: rawSentences, error: sentencesError } = await supabase.from("reading_article_sentences").select("id, sentence_text, estimated_duration_ms").eq("article_id", article.id).order("sentence_order");
+    const sentences = (rawSentences || []) as SentenceRow[];
+    if (sentencesError || sentences.length < 6 || sentences.length > 10) return NextResponse.json({ error: "Article must contain 6 to 10 sentences before prewarm" }, { status: 400 });
 
-    const language = article.language_code as LearningLanguageCode;
-    const lexemeLinks = await buildLexemeLinks(supabase, article.id, language, sentences);
-    const audio = await prewarmAudio(supabase, article.id, language, sentences);
-    const state = await refreshReadyState(supabase, article.id, article.topic_id, sentences.length);
-
-    return NextResponse.json({
-      success: true,
-      articleId: article.id,
-      lexemeLinks,
-      audio,
-      ...state,
-    });
+    const lexemeLinks = await createLinks(supabase, article.id, article.language_code, sentences);
+    const audio = await createAudio(supabase, article.id, article.language_code, sentences);
+    const state = await updateReadyState(supabase, article, sentences.length);
+    return NextResponse.json({ success: true, articleId: article.id, lexemeLinks, audio, ...state });
   } catch (error) {
     console.error("Daily article prewarm error", error);
     return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to prewarm article" }, { status: 500 });
