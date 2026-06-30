@@ -275,7 +275,7 @@ export default function SettingsPage() {
             <span className="flex-1 text-sm text-ink">刪除帳號與資料</span>
             <ArrowRight size={16} className="text-inkSoft" />
           </button>
-          <button onClick={() => window.open("mailto:erin20080306@gmail.com", "_blank")} className="w-full flex items-center gap-3 py-2 text-left active:scale-[0.99] transition">
+          <button onClick={() => window.open("mailto:support.mobileenglish@gmail.com", "_blank")} className="w-full flex items-center gap-3 py-2 text-left active:scale-[0.99] transition">
             <Mail size={18} className="text-inkSoft" />
             <span className="flex-1 text-sm text-ink">聯絡客服</span>
             <ArrowRight size={16} className="text-inkSoft" />
