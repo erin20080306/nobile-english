@@ -136,9 +136,9 @@ export default function ScenePracticePage() {
 
     // Automatically save practiced words to user's vocabulary
     practicedWords.forEach((item) => {
-      const wordEntry = vocabularyService.search(item.word, targetLanguage)[0];
-      if (wordEntry) {
-        vocabularyService.addToReview(wordEntry, `${activeScene!.name}場景練習`);
+      const { entry } = dictionaryService.lookup(item.word, targetLanguage);
+      if (entry) {
+        vocabularyService.addToReview(entry, `${activeScene!.name}場景練習`);
       }
     });
 
