@@ -16,6 +16,10 @@ import { expandedVocabularyPart4b } from "@/data/expandedVocabularyPart4b";
 import { expandedVocabularyPart4c } from "@/data/expandedVocabularyPart4c";
 import { storageService, KEYS } from "./storageService";
 
+function tupleToWord(t: [string, string, string, string, string, string]): Word {
+  return { word: t[0], phonetic: t[1], pos: t[2] as Word["pos"], enDef: t[3], zh: t[4], example: t[5], language: "en" };
+}
+
 const allWords: Word[] = (() => {
   const map = new Map<string, Word>();
   [
@@ -23,18 +27,19 @@ const allWords: Word[] = (() => {
     ...learnerDictionaryEntries,
     ...vocabulary,
     ...expandedVocabulary,
-    ...(expandedVocabularyPart2a as unknown as Word[]),
-    ...(expandedVocabularyPart2b as unknown as Word[]),
-    ...(expandedVocabularyPart2c as unknown as Word[]),
-    ...(expandedVocabularyPart3a as unknown as Word[]),
-    ...(expandedVocabularyPart3b as unknown as Word[]),
-    ...(expandedVocabularyPart3c as unknown as Word[]),
-    ...(expandedVocabularyPart4a as unknown as Word[]),
-    ...(expandedVocabularyPart4b as unknown as Word[]),
-    ...(expandedVocabularyPart4c as unknown as Word[]),
-  ].forEach((w) => {
-    const k = w.word.toLowerCase();
-    if (!map.has(k)) map.set(k, w);
+    ...expandedVocabularyPart2a,
+    ...expandedVocabularyPart2b,
+    ...expandedVocabularyPart2c,
+    ...expandedVocabularyPart3a,
+    ...expandedVocabularyPart3b,
+    ...(expandedVocabularyPart3c as any[]).map(tupleToWord),
+    ...(expandedVocabularyPart4a as any[]).map(tupleToWord),
+    ...(expandedVocabularyPart4b as any[]).map(tupleToWord),
+    ...(expandedVocabularyPart4c as any[]).map(tupleToWord),
+  ].forEach((w: any) => {
+    if (!w || !w.word) return;
+    const k = (w.word as string).toLowerCase();
+    if (!map.has(k)) map.set(k, w as Word);
   });
   return Array.from(map.values());
 })();
