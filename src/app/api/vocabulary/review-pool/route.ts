@@ -117,6 +117,24 @@ function normalizePartOfSpeech(value: string | null): PartOfSpeech {
   return "n.";
 }
 
+function isReviewableWordText(value: string) {
+  return Array.from(value).some((char) => {
+    const code = char.codePointAt(0) || 0;
+    return (
+      (code >= 0x30 && code <= 0x39) ||
+      (code >= 0x41 && code <= 0x5a) ||
+      (code >= 0x61 && code <= 0x7a) ||
+      (code >= 0xff10 && code <= 0xff19) ||
+      (code >= 0xff21 && code <= 0xff3a) ||
+      (code >= 0xff41 && code <= 0xff5a) ||
+      (code >= 0x3040 && code <= 0x30ff) ||
+      (code >= 0x3400 && code <= 0x9fff) ||
+      (code >= 0xac00 && code <= 0xd7af) ||
+      (code >= 0x1100 && code <= 0x11ff)
+    );
+  });
+}
+
 function rowToWord(row: DictionaryRow, language: LearningLanguageCode): Word {
   const definitions = compactStringArray(row.definitions_json);
   const zhDefinitions = compactStringArray(row.definitions_zh_tw_json);
@@ -190,7 +208,7 @@ function uniqueRows(rows: DictionaryRow[], language: LearningLanguageCode): Word
 
   for (const row of rows) {
     const word = rowToWord(row, language);
-    if (!word.word) continue;
+    if (!word.word || !isReviewableWordText(word.word)) continue;
     const key = `${language}:${word.word.toLowerCase().normalize("NFC")}`;
     if (seen.has(key)) continue;
     seen.add(key);

@@ -271,23 +271,27 @@ Status: implemented and smoke-tested for Phase 1 dry-run/import tooling.
     - Command: `npm run dictionary:import -- --all --seed-local --dry-run --limit=3 --report-json`
     - English, Japanese, Korean, Italian, Spanish each parsed 3 valid entries with 0 failures.
 
-### Not yet verified
+### Supabase production import verified on 2026-07-01
 
-- Supabase confirmed import was not executed locally because the required Supabase service-role environment variables were not available in `.env.local`.
-- Full Wiktextract imports were not downloaded or parsed end-to-end in this pass because those files can be large; the importer is streaming JSONL-ready.
+- Supabase schema and API grants were applied in the production project.
+- Vercel Production env check returned all required Supabase/OpenAI variables as configured.
+- Confirmed dictionary row counts in Supabase:
+  - English: 16,000
+  - Italian: 10,000
+  - Spanish: 10,000
+  - Japanese: 10,000
+  - Korean: 10,000
+- Confirmed production review-pool API returns database-backed pools:
+  - `en`: `source="database"`, `targetCount=16000`, `poolSize=30`
+  - `it`: `source="database"`, `targetCount=10000`, `poolSize=30`
+  - `es`: `source="database"`, `targetCount=10000`, `poolSize=30`
+  - `ja`: `source="database"`, `targetCount=10000`, `poolSize=30`
+  - `ko`: `source="database"`, `targetCount=10000`, `poolSize=30`
 
-### Next required manual step
+### Follow-up notes
 
-Before running a confirmed import against Supabase:
-
-1. Apply `supabase/migrations/20240630_dictionary_import_metadata.sql`.
-2. Set `NEXT_PUBLIC_SUPABASE_URL` or `SUPABASE_URL`.
-3. Set `SUPABASE_SERVICE_ROLE_KEY`.
-4. Run a small confirmed smoke import first:
-
-```bash
-npm run dictionary:import -- --language=en --source=cmudict --limit=20 --confirm --report-json
-npm run dictionary:import -- --language=ja --source=kanjidic2 --limit=20 --confirm --report-json
-```
-
-Only after those pass should the full five-language import be run.
+- Full source downloads were kept out of Git via `.gitignore`.
+- `scripts/dictionary-download.ts` now throttles progress output and supports ranged JSONL downloads.
+- `scripts/dictionary-import.ts` dry-run no longer queries Supabase, and initial seed recovery can use `--assume-new` plus `--start-rank=n`.
+- `src/app/api/vocabulary/review-pool/route.ts` skips pure symbol entries when building review pools.
+- The Supabase service-role key should be rotated after this setup because it was pasted into chat during configuration.

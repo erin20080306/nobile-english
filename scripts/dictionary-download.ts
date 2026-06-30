@@ -33,6 +33,7 @@ interface DownloadOptions {
   sources: string[];
   dryRun: boolean;
   checkSources: boolean;
+  maxBytes: number | null;
 }
 
 const DICTIONARY_SOURCES: Record<LanguageCode, DictionarySource[]> = {
@@ -140,7 +141,7 @@ class DictionaryDownloader {
           continue;
         }
 
-        const result = await this.downloadSource(source);
+        const result = await this.downloadSource(source, options);
         results.push({ source, result });
       }
     }
@@ -172,7 +173,7 @@ class DictionaryDownloader {
     return response.ok || response.status === 206;
   }
 
-  private async downloadSource(source: DictionarySource): Promise<{
+  private async downloadSource(source: DictionarySource, options: DownloadOptions): Promise<{
     success: boolean;
     filePath?: string;
     size?: number;
@@ -182,11 +183,22 @@ class DictionaryDownloader {
       await mkdir(this.downloadDir, { recursive: true });
       const { compressedPath, outputPath } = this.pathsForSource(source);
       const targetPath = source.compressed ? compressedPath : outputPath;
+      const maxBytes = !source.compressed && options.maxBytes && options.maxBytes > 0
+        ? Math.floor(options.maxBytes)
+        : 0;
 
       console.log(`Downloading ${source.name} (${source.language})...`);
-      const response = await fetch(source.url);
+      if (maxBytes > 0) {
+        console.log(`Limiting download to the first ${maxBytes.toLocaleString()} bytes.`);
+      }
+      const response = await fetch(source.url, {
+        headers: maxBytes > 0 ? { Range: `bytes=0-${maxBytes - 1}` } : undefined,
+      });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      if (maxBytes > 0 && response.status !== 206) {
+        throw new Error("Source did not honor Range request; refusing to download full large file.");
       }
       if (!response.body) {
         throw new Error("Response body is empty.");
@@ -194,24 +206,63 @@ class DictionaryDownloader {
 
       const total = Number(response.headers.get("content-length") || 0);
       let loaded = 0;
+      let lastProgressLogAt = 0;
+      let lastProgressBytes = 0;
+      const progressLogIntervalMs = 1000;
+      const progressLogIntervalBytes = 5 * 1024 * 1024;
       const progress = new Transform({
         transform(chunk, _encoding, callback) {
           loaded += chunk.length;
-          if (total > 0) {
-            const pct = Math.min(100, Math.floor((loaded / total) * 100));
-            process.stdout.write(`\rProgress: ${pct}% (${loaded}/${total} bytes)`);
-          } else {
-            process.stdout.write(`\rDownloaded: ${loaded} bytes`);
+          const now = Date.now();
+          const shouldLog =
+            loaded === total ||
+            now - lastProgressLogAt >= progressLogIntervalMs ||
+            loaded - lastProgressBytes >= progressLogIntervalBytes;
+
+          if (shouldLog) {
+            lastProgressLogAt = now;
+            lastProgressBytes = loaded;
+            if (total > 0) {
+              const pct = Math.min(100, Math.floor((loaded / total) * 100));
+              process.stdout.write(`\rProgress: ${pct}% (${loaded}/${total} bytes)`);
+            } else {
+              process.stdout.write(`\rDownloaded: ${loaded} bytes`);
+            }
           }
           callback(null, chunk);
         },
       });
+      let carry = Buffer.alloc(0);
+      const keepJsonlLineBoundaries = new Transform({
+        transform(chunk, _encoding, callback) {
+          const current = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+          const combined = carry.length > 0 ? Buffer.concat([carry, current]) : current;
+          const lastNewline = combined.lastIndexOf(0x0a);
 
-      await pipeline(
+          if (lastNewline >= 0) {
+            this.push(combined.subarray(0, lastNewline + 1));
+            carry = combined.subarray(lastNewline + 1);
+          } else {
+            carry = combined;
+          }
+
+          callback();
+        },
+        flush(callback) {
+          carry = Buffer.alloc(0);
+          callback();
+        },
+      });
+      const outputTransforms = maxBytes > 0 && source.outputFormat === "jsonl"
+        ? [progress, keepJsonlLineBoundaries]
+        : [progress];
+
+      const downloadPipeline = [
         Readable.fromWeb(response.body as any),
-        progress,
-        createWriteStream(targetPath)
-      );
+        ...outputTransforms,
+        createWriteStream(targetPath),
+      ];
+      await pipeline(downloadPipeline);
       process.stdout.write("\n");
 
       if (source.compressed) {
@@ -258,6 +309,7 @@ function parseCliOptions(args: string[]): DownloadOptions {
   const allFlag = args.includes("--all");
   const languageFlag = args.find(arg => arg.startsWith("--language="));
   const sourceFlags = args.filter(arg => arg.startsWith("--source=") || arg.startsWith("--sources="));
+  const maxBytesFlag = args.find(arg => arg.startsWith("--max-bytes="));
 
   return {
     languages: allFlag
@@ -268,6 +320,7 @@ function parseCliOptions(args: string[]): DownloadOptions {
     sources: sourceFlags.flatMap(flag => flag.split("=")[1].split(",").map(value => value.trim()).filter(Boolean)),
     dryRun: args.includes("--dry-run"),
     checkSources: args.includes("--check-sources"),
+    maxBytes: maxBytesFlag ? Number(maxBytesFlag.split("=")[1]) : null,
   };
 }
 
@@ -275,6 +328,7 @@ function printUsage(): void {
   console.log("Usage:");
   console.log("  npm run dictionary:download -- --language=en --source=cmudict --dry-run");
   console.log("  npm run dictionary:download -- --language=ja --source=kanjidic2");
+  console.log("  npm run dictionary:download -- --language=en --source=wiktextract-en --max-bytes=120000000");
   console.log("  npm run dictionary:download -- --all --check-sources");
   console.log("  npm run dictionary:download -- --all");
 }

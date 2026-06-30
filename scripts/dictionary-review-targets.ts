@@ -15,10 +15,17 @@ interface ReviewTarget {
   source: string;
   targetCount: number;
   label: string;
+  maxDownloadBytes?: number;
 }
 
 const REVIEW_TARGETS: ReviewTarget[] = [
-  { language: "en", source: "wiktextract-en", targetCount: 16000, label: "English current 8,000 + 8,000 more" },
+  {
+    language: "en",
+    source: "wiktextract-en",
+    targetCount: 16000,
+    label: "English current 8,000 + 8,000 more",
+    maxDownloadBytes: 120 * 1024 * 1024,
+  },
   { language: "it", source: "wiktextract-it", targetCount: 10000, label: "Italian 10,000" },
   { language: "es", source: "wiktextract-es", targetCount: 10000, label: "Spanish 10,000" },
   { language: "ja", source: "jmdict", targetCount: 10000, label: "Japanese 10,000" },
@@ -80,6 +87,7 @@ function main() {
         "scripts/dictionary-download.ts",
         `--language=${target.language}`,
         `--source=${target.source}`,
+        ...(target.maxDownloadBytes ? [`--max-bytes=${target.maxDownloadBytes}`] : []),
         ...(confirm ? [] : ["--dry-run"]),
       ]);
     }

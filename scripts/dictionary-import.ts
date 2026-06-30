@@ -101,6 +101,8 @@ interface CliOptions {
   batchSize: number;
   retryCount: number;
   reportJson: boolean;
+  assumeNew: boolean;
+  startRank: number;
 }
 
 const SOURCE_CATALOG: Record<string, DictionarySourceInfo> = {
@@ -221,13 +223,19 @@ function normalizedLookupForm(value: string, language: LanguageCode): string {
 
 function isUsableHeadword(value: string): boolean {
   if (!value || value.length > 120) return false;
-  return Array.from(value).some(char => {
+  return Array.from(value).some((char) => {
     const code = char.codePointAt(0) || 0;
     return (
-      (code >= 48 && code <= 57) ||
-      (code >= 65 && code <= 90) ||
-      (code >= 97 && code <= 122) ||
-      code > 127
+      (code >= 0x30 && code <= 0x39) ||
+      (code >= 0x41 && code <= 0x5a) ||
+      (code >= 0x61 && code <= 0x7a) ||
+      (code >= 0xff10 && code <= 0xff19) ||
+      (code >= 0xff21 && code <= 0xff3a) ||
+      (code >= 0xff41 && code <= 0xff5a) ||
+      (code >= 0x3040 && code <= 0x30ff) ||
+      (code >= 0x3400 && code <= 0x9fff) ||
+      (code >= 0xac00 && code <= 0xd7af) ||
+      (code >= 0x1100 && code <= 0x11ff)
     );
   });
 }
@@ -435,6 +443,11 @@ class DictionaryImporter {
       stats.validCount++;
       cleaned.frequency_rank = cleaned.frequency_rank || stats.validCount;
       cleaned.cefr_level = cleaned.cefr_level || cefrForRank(stats.validCount);
+
+      if (options.startRank > 1 && stats.validCount < options.startRank) {
+        continue;
+      }
+
       batch.push(cleaned);
 
       if (batch.length >= options.batchSize) {
@@ -455,29 +468,22 @@ class DictionaryImporter {
     const entries = batch.splice(0, batch.length);
 
     if (options.dryRun) {
-      if (this.supabase) {
-        const existing = await this.fetchExistingEntries(entries[0].language_code, entries.map(entry => entry.lemma));
-        for (const entry of entries) {
-          if (existing.has(entry.lemma)) stats.updateCount++;
-          else stats.newCount++;
-          stats.surfaceFormCount += entry.surfaceForms.length;
-        }
-      } else {
-        stats.newCount += entries.length;
-        stats.surfaceFormCount += entries.reduce((sum, entry) => sum + entry.surfaceForms.length, 0);
-      }
+      stats.newCount += entries.length;
+      stats.surfaceFormCount += entries.reduce((sum, entry) => sum + entry.surfaceForms.length, 0);
       return;
     }
 
-    const entryIds = await this.writeEntryBatch(entries, stats);
+    const entryIds = await this.writeEntryBatch(entries, stats, options);
     await this.writeSurfaceForms(entries, entryIds, stats);
   }
 
-  private async writeEntryBatch(entries: NormalizedEntry[], stats: ImportStats): Promise<Map<string, string>> {
+  private async writeEntryBatch(entries: NormalizedEntry[], stats: ImportStats, options: CliOptions): Promise<Map<string, string>> {
     if (!this.supabase) throw new Error("Supabase client is not configured.");
 
     const language = entries[0].language_code;
-    const existing = await this.fetchExistingEntries(language, entries.map(entry => entry.lemma));
+    const existing = options.assumeNew
+      ? new Map<string, { id: string }>()
+      : await this.fetchExistingEntries(language, entries.map(entry => entry.lemma));
     const entryIds = new Map<string, string>();
     const now = new Date().toISOString();
     const insertRows = entries
@@ -1068,6 +1074,7 @@ function parseCliOptions(args: string[]): CliOptions {
   const limitFlag = args.find(arg => arg.startsWith("--limit="));
   const batchFlag = args.find(arg => arg.startsWith("--batch-size="));
   const retryFlag = args.find(arg => arg.startsWith("--retry="));
+  const startRankFlag = args.find(arg => arg.startsWith("--start-rank="));
 
   const languages: LanguageCode[] = allFlag || (seedLocal && !languageFlag)
     ? ["en", "ja", "ko", "it", "es"]
@@ -1088,6 +1095,8 @@ function parseCliOptions(args: string[]): CliOptions {
     batchSize: batchFlag ? Number(batchFlag.split("=")[1]) : DEFAULT_BATCH_SIZE,
     retryCount: retryFlag ? Number(retryFlag.split("=")[1]) : 1,
     reportJson: args.includes("--report-json"),
+    assumeNew: args.includes("--assume-new"),
+    startRank: startRankFlag ? Math.max(1, Number(startRankFlag.split("=")[1]) || 1) : 1,
   };
 }
 
@@ -1104,6 +1113,8 @@ function printUsage(): void {
   console.log("  --limit=n       Stop after n valid entries per source for smoke tests.");
   console.log("  --batch-size=n  Number of entries per batch.");
   console.log("  --resume        Skip sources recorded as completed.");
+  console.log("  --assume-new    Initial seed mode: skip existing-entry lookup and insert rows directly.");
+  console.log("  --start-rank=n  Continue an initial seed from a specific frequency rank.");
   console.log("  --retry=n       Retry source import failures.");
   console.log("  --report-json   Write data/dictionary/import-report.json.");
 }
