@@ -42,8 +42,10 @@ export default function WordReviewPage() {
   const level = user?.level || "Beginner";
   const languageInfo = getLearningLanguage(language);
   const current = session?.words[index];
+  const questionKind = current?.questionKind || "meaningChoice";
+  const isWordChoice = questionKind === "wordChoice";
   const choices = useMemo(
-    () => current ? wordReviewService.choicesFor(current.word, session?.language || language) : [],
+    () => current ? wordReviewService.choicesFor(current.word, session?.language || language, current.questionKind) : [],
     [current, language, session?.language]
   );
   const progress = session ? Math.round(((index + (revealed ? 1 : 0)) / Math.max(session.words.length, 1)) * 100) : 0;
@@ -60,11 +62,16 @@ export default function WordReviewPage() {
 
   function answer(option: string) {
     if (!session || !current || revealed) return;
-    const correct = option === current.word.zh;
+    const kind = current.questionKind;
+    const correctText = wordReviewService.correctChoiceFor(current.word, kind);
+    const correct = option === correctText;
     const answer = {
       word: current.word.word,
       correct,
-      selectedZh: option,
+      selectedText: option,
+      correctText,
+      questionKind: kind,
+      selectedZh: kind === "meaningChoice" ? option : current.word.zh,
       correctZh: current.word.zh,
       answeredAt: new Date().toISOString(),
     };
@@ -147,21 +154,46 @@ export default function WordReviewPage() {
         </div>
 
         <div className="px-5 mt-5 space-y-4">
-          <motion.div key={current.word.word} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="rounded-[34px] bg-white p-5 shadow-soft">
+          <motion.div key={`${current.word.word}-${questionKind}`} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="rounded-[34px] bg-white p-5 shadow-soft">
             <div className="flex items-start justify-between gap-3">
-              <div>
-                <span className={`chip text-xs ${current.source === "learned" ? "bg-mint text-mintDeep" : "bg-sky text-skyDeep"}`}>
-                  {current.source === "learned" ? "學過穿插" : "程度新字"}
-                </span>
-                <h2 className="mt-4 text-4xl font-black text-ink break-words">{current.word.word}</h2>
-                <p className="mt-1 text-inkSoft">{current.word.phonetic} · {current.word.pos}</p>
+              <div className="min-w-0">
+                <div className="flex flex-wrap gap-2">
+                  <span className={`chip text-xs ${current.source === "learned" ? "bg-mint text-mintDeep" : "bg-sky text-skyDeep"}`}>
+                    {current.source === "learned" ? "學過穿插" : "程度新字"}
+                  </span>
+                  <span className="chip bg-peach text-peachDeep text-xs">
+                    {isWordChoice ? "看意思選單字" : "看單字選意思"}
+                  </span>
+                </div>
+                {isWordChoice ? (
+                  <>
+                    <h2 className="mt-4 text-3xl font-black text-ink break-words">{current.word.zh}</h2>
+                    <p className="mt-1 text-inkSoft">選出 {languageInfo.zhName} 單字</p>
+                  </>
+                ) : (
+                  <>
+                    <h2 className="mt-4 text-4xl font-black text-ink break-words">{current.word.word}</h2>
+                    <p className="mt-1 text-inkSoft">{current.word.phonetic} · {current.word.pos}</p>
+                  </>
+                )}
               </div>
-              <button onClick={speakCurrent} className="h-12 w-12 rounded-2xl bg-lilacDeep text-white flex items-center justify-center shadow-softer">
-                <Volume2 size={22} />
-              </button>
+              <div className="h-12 w-12 shrink-0">
+                {(!isWordChoice || revealed) && (
+                  <button onClick={speakCurrent} className="h-12 w-12 rounded-2xl bg-lilacDeep text-white flex items-center justify-center shadow-softer">
+                    <Volume2 size={22} />
+                  </button>
+                )}
+              </div>
             </div>
             {revealed && (
               <div className="mt-4 rounded-3xl bg-cream p-3">
+                {isWordChoice && (
+                  <div className="mb-3">
+                    <p className="text-xs font-bold text-inkSoft">答案</p>
+                    <p className="text-2xl font-black text-ink">{current.word.word}</p>
+                    <p className="text-sm text-inkSoft">{current.word.phonetic} · {current.word.pos}</p>
+                  </div>
+                )}
                 <p className="text-xs font-bold text-inkSoft">例句</p>
                 <p className="font-semibold text-ink">{current.word.example}</p>
                 {current.word.exampleZh && <p className="text-sm text-inkSoft">{current.word.exampleZh}</p>}
@@ -170,12 +202,12 @@ export default function WordReviewPage() {
           </motion.div>
 
           <div className="grid gap-3">
-            {choices.map((choice) => {
+            {choices.map((choice, choiceIndex) => {
               const active = selected === choice;
-              const correct = choice === current.word.zh;
+              const correct = wordReviewService.isCorrectChoice(choice, current.word, questionKind);
               return (
                 <button
-                  key={choice}
+                  key={`${choice}-${choiceIndex}`}
                   disabled={revealed}
                   onClick={() => answer(choice)}
                   className={`rounded-3xl p-4 text-left font-bold shadow-softer transition active:scale-[0.98] ${
