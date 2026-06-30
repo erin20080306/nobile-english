@@ -21,14 +21,12 @@ export type TtsAssetType =
   | "tutor_hint"
   | "tutor_complete"
   | "word_pronunciation"
-  | "dynamic_tutor_reply";
+  | "dynamic_tutor_reply"
+  | "reading_sentence";
 
 export type TtsAssetStatus = "generating" | "ready" | "failed";
-
 export type TtsProcessingStatus = "none" | "pending" | "processing" | "ready" | "failed";
-
 export type AudioFormat = "m4a" | "mp3";
-
 export type AudioVersionString = "v1" | "v2_loud";
 
 export interface VoiceProfile {
@@ -58,7 +56,6 @@ export interface TtsAudioAsset {
   status: TtsAssetStatus;
   createdAt: string;
   updatedAt: string;
-  // v2_loud fields
   rawAudioPath: string | null;
   processedAudioPath: string | null;
   audioVersionString: AudioVersionString;
@@ -70,7 +67,6 @@ export interface TtsAudioAsset {
   processedAt: string | null;
 }
 
-// Identity used for the unique index / text_hash composition.
 export interface TtsAssetKey {
   provider: string;
   providerModel: string;
@@ -102,7 +98,6 @@ export interface GetOrCreateResult {
   signedUrl: string | null;
 }
 
-// Output of a TTS provider after synthesis + post-processing.
 export interface SynthesisOutput {
   audioPath: string;
   durationMs: number;
@@ -110,7 +105,7 @@ export interface SynthesisOutput {
 }
 
 export interface SynthesisRequest {
-  text: string; // already normalized + combined
+  text: string;
   languageCode: string;
   voiceName: string;
   audioFormat: AudioFormat;
