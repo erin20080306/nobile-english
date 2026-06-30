@@ -10,7 +10,9 @@ export interface LearningLanguage {
   speechLang: string;
   recordLabel: string;
   freeOpening: { target: string; zh: string };
+  ttsVoice?: SpeakOptions["ttsVoice"];
   ttsInstructions: string;
+  voiceKeywords: string[];
 }
 
 export const LEARNING_LANGUAGES: LearningLanguage[] = [
@@ -26,7 +28,9 @@ export const LEARNING_LANGUAGES: LearningLanguage[] = [
       target: "Hi! What would you like to talk about today?",
       zh: "嗨！今天想聊什麼呢？",
     },
-    ttsInstructions: "Speak clear natural English for a language learner. Use a warm, crisp, non-raspy voice with strong volume.",
+    ttsVoice: "shimmer",
+    ttsInstructions: "Speak clear natural English for a language learner. Use a warm, gentle, pleasant voice with crisp pronunciation and strong clean volume.",
+    voiceKeywords: ["samantha", "ava", "google us english", "microsoft aria", "microsoft jenny", "alex", "zira"],
   },
   {
     code: "ja",
@@ -40,7 +44,9 @@ export const LEARNING_LANGUAGES: LearningLanguage[] = [
       target: "こんにちは。今日はどんなことを話したいですか？",
       zh: "你好。今天想聊什麼呢？",
     },
-    ttsInstructions: "Speak natural Japanese for a learner. Use clear standard Japanese pronunciation, friendly classroom energy, and strong clean volume.",
+    ttsVoice: "shimmer",
+    ttsInstructions: "Speak natural Japanese for a learner. Use clear standard Japanese pronunciation, gentle friendly classroom energy, and strong clean volume.",
+    voiceKeywords: ["kyoko", "otoya", "google 日本語", "microsoft nanami", "microsoft keita"],
   },
   {
     code: "ko",
@@ -54,7 +60,9 @@ export const LEARNING_LANGUAGES: LearningLanguage[] = [
       target: "안녕하세요. 오늘은 어떤 이야기를 해 볼까요?",
       zh: "你好。今天想聊什麼呢？",
     },
-    ttsInstructions: "Speak natural Korean for a learner. Use clear Seoul-style pronunciation, friendly classroom energy, and strong clean volume.",
+    ttsVoice: "shimmer",
+    ttsInstructions: "Speak natural Korean for a learner. Use clear Seoul-style pronunciation, gentle friendly classroom energy, and strong clean volume.",
+    voiceKeywords: ["yuna", "google 한국", "microsoft sunhi", "microsoft injoon"],
   },
   {
     code: "it",
@@ -68,7 +76,9 @@ export const LEARNING_LANGUAGES: LearningLanguage[] = [
       target: "Ciao! Di cosa vuoi parlare oggi?",
       zh: "你好！今天想聊什麼呢？",
     },
-    ttsInstructions: "Speak natural Italian for a learner. Use clear standard Italian pronunciation, warm teacher energy, and strong clean volume.",
+    ttsVoice: "shimmer",
+    ttsInstructions: "Speak natural Italian for a learner. Use clear standard Italian pronunciation, warm gentle teacher energy, and strong clean volume.",
+    voiceKeywords: ["alice", "luca", "google italiano", "microsoft elsa", "microsoft isabella"],
   },
   {
     code: "es",
@@ -82,7 +92,9 @@ export const LEARNING_LANGUAGES: LearningLanguage[] = [
       target: "¡Hola! ¿De qué quieres hablar hoy?",
       zh: "你好！今天想聊什麼呢？",
     },
-    ttsInstructions: "Speak natural Spanish from Spain for a learner. Use clear standard pronunciation, warm teacher energy, expressive Spanish rhythm, and strong clean volume.",
+    ttsVoice: "shimmer",
+    ttsInstructions: "Speak natural Spanish from Spain for a learner. Use clear standard pronunciation, warm gentle teacher energy, expressive Spanish rhythm, and strong clean volume.",
+    voiceKeywords: ["monica", "paulina", "google español", "microsoft elvira", "microsoft alvaro"],
   },
 ];
 
@@ -103,10 +115,10 @@ export function voiceForLanguage(code?: LearningLanguageCode, rate = 1): SpeakOp
   const lang = getLearningLanguage(code);
   return {
     lang: lang.speechLang,
-    voiceKeywords: [lang.speechLang.toLowerCase()],
-    ttsVoice: "nova",
+    voiceKeywords: [...lang.voiceKeywords, lang.speechLang.toLowerCase()],
+    ttsVoice: lang.ttsVoice || "shimmer",
     ttsInstructions: lang.ttsInstructions,
     rate,
-    volumeGain: 1.55,
+    volumeGain: 1.45,
   };
 }
