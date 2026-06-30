@@ -16,8 +16,16 @@ import BottomNav from "@/components/BottomNav";
 const countOptions = [5, 10, 15, 20, 25, 30];
 const learnedOptions = [0, 25, 50, 75, 100];
 
+type AnswerSoundKey = "correct" | "wrong";
+type AnswerTone = { frequency: number; duration: number };
+
 let answerAudioContext: AudioContext | null = null;
-const answerSoundUrls: Partial<Record<"correct" | "wrong", string>> = {};
+const answerSoundUrls: Partial<Record<AnswerSoundKey, string>> = {};
+const answerAudioElements: Partial<Record<AnswerSoundKey, HTMLAudioElement>> = {};
+
+function answerSoundKey(correct: boolean): AnswerSoundKey {
+  return correct ? "correct" : "wrong";
+}
 
 function getAnswerAudioContext(): AudioContext | null {
   if (typeof window === "undefined") return null;
@@ -36,13 +44,38 @@ function writeAscii(view: DataView, offset: number, text: string) {
   }
 }
 
+function answerTonePlan(correct: boolean): AnswerTone[] {
+  return correct
+    ? [
+        { frequency: 523.25, duration: 0.2 },
+        { frequency: 659.25, duration: 0.22 },
+        { frequency: 783.99, duration: 0.26 },
+        { frequency: 1046.5, duration: 0.34 },
+      ]
+    : [
+        { frequency: 349.23, duration: 0.24 },
+        { frequency: 261.63, duration: 0.28 },
+        { frequency: 196, duration: 0.34 },
+      ];
+}
+
+function toneFrequencyAt(tones: AnswerTone[], time: number) {
+  let elapsed = 0;
+  for (const tone of tones) {
+    elapsed += tone.duration;
+    if (time <= elapsed) return tone.frequency;
+  }
+  return tones[tones.length - 1]?.frequency || 440;
+}
+
 function makeAnswerSoundUrl(correct: boolean) {
   if (typeof window === "undefined") return "";
-  const key = correct ? "correct" : "wrong";
+  const key = answerSoundKey(correct);
   if (answerSoundUrls[key]) return answerSoundUrls[key] || "";
 
-  const sampleRate = 11025;
-  const duration = correct ? 0.32 : 0.26;
+  const tones = answerTonePlan(correct);
+  const sampleRate = 16000;
+  const duration = tones.reduce((sum, tone) => sum + tone.duration, 0);
   const sampleCount = Math.floor(sampleRate * duration);
   const dataBytes = sampleCount * 2;
   const buffer = new ArrayBuffer(44 + dataBytes);
@@ -64,11 +97,14 @@ function makeAnswerSoundUrl(correct: boolean) {
 
   for (let index = 0; index < sampleCount; index += 1) {
     const time = index / sampleRate;
-    const split = correct ? 0.13 : 0.11;
-    const frequency = correct ? (time < split ? 660 : 920) : (time < split ? 250 : 155);
-    const attack = Math.min(1, index / (sampleRate * 0.015));
-    const release = Math.max(0, 1 - index / sampleCount);
-    const sample = Math.sin(2 * Math.PI * frequency * time) * 0.38 * attack * release;
+    const frequency = toneFrequencyAt(tones, time);
+    const attack = Math.min(1, index / (sampleRate * 0.025));
+    const release = Math.min(1, (sampleCount - index) / (sampleRate * 0.14));
+    const envelope = attack * release;
+    const harmonic = correct ? 0.28 : 0.18;
+    const shimmer = correct ? 1 + 0.08 * Math.sin(2 * Math.PI * 12 * time) : 1;
+    const wave = Math.sin(2 * Math.PI * frequency * time) + harmonic * Math.sin(2 * Math.PI * frequency * 2 * time);
+    const sample = wave * (correct ? 0.3 : 0.26) * envelope * shimmer;
     view.setInt16(44 + index * 2, Math.max(-1, Math.min(1, sample)) * 0x7fff, true);
   }
 
@@ -82,21 +118,40 @@ function makeAnswerSoundUrl(correct: boolean) {
   return url;
 }
 
-function playHtmlAnswerSound(correct: boolean) {
-  if (typeof window === "undefined") return;
+function getAnswerAudioElement(correct: boolean) {
+  if (typeof window === "undefined") return null;
   try {
+    const key = answerSoundKey(correct);
+    if (answerAudioElements[key]) return answerAudioElements[key] || null;
+
     const audio = new Audio(makeAnswerSoundUrl(correct));
-    audio.volume = 0.75;
-    void audio.play().catch(() => undefined);
+    audio.preload = "auto";
+    audio.volume = 1;
+    audio.setAttribute("playsinline", "true");
+    audio.setAttribute("webkit-playsinline", "true");
+    answerAudioElements[key] = audio;
+    return audio;
   } catch {
-    // Ignore blocked fallback audio.
+    return null;
   }
 }
 
 async function unlockAnswerAudio() {
+  let unlocked = false;
+
+  try {
+    const correctAudio = getAnswerAudioElement(true);
+    const wrongAudio = getAnswerAudioElement(false);
+    correctAudio?.load();
+    wrongAudio?.load();
+    unlocked = Boolean(correctAudio || wrongAudio);
+  } catch {
+    // Media preload is a best-effort mobile unlock path.
+  }
+
   try {
     const context = getAnswerAudioContext();
-    if (!context) return false;
+    if (!context) return unlocked;
     if (context.state === "suspended") await context.resume();
 
     const source = context.createBufferSource();
@@ -109,48 +164,62 @@ async function unlockAnswerAudio() {
     source.stop(context.currentTime + 0.01);
     return true;
   } catch {
+    return unlocked;
+  }
+}
+
+async function playMediaAnswerSound(correct: boolean) {
+  const audio = getAnswerAudioElement(correct);
+  if (!audio) return false;
+
+  try {
+    audio.pause();
+    audio.currentTime = 0;
+    audio.volume = 1;
+    await audio.play();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function playWebAudioAnswerSound(correct: boolean) {
+  try {
+    const context = getAnswerAudioContext();
+    if (!context) return false;
+    if (context.state === "suspended") await context.resume();
+
+    const tones = answerTonePlan(correct);
+    const start = context.currentTime + 0.015;
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(correct ? 0.3 : 0.26, start + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + tones.reduce((sum, tone) => sum + tone.duration, 0));
+    gain.connect(context.destination);
+
+    let offset = 0;
+    for (const tone of tones) {
+      const oscillator = context.createOscillator();
+      oscillator.type = correct ? "sine" : "triangle";
+      oscillator.frequency.setValueAtTime(tone.frequency, start + offset);
+      oscillator.connect(gain);
+      oscillator.onended = () => oscillator.disconnect();
+      oscillator.start(start + offset);
+      oscillator.stop(start + offset + tone.duration);
+      offset += tone.duration;
+    }
+
+    window.setTimeout(() => gain.disconnect(), Math.ceil((offset + 0.1) * 1000));
+    return true;
+  } catch {
     return false;
   }
 }
 
 async function playAnswerSound(correct: boolean) {
-  try {
-    const context = getAnswerAudioContext();
-    if (!context) {
-      playHtmlAnswerSound(correct);
-      return;
-    }
-    if (context.state === "suspended") await context.resume();
-
-    const start = context.currentTime + 0.015;
-    const gain = context.createGain();
-    gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.exponentialRampToValueAtTime(correct ? 0.32 : 0.28, start + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + (correct ? 0.4 : 0.3));
-    gain.connect(context.destination);
-
-    const playTone = (frequency: number, offset: number, duration: number) => {
-      const oscillator = context.createOscillator();
-      oscillator.type = correct ? "sine" : "triangle";
-      oscillator.frequency.setValueAtTime(frequency, start + offset);
-      oscillator.connect(gain);
-      oscillator.onended = () => oscillator.disconnect();
-      oscillator.start(start + offset);
-      oscillator.stop(start + offset + duration);
-    };
-
-    if (correct) {
-      playTone(660, 0, 0.13);
-      playTone(920, 0.13, 0.18);
-    } else {
-      playTone(250, 0, 0.11);
-      playTone(155, 0.11, 0.16);
-    }
-
-    window.setTimeout(() => gain.disconnect(), correct ? 520 : 420);
-  } catch {
-    playHtmlAnswerSound(correct);
-  }
+  const mediaPlayed = await playMediaAnswerSound(correct);
+  if (mediaPlayed) return;
+  await playWebAudioAnswerSound(correct);
 }
 
 export default function WordReviewPage() {
