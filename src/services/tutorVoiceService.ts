@@ -173,6 +173,7 @@ class TutorVoiceService {
       priority: 30,
       revokeBlobUrl,
       options,
+      retryWithApiOnError: !revokeBlobUrl,
     });
   }
 
@@ -275,6 +276,7 @@ class TutorVoiceService {
     priority,
     revokeBlobUrl,
     options,
+    retryWithApiOnError,
   }: {
     idPrefix: string;
     text: string;
@@ -282,6 +284,7 @@ class TutorVoiceService {
     priority: number;
     revokeBlobUrl: boolean;
     options: TutorVoiceOptions;
+    retryWithApiOnError: boolean;
   }): void {
     let cleaned = false;
     const cleanup = () => {
@@ -310,13 +313,62 @@ class TutorVoiceService {
       onError: (error) => {
         this.isPlaying = false;
         cleanup();
-        options.onSpeakEnd?.();
         this.log("[AI_TTS] playback failed", {
           error: error.message,
           tutorId: options.voiceProfileId,
+          retryWithApiOnError,
         });
+        if (retryWithApiOnError) {
+          void this.retryWithQueuedFallback({
+            idPrefix,
+            text,
+            priority: priority + 1,
+            options,
+            reason: error.message,
+          });
+          return;
+        }
+        options.onSpeakEnd?.();
         this.speakSystemFallback(text, options);
       },
+    });
+  }
+
+  private async retryWithQueuedFallback({
+    idPrefix,
+    text,
+    priority,
+    options,
+    reason,
+  }: {
+    idPrefix: string;
+    text: string;
+    priority: number;
+    options: TutorVoiceOptions;
+    reason: string;
+  }): Promise<void> {
+    this.log("[AI_TTS] fallback provider used", {
+      provider: "/api/tts",
+      reason,
+      tutorId: options.voiceProfileId,
+      requestedGender: options.voiceGender,
+    });
+
+    const fallbackUrl = await this.getQueuedFallbackAudioUrl(text, options);
+    if (!fallbackUrl) {
+      options.onSpeakEnd?.();
+      this.speakSystemFallback(text, options);
+      return;
+    }
+
+    this.enqueueAudio({
+      idPrefix: `${idPrefix}-fallback`,
+      text,
+      url: fallbackUrl,
+      priority,
+      revokeBlobUrl: true,
+      options,
+      retryWithApiOnError: false,
     });
   }
 
@@ -396,6 +448,7 @@ class TutorVoiceService {
       priority: 20,
       revokeBlobUrl,
       options,
+      retryWithApiOnError: !revokeBlobUrl,
     });
   }
 

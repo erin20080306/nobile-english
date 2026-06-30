@@ -242,7 +242,6 @@ class AudioQueueService {
       audio.volume = 1;
       audio.muted = false;
       audio.playbackRate = this.state.playbackRate;
-      audio.load();
 
       await this.waitForCanPlay(audio, session);
       if (!this.isActiveSession(session)) return;
@@ -280,6 +279,7 @@ class AudioQueueService {
         cleaned = true;
         if (session.loadTimer) window.clearTimeout(session.loadTimer);
         audio.removeEventListener("canplay", handleCanPlay);
+        audio.removeEventListener("loadeddata", handleCanPlay);
         audio.removeEventListener("error", handleError);
       };
       const handleCanPlay = () => {
@@ -296,7 +296,14 @@ class AudioQueueService {
       }, AUDIO_LOAD_TIMEOUT_MS);
       session.cleanups.push(cleanup);
       audio.addEventListener("canplay", handleCanPlay, { once: true });
+      audio.addEventListener("loadeddata", handleCanPlay, { once: true });
       audio.addEventListener("error", handleError, { once: true });
+      if (audio.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+        cleanup();
+        resolve();
+        return;
+      }
+      audio.load();
     });
   }
 
