@@ -197,7 +197,7 @@ export interface DialogueTranscriptLine {
 
 export interface LearningRecord {
   id: string;
-  type: "scene" | "dialogue" | "exam" | "custom";
+  type: "scene" | "dialogue" | "exam" | "custom" | "word";
   targetLanguage?: LearningLanguageCode;
   title: string;
   sceneName?: string;
