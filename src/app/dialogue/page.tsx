@@ -250,7 +250,6 @@ function Chat({ scene, onExit }: { scene: Scene; onExit: () => void }) {
     return u ? learningService.getSettings(u.id) : null;
   }, []);
   const showZh = settings ? settings.showChineseGlobal && settings.dialogueChinese : true;
-  const pron = settings ? settings.pronunciationOn : true;
 
   function handleFinish(result: DialogueResult, userTurns: string[], feedbacks: TutorFeedback[]) {
     const transcript = buildTranscript(userTurns, feedbacks);
@@ -308,7 +307,7 @@ function Chat({ scene, onExit }: { scene: Scene; onExit: () => void }) {
       <ConversationPractice
         scene={scene}
         showZh={showZh}
-        pronunciationOn={pron}
+        pronunciationOn={true}
         finishLabel="結束對話並看成果"
         onFinish={handleFinish}
       />
@@ -323,7 +322,6 @@ function FreeChat({ targetLanguage, onExit }: { targetLanguage: LearningLanguage
     return u ? learningService.getSettings(u.id) : null;
   }, []);
   const showZh = settings ? settings.showChineseGlobal && settings.dialogueChinese : true;
-  const pron = settings ? settings.pronunciationOn : true;
   const [createdScene, setCreatedScene] = useState<CustomScene | null>(null);
 
   const languageInfo = getLearningLanguage(targetLanguage);
@@ -481,7 +479,7 @@ function FreeChat({ targetLanguage, onExit }: { targetLanguage: LearningLanguage
       <ConversationPractice
         scene={freeScene}
         showZh={showZh}
-        pronunciationOn={pron}
+        pronunciationOn={true}
         finishLabel="結束對話並看成果"
         onUserTurn={createScenarioFromText}
         onFinish={handleFinish}

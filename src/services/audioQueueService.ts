@@ -120,8 +120,8 @@ class AudioQueueService {
       this.revokeSilentUnlockUrl();
       this.silentUnlockUrl = silentUrl;
       audio.src = silentUrl;
-      audio.volume = 0;
-      audio.muted = true;
+      audio.volume = 1;
+      audio.muted = false;
       audio.loop = true;
       await audio.play();
 

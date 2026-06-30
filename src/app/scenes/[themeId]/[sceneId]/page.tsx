@@ -184,7 +184,7 @@ export default function ScenePracticePage() {
           <ConversationPractice
           scene={activeScene!}
           showZh={showZh}
-          pronunciationOn={settings ? settings.pronunciationOn : true}
+          pronunciationOn={true}
           finishLabel="結束對話並看成果"
           onFinish={handleFinish}
         />
