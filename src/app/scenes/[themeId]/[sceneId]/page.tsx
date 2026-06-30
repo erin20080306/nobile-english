@@ -10,6 +10,7 @@ import { dictionaryService } from "@/services/dictionaryService";
 import { sceneReviewService } from "@/services/sceneReviewService";
 import { gardenService } from "@/services/gardenService";
 import { speechService } from "@/services/speechService";
+import { audioQueueService } from "@/services/audioQueueService";
 import { storageService, KEYS } from "@/services/storageService";
 import { authService } from "@/services/authService";
 import { getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
@@ -92,6 +93,18 @@ export default function ScenePracticePage() {
   function toggleSentence(en: string, zh: string) {
     const now = dictionaryService.toggleSentence(en, zh, scene!.name);
     setSavedSentences((arr) => (now ? [...arr, en] : arr.filter((x) => x !== en)));
+  }
+
+  async function startConversationPractice() {
+    try {
+      await audioQueueService.unlockAudio();
+    } catch (error) {
+      console.log("[AI_TTS] playback failed", {
+        source: "scene_prepare_audio",
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    setPhase("conversation");
   }
 
   function handleFinish(result: DialogueResult, userTurns: string[], feedbacks: TutorFeedback[]) {
@@ -308,7 +321,7 @@ export default function ScenePracticePage() {
 
       {/* Start voice conversation bar */}
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] p-4 bg-cream/90 backdrop-blur">
-        <button className="btn-primary w-full flex items-center justify-center gap-2" onClick={() => setPhase("conversation")}>
+        <button className="btn-primary w-full flex items-center justify-center gap-2" onClick={() => void startConversationPractice()}>
           <Mic size={18} /> 開始語音對話練習
         </button>
       </div>
