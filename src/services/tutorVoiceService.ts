@@ -117,13 +117,8 @@ class TutorVoiceService {
       return;
     }
 
-    try {
-      await audioQueueService.unlockAudio();
-    } catch (error) {
-      this.log("[AI_TTS] audio unlock failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+    audioQueueService.clearQueue({ preserveUnlockedPrimer: true });
+    this.isPlaying = false;
 
     const state = audioQueueService.getState();
     if (!state.autoPlayTutorVoice) {
@@ -139,8 +134,13 @@ class TutorVoiceService {
       await new Promise<void>((resolve) => window.setTimeout(resolve, 300));
     }
 
-    audioQueueService.clearQueue();
-    this.stop();
+    try {
+      await audioQueueService.unlockAudio();
+    } catch (error) {
+      this.log("[AI_TTS] audio unlock failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
 
     const selectedVoice = this.resolveSelectedVoice(options);
     let audioUrl = await this.getTtsAudioUrl(ttsText, {
@@ -417,8 +417,8 @@ class TutorVoiceService {
     const clean = text.trim();
     if (!clean) return;
 
+    audioQueueService.clearQueue({ preserveUnlockedPrimer: true });
     await audioQueueService.unlockAudio();
-    audioQueueService.clearQueue();
     const selectedVoice = this.resolveSelectedVoice(options);
     let audioUrl = await this.getTtsAudioUrl(clean, {
       ...options,

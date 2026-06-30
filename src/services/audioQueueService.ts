@@ -58,6 +58,7 @@ class AudioQueueService {
   private activeSession: PlaybackSession | null = null;
   private sessionSeq = 0;
   private processing = false;
+  private silentUnlockUrl: string | null = null;
 
   constructor() {
     this.detectPlatform();
@@ -94,9 +95,14 @@ class AudioQueueService {
       audioUnlocked: this.state.audioUnlocked,
     });
 
-    if (this.state.audioUnlocked) {
-      this.log("[AI_TTS] audio unlocked", { alreadyUnlocked: true });
+    if (this.state.audioUnlocked && this.audio && !this.audio.paused && this.audio.src) {
+      this.log("[AI_TTS] audio unlocked", { alreadyUnlocked: true, primed: true });
       return true;
+    }
+
+    if (this.state.state === "loading" || this.state.state === "playing") {
+      this.log("[AI_TTS] audio unlocked", { alreadyUnlocked: this.state.audioUnlocked, activePlayback: true });
+      return this.state.audioUnlocked;
     }
 
     this.setState({ state: "unlocking" });
@@ -111,16 +117,16 @@ class AudioQueueService {
       }
 
       const silentUrl = this.createSilentAudio();
+      this.revokeSilentUnlockUrl();
+      this.silentUnlockUrl = silentUrl;
       audio.src = silentUrl;
       audio.volume = 0;
+      audio.muted = true;
+      audio.loop = true;
       await audio.play();
-      audio.pause();
-      audio.removeAttribute("src");
-      audio.load();
-      URL.revokeObjectURL(silentUrl);
 
       this.setState({ state: "ready", audioUnlocked: true });
-      this.log("[AI_TTS] audio unlocked", { platform: this.platform, browser: this.browser });
+      this.log("[AI_TTS] audio unlocked", { platform: this.platform, browser: this.browser, primed: true });
       return true;
     } catch (error) {
       this.log("[AI_TTS] playback failed", {
@@ -131,8 +137,18 @@ class AudioQueueService {
       this.setState({ state: "error", audioUnlocked: false });
       return false;
     } finally {
-      if (this.audio) this.audio.volume = 1;
+      if (this.audio && !this.state.audioUnlocked) this.audio.volume = 1;
     }
+  }
+
+  private revokeSilentUnlockUrl(): void {
+    if (!this.silentUnlockUrl) return;
+    try {
+      URL.revokeObjectURL(this.silentUnlockUrl);
+    } catch {
+      /* ignore */
+    }
+    this.silentUnlockUrl = null;
   }
 
   private ensureAudio(): HTMLAudioElement {
@@ -247,6 +263,8 @@ class AudioQueueService {
 
       const audio = this.ensureAudio();
       this.resetAudioHandlers(audio);
+      audio.loop = false;
+      this.revokeSilentUnlockUrl();
       audio.src = item.url;
       audio.volume = 1;
       audio.muted = false;
@@ -354,6 +372,8 @@ class AudioQueueService {
           audio.pause();
           audio.removeAttribute("src");
           audio.load();
+          this.setState({ audioUnlocked: false });
+          this.revokeSilentUnlockUrl();
         } catch {
           /* ignore */
         }
@@ -392,6 +412,8 @@ class AudioQueueService {
         this.audio.pause();
         this.audio.removeAttribute("src");
         this.audio.load();
+        this.revokeSilentUnlockUrl();
+        this.state.audioUnlocked = false;
       } catch (error) {
         this.log("[AI_TTS] Stop current error", {
           error: error instanceof Error ? error.message : String(error),
@@ -402,9 +424,13 @@ class AudioQueueService {
     this.setState({ state: this.state.recording ? "recording" : "ready", currentItem: null });
   }
 
-  clearQueue(): void {
+  clearQueue(options: { preserveUnlockedPrimer?: boolean } = {}): void {
     this.log("[AI_TTS] Clear queue", { queueLength: this.state.queue.length });
     this.state.queue = [];
+    if (options.preserveUnlockedPrimer && !this.activeSession && !this.state.currentItem) {
+      this.setState({ state: this.state.recording ? "recording" : "ready", currentItem: null });
+      return;
+    }
     this.stopCurrent();
   }
 
