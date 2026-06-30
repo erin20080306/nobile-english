@@ -237,7 +237,11 @@ class AudioQueueService {
     try {
       if (!this.state.audioUnlocked) {
         const unlocked = await this.unlockAudio();
-        if (!unlocked) throw new Error("Audio unlock failed");
+        if (!unlocked) {
+          this.log("[AI_TTS] playback unlock unavailable; trying direct play", {
+            id: item.id,
+          });
+        }
         if (!this.isActiveSession(session)) return;
       }
 
