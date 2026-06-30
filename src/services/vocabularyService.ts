@@ -70,8 +70,11 @@ export const vocabularyService = {
     const chars = Array.from(w);
     if (chars.length < length) return [];
     const suffix = chars.slice(-length).join("");
-    return this.all(language)
+    const words = this.all(language);
+    if (!Array.isArray(words)) return [];
+    return words
       .filter((x) => {
+        if (!x || !x.word) return false;
         const candidate = x.word.toLowerCase().normalize("NFC");
         return candidate !== w && candidate.endsWith(suffix);
       })
@@ -81,9 +84,10 @@ export const vocabularyService = {
   search(query: string, language: LearningLanguageCode = "en"): Word[] {
     const q = query.trim().toLowerCase();
     const words = this.all(language);
+    if (!Array.isArray(words)) return [];
     if (!q) return words.slice(0, 30);
     return words.filter(
-      (w) => w.word.toLowerCase().includes(q) || w.zh.includes(query)
+      (w) => w && w.word && (w.word.toLowerCase().includes(q) || w.zh.includes(query))
     );
   },
 
