@@ -12,6 +12,7 @@ import { gardenService } from "@/services/gardenService";
 import { speechService } from "@/services/speechService";
 import { storageService, KEYS } from "@/services/storageService";
 import { authService } from "@/services/authService";
+import { vocabularyService } from "@/services/vocabularyService";
 import { getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
 import ClickableText from "@/components/ClickableText";
@@ -132,6 +133,14 @@ export default function ScenePracticePage() {
       }))
       .filter((item) => item.meaning);
     gardenService.addSceneWords(targetLanguage, practicedWords);
+
+    // Automatically save practiced words to user's vocabulary
+    practicedWords.forEach((item) => {
+      const wordEntry = vocabularyService.search(item.word, targetLanguage)[0];
+      if (wordEntry) {
+        vocabularyService.addToReview(wordEntry, `${activeScene!.name}場景練習`);
+      }
+    });
 
     const shouldShowSceneReview = sceneReviewService.isDue();
     storageService.set(KEYS.lastResult, {

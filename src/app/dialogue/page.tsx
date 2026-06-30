@@ -9,6 +9,7 @@ import { learningService } from "@/services/learningService";
 import { authService } from "@/services/authService";
 import { sceneReviewService } from "@/services/sceneReviewService";
 import { storageService, KEYS } from "@/services/storageService";
+import { vocabularyService } from "@/services/vocabularyService";
 import { sceneCardStyle } from "@/data/sceneVisuals";
 import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
@@ -256,6 +257,17 @@ function Chat({ scene, onExit }: { scene: Scene; onExit: () => void }) {
       completed: true,
       minutes: 8,
     });
+
+    // Automatically save conversation words to user's vocabulary
+    if (result.conversationWords && result.conversationWords.length > 0) {
+      result.conversationWords.forEach((word) => {
+        const wordEntry = vocabularyService.search(word, targetLanguage)[0];
+        if (wordEntry) {
+          vocabularyService.addToReview(wordEntry, `${scene.name}對話練習`);
+        }
+      });
+    }
+
     const shouldShowSceneReview = sceneReviewService.isDue();
     storageService.set(KEYS.lastResult, {
       kind: "dialogue",

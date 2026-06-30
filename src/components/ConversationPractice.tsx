@@ -580,8 +580,8 @@ export default function ConversationPractice({
                 />
                 {showZh && m.zh && <p className={`text-sm mt-1 ${m.role === "user" ? "text-white/80" : "text-inkSoft"}`}>{m.zh}</p>}
                 <div className="mt-1 flex gap-3">
-                  <button onClick={() => speak(m.en, m.role === "tutor")} className={m.role === "user" ? "text-white/90" : "text-lilacDeep"}><Volume2 size={15} /></button>
-                  <button onClick={() => { dictionaryService.toggleSentence(m.en, m.zh, scene.name); flashToast("已收藏句子"); }} className={m.role === "user" ? "text-white/90" : "text-peachDeep"}><Star size={15} /></button>
+                  <button onClick={() => speak(m.en, m.role === "tutor")} className={m.role === "user" ? "text-white/90" : "text-lilacDeep"} title="播放發音"><Volume2 size={15} /></button>
+                  <button onClick={() => { dictionaryService.toggleSentence(m.en, m.zh, scene.name); flashToast("已收藏句子"); }} className={m.role === "user" ? "text-white/90" : "text-peachDeep"} title="收藏句子"><Star size={15} /></button>
                 </div>
               </div>
             </div>
