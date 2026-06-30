@@ -16,6 +16,45 @@ import BottomNav from "@/components/BottomNav";
 const countOptions = [5, 10, 15, 20, 25, 30];
 const learnedOptions = [0, 25, 50, 75, 100];
 
+function playAnswerSound(correct: boolean) {
+  if (typeof window === "undefined") return;
+  try {
+    const audioWindow = window as typeof window & { webkitAudioContext?: typeof AudioContext };
+    const AudioContextClass = audioWindow.AudioContext || audioWindow.webkitAudioContext;
+    if (!AudioContextClass) return;
+
+    const context = new AudioContextClass();
+    const start = context.currentTime;
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(correct ? 0.08 : 0.07, start + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + (correct ? 0.28 : 0.2));
+    gain.connect(context.destination);
+
+    const playTone = (frequency: number, offset: number, duration: number) => {
+      const oscillator = context.createOscillator();
+      oscillator.type = correct ? "sine" : "triangle";
+      oscillator.frequency.setValueAtTime(frequency, start + offset);
+      oscillator.connect(gain);
+      oscillator.start(start + offset);
+      oscillator.stop(start + offset + duration);
+    };
+
+    if (correct) {
+      playTone(660, 0, 0.09);
+      playTone(880, 0.09, 0.13);
+    } else {
+      playTone(240, 0, 0.08);
+      playTone(170, 0.08, 0.12);
+    }
+
+    if (context.state === "suspended") void context.resume();
+    window.setTimeout(() => { void context.close(); }, correct ? 360 : 280);
+  } catch {
+    // Sound is optional; answering should never fail because audio is blocked.
+  }
+}
+
 export default function WordReviewPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
@@ -65,6 +104,7 @@ export default function WordReviewPage() {
     const kind = current.questionKind;
     const correctText = wordReviewService.correctChoiceFor(current.word, kind);
     const correct = option === correctText;
+    playAnswerSound(correct);
     const answer = {
       word: current.word.word,
       correct,
