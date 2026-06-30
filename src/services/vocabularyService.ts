@@ -16,12 +16,6 @@ import { expandedVocabularyPart4b } from "@/data/expandedVocabularyPart4b";
 import { expandedVocabularyPart4c } from "@/data/expandedVocabularyPart4c";
 import { storageService, KEYS } from "./storageService";
 
-// Helper function to convert tuple to Word object
-function tupleToWord(tuple: [string, string, string, string, string, string]): Word {
-  const [word, phonetic, pos, enDef, zh, example] = tuple;
-  return { word, phonetic, pos: pos as any, enDef, zh, example, language: "en" };
-}
-
 const allWords: Word[] = (() => {
   const map = new Map<string, Word>();
   [
@@ -29,15 +23,15 @@ const allWords: Word[] = (() => {
     ...learnerDictionaryEntries,
     ...vocabulary,
     ...expandedVocabulary,
-    ...(expandedVocabularyPart2a as any).map(tupleToWord),
-    ...(expandedVocabularyPart2b as any).map(tupleToWord),
-    ...(expandedVocabularyPart2c as any).map(tupleToWord),
-    ...(expandedVocabularyPart3a as any).map(tupleToWord),
-    ...(expandedVocabularyPart3b as any).map(tupleToWord),
-    ...(expandedVocabularyPart3c as any).map(tupleToWord),
-    ...(expandedVocabularyPart4a as any).map(tupleToWord),
-    ...(expandedVocabularyPart4b as any).map(tupleToWord),
-    ...(expandedVocabularyPart4c as any).map(tupleToWord),
+    ...(expandedVocabularyPart2a as unknown as Word[]),
+    ...(expandedVocabularyPart2b as unknown as Word[]),
+    ...(expandedVocabularyPart2c as unknown as Word[]),
+    ...(expandedVocabularyPart3a as unknown as Word[]),
+    ...(expandedVocabularyPart3b as unknown as Word[]),
+    ...(expandedVocabularyPart3c as unknown as Word[]),
+    ...(expandedVocabularyPart4a as unknown as Word[]),
+    ...(expandedVocabularyPart4b as unknown as Word[]),
+    ...(expandedVocabularyPart4c as unknown as Word[]),
   ].forEach((w) => {
     const k = w.word.toLowerCase();
     if (!map.has(k)) map.set(k, w);
