@@ -47,8 +47,9 @@ function loadVoices(): Promise<SpeechSynthesisVoice[]> {
 function pickVoice(voices: SpeechSynthesisVoice[], lang = "en-US", keywords: string[] = []) {
   const preferred = lang || "en-US";
   const prefix = preferred.slice(0, 2).toLowerCase();
-  if (keywords.length > 0) {
-    const kwMatch = voices.find((v) => keywords.some((k) => v.name.toLowerCase().includes(k)));
+  const normalizedKeywords = keywords.map((keyword) => keyword.trim().toLowerCase()).filter(Boolean);
+  if (normalizedKeywords.length > 0) {
+    const kwMatch = voices.find((v) => normalizedKeywords.some((keyword) => v.name.toLowerCase().includes(keyword)));
     if (kwMatch) return kwMatch;
   }
   const local =
