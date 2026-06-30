@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { MessageSquare, Volume2, Star, X } from "lucide-react";
+import { ChevronDown, ChevronUp, MessageSquare, Volume2, Star, X } from "lucide-react";
 import type { SavedWord, SavedSentence, LearningRecord, ExamResult, ExamQuestion, LearningLanguageCode, UserSettings } from "@/types";
 import { vocabularyService } from "@/services/vocabularyService";
 import { dictionaryService } from "@/services/dictionaryService";
@@ -15,6 +15,7 @@ import BottomNav from "@/components/BottomNav";
 import HorizontalScrollChips from "@/components/HorizontalScrollChips";
 
 type RecordLanguageFilter = LearningLanguageCode | "all";
+type WordRecordDateFilter = "all" | "1d" | "3d" | "10d" | "30d" | "older30";
 
 const tabs = [
   { key: "words", label: "我的單字" },
@@ -27,9 +28,40 @@ const tabs = [
   { key: "review", label: "複習清單" },
 ];
 
+const wordRecordDateFilters: { key: WordRecordDateFilter; label: string }[] = [
+  { key: "all", label: "全部" },
+  { key: "1d", label: "1天內" },
+  { key: "3d", label: "3天內" },
+  { key: "10d", label: "10天內" },
+  { key: "30d", label: "30天內" },
+  { key: "older30", label: "30天前" },
+];
+
+const collapsedWordRecordCount = 6;
+
 function filterByLanguage(items: LearningRecord[], language: RecordLanguageFilter) {
   if (language === "all") return items;
   return items.filter((record) => (record.targetLanguage || "en") === language);
+}
+
+function recordAgeDays(record: LearningRecord) {
+  const time = new Date(record.date).getTime();
+  if (!Number.isFinite(time)) return Number.POSITIVE_INFINITY;
+  return Math.max(0, (Date.now() - time) / 86400000);
+}
+
+function matchesWordRecordDate(record: LearningRecord, filter: WordRecordDateFilter) {
+  if (filter === "all") return true;
+  const age = recordAgeDays(record);
+  if (filter === "1d") return age <= 1;
+  if (filter === "3d") return age > 1 && age <= 3;
+  if (filter === "10d") return age > 3 && age <= 10;
+  if (filter === "30d") return age > 10 && age <= 30;
+  return age > 30;
+}
+
+function filterByWordRecordDate(items: LearningRecord[], filter: WordRecordDateFilter) {
+  return items.filter((record) => matchesWordRecordDate(record, filter));
 }
 
 export default function RecordsPage() {
@@ -51,6 +83,8 @@ function RecordsInner() {
   const [wrong, setWrong] = useState<ExamQuestion[]>([]);
   const [activeRecord, setActiveRecord] = useState<LearningRecord | null>(null);
   const [languageFilter, setLanguageFilter] = useState<RecordLanguageFilter>("all");
+  const [wordDateFilter, setWordDateFilter] = useState<WordRecordDateFilter>("all");
+  const [wordRecordsExpanded, setWordRecordsExpanded] = useState(false);
   const [settings, setSettings] = useState<UserSettings>(() => learningService.getSettings(""));
   const [playingId, setPlayingId] = useState<string | null>(null);
 
@@ -89,6 +123,8 @@ function RecordsInner() {
   const showSentenceZh = showChineseGlobal && settings.sentenceReviewChinese;
   const showDialogueZh = showChineseGlobal && settings.dialogueChinese;
   const showSceneZh = showChineseGlobal && settings.sceneChinese;
+  const wordPracticeRecords = filterByLanguage(records.filter((r) => r.type === "word"), languageFilter);
+  const filteredWordPracticeRecords = filterByWordRecordDate(wordPracticeRecords, wordDateFilter);
 
   return (
     <div className="min-h-[100dvh] pb-4">
@@ -105,7 +141,7 @@ function RecordsInner() {
 
       <div className="px-5 mt-2 space-y-3">
         {(tab === "dialogue" || tab === "scene" || tab === "word") && (
-          <LanguageFilter value={languageFilter} onChange={setLanguageFilter} />
+          <LanguageFilter value={languageFilter} onChange={(value) => { setLanguageFilter(value); setWordRecordsExpanded(false); }} />
         )}
         {tab === "words" && (words.length ? words.map((w) => (
           <div key={w.word} className="card !p-4">
@@ -132,7 +168,20 @@ function RecordsInner() {
                 開始單字練習
               </button>
             </div>
-            <RecordList items={filterByLanguage(records.filter((r) => r.type === "word"), languageFilter)} onOpen={setActiveRecord} showChinese={showWordZh} playingId={playingId} onSpeak={speakRecordFull} />
+            <WordRecordDateFilterBar
+              value={wordDateFilter}
+              onChange={(value) => { setWordDateFilter(value); setWordRecordsExpanded(false); }}
+              items={wordPracticeRecords}
+            />
+            <CollapsibleRecordList
+              items={filteredWordPracticeRecords}
+              onOpen={setActiveRecord}
+              showChinese={showWordZh}
+              playingId={playingId}
+              onSpeak={speakRecordFull}
+              expanded={wordRecordsExpanded}
+              onToggle={() => setWordRecordsExpanded((value) => !value)}
+            />
           </>
         )}
 
@@ -236,6 +285,45 @@ function RecordList({ items, onOpen, showChinese, playingId, onSpeak }: { items:
           </button>
         );
       })}
+    </>
+  );
+}
+
+function WordRecordDateFilterBar({ value, onChange, items }: { value: WordRecordDateFilter; onChange: (value: WordRecordDateFilter) => void; items: LearningRecord[] }) {
+  return (
+    <div className="rounded-[28px] bg-white/70 p-2 shadow-softer">
+      <HorizontalScrollChips>
+        {wordRecordDateFilters.map((filter) => {
+          const count = filterByWordRecordDate(items, filter.key).length;
+          return (
+            <button
+              key={filter.key}
+              onClick={() => onChange(filter.key)}
+              className={`chip whitespace-nowrap ${value === filter.key ? "bg-mintDeep text-white" : "bg-white text-ink shadow-softer"}`}
+            >
+              {filter.label}<span className="ml-1 text-[11px] opacity-80">{count}</span>
+            </button>
+          );
+        })}
+      </HorizontalScrollChips>
+    </div>
+  );
+}
+
+function CollapsibleRecordList({ items, onOpen, showChinese, playingId, onSpeak, expanded, onToggle }: { items: LearningRecord[]; onOpen: (record: LearningRecord) => void; showChinese: boolean; playingId: string | null; onSpeak: (key: string, record: LearningRecord) => void; expanded: boolean; onToggle: () => void }) {
+  if (!items.length) return <Empty text="這個時間範圍尚無單字練習紀錄。" />;
+  const shouldCollapse = items.length > collapsedWordRecordCount;
+  const visibleItems = shouldCollapse && !expanded ? items.slice(0, collapsedWordRecordCount) : items;
+
+  return (
+    <>
+      <RecordList items={visibleItems} onOpen={onOpen} showChinese={showChinese} playingId={playingId} onSpeak={onSpeak} />
+      {shouldCollapse && (
+        <button onClick={onToggle} className="w-full rounded-3xl bg-white py-3 text-sm font-bold text-lilacDeep shadow-softer flex items-center justify-center gap-2">
+          {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          {expanded ? "收合紀錄" : `展開更多 ${items.length - collapsedWordRecordCount} 筆`}
+        </button>
+      )}
     </>
   );
 }
