@@ -260,7 +260,7 @@ export const wordReviewService = {
   },
 
   isCorrectChoice(choice: string, target: Word, questionKind: WordReviewQuestionKind = "meaningChoice"): boolean {
-    return this.isCorrectAnswer(choice, target, questionKind);
+    return normalizeAnswer(choice) === normalizeAnswer(optionText(target, questionKind));
   },
 
   choicesFor(target: Word, language: LearningLanguageCode, questionKind: WordReviewQuestionKind = "meaningChoice"): string[] {
