@@ -27,6 +27,7 @@ export default function WordSheet({
   const [toast, setToast] = useState("");
   const [aiEntry, setAiEntry] = useState<Word | null>(null);
   const [loadingAi, setLoadingAi] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   const result = useMemo(
     () => word ? dictionaryService.lookup(word, language) : { entry: null, fromFallback: false },
@@ -89,11 +90,13 @@ export default function WordSheet({
 
   function speak() {
     if (!entry) return;
+    setIsPlaying(true);
     const r = speechService.speak(entry.word, {
       ...voiceForLanguage(language, learningService.getSpeechRate(language)),
-      onError: (message) => setToast(message),
+      onEnd: () => setIsPlaying(false),
+      onError: (message) => { setIsPlaying(false); setToast(message); },
     });
-    if (!r.ok) setToast(r.message || "無法播放發音");
+    if (!r.ok) { setIsPlaying(false); setToast(r.message || "無法播放發音"); }
   }
 
   function toggleSave() {
@@ -149,10 +152,10 @@ export default function WordSheet({
                   <span className="chip bg-lilac text-lilacDeep">{entry.pos}</span>
                   <button
                     onClick={speak}
-                    className="ml-auto h-11 w-11 rounded-2xl bg-lilacDeep text-white flex items-center justify-center active:scale-90 transition"
+                    className={`ml-auto h-11 w-11 rounded-2xl text-white flex items-center justify-center active:scale-90 transition-all ${isPlaying ? "bg-lilacDeep scale-110" : "bg-lilacDeep"}`}
                     aria-label="播放發音"
                   >
-                    <Volume2 size={20} />
+                    <Volume2 size={20} className={isPlaying ? "animate-pulse" : ""} />
                   </button>
                 </div>
                 <p className="text-inkSoft mt-1">{entry.phonetic}</p>

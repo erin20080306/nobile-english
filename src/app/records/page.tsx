@@ -16,22 +16,6 @@ import HorizontalScrollChips from "@/components/HorizontalScrollChips";
 
 type RecordLanguageFilter = LearningLanguageCode | "all";
 
-function speakRecordText(text: string, language: LearningLanguageCode = "en") {
-  const r = speechService.speak(text, {
-    ...voiceForLanguage(language, learningService.getSpeechRate(language)),
-    onError: (message) => alert(message),
-  });
-  if (!r.ok) alert(r.message || "無法播放語音");
-}
-
-function speakRecord(record: LearningRecord) {
-  const lines = record.transcript?.length
-    ? record.transcript.map((line) => line.en)
-    : (record.userAnswer || record.enContent || "").split(" / ");
-  const text = lines.map((line) => line.trim()).filter(Boolean).join(". ");
-  if (text) speakRecordText(text, record.targetLanguage || "en");
-}
-
 const tabs = [
   { key: "words", label: "我的單字" },
   { key: "sentences", label: "我的句子" },
@@ -67,6 +51,25 @@ function RecordsInner() {
   const [activeRecord, setActiveRecord] = useState<LearningRecord | null>(null);
   const [languageFilter, setLanguageFilter] = useState<RecordLanguageFilter>("all");
   const [settings, setSettings] = useState<UserSettings>(() => learningService.getSettings(""));
+  const [playingId, setPlayingId] = useState<string | null>(null);
+
+  function speakWithId(key: string, text: string, language: LearningLanguageCode = "en") {
+    setPlayingId(key);
+    const r = speechService.speak(text, {
+      ...voiceForLanguage(language, learningService.getSpeechRate(language)),
+      onEnd: () => setPlayingId(null),
+      onError: (message) => { setPlayingId(null); alert(message); },
+    });
+    if (!r.ok) { setPlayingId(null); alert(r.message || "無法播放語音"); }
+  }
+
+  function speakRecordFull(key: string, record: LearningRecord) {
+    const lines = record.transcript?.length
+      ? record.transcript.map((line) => line.en)
+      : (record.userAnswer || record.enContent || "").split(" / ");
+    const text = lines.map((line) => line.trim()).filter(Boolean).join(". ");
+    if (text) speakWithId(key, text, record.targetLanguage || "en");
+  }
 
   function reload() {
     setSettings(learningService.getSettings(""));
@@ -108,7 +111,9 @@ function RecordsInner() {
               <p className="font-extrabold text-ink">{w.word}</p>
               <span className="chip bg-lilac text-lilacDeep text-xs">{w.pos}</span>
               {w.inReview && <span className="chip bg-mint text-mintDeep text-xs">複習中</span>}
-              <button onClick={() => speakRecordText(w.word, "en")} className="ml-auto text-lilacDeep"><Volume2 size={18} /></button>
+              <button onClick={() => speakWithId(`word-${w.word}`, w.word, w.language || "en")} className={`ml-auto transition-all ${playingId === `word-${w.word}` ? "text-lilacDeep scale-125" : "text-lilacDeep"}`}>
+                <Volume2 size={18} className={playingId === `word-${w.word}` ? "animate-pulse" : ""} />
+              </button>
             </div>
             <p className="text-sm text-inkSoft">{w.phonetic}{showWordZh ? ` · ${w.zh}` : ""}</p>
             <p className="text-sm text-ink mt-1">{w.example}</p>
@@ -121,14 +126,14 @@ function RecordsInner() {
             <p className="text-ink font-semibold">{s.en}</p>
             {showSentenceZh && <p className="text-sm text-inkSoft">{s.zh}</p>}
             <div className="mt-2 flex gap-2">
-              <button onClick={() => speakRecordText(s.en, "en")} className="chip bg-lilac text-lilacDeep text-xs flex items-center gap-1"><Volume2 size={12} /> 發音</button>
+              <button onClick={() => speakWithId(`sent-${s.id}`, s.en, "en")} className={`chip text-xs flex items-center gap-1 transition-all ${playingId === `sent-${s.id}` ? "bg-lilacDeep text-white" : "bg-lilac text-lilacDeep"}`}><Volume2 size={12} className={playingId === `sent-${s.id}` ? "animate-pulse" : ""} /> 發音</button>
               <button onClick={() => { dictionaryService.toggleSentence(s.en, s.zh); reload(); }} className="chip bg-peach text-peachDeep text-xs">移除</button>
             </div>
           </div>
         )) : <Empty text="尚未收藏句子。" />)}
 
-        {tab === "dialogue" && <RecordList items={filterByLanguage(records.filter((r) => r.type === "dialogue"), languageFilter)} onOpen={setActiveRecord} showChinese={showDialogueZh} />}
-        {tab === "scene" && <RecordList items={filterByLanguage(records.filter((r) => r.type === "scene" || r.type === "custom"), languageFilter)} onOpen={setActiveRecord} showChinese={showSceneZh} />}
+        {tab === "dialogue" && <RecordList items={filterByLanguage(records.filter((r) => r.type === "dialogue"), languageFilter)} onOpen={setActiveRecord} showChinese={showDialogueZh} playingId={playingId} onSpeak={speakRecordFull} />}
+        {tab === "scene" && <RecordList items={filterByLanguage(records.filter((r) => r.type === "scene" || r.type === "custom"), languageFilter)} onOpen={setActiveRecord} showChinese={showSceneZh} playingId={playingId} onSpeak={speakRecordFull} />}
 
         {tab === "exam" && (examResults.length ? examResults.map((r) => (
           <div key={r.id} className="card !p-4 flex items-center justify-between">
@@ -156,7 +161,7 @@ function RecordsInner() {
             <div key={w.word} className="card !p-4">
               <div className="flex items-center gap-2">
                 <p className="font-extrabold text-ink">{w.word}</p>
-                <button onClick={() => speakRecordText(w.word, "en")} className="ml-auto text-lilacDeep"><Volume2 size={18} /></button>
+                <button onClick={() => speakWithId(`rev-${w.word}`, w.word, w.language || "en")} className={`ml-auto transition-all ${playingId === `rev-${w.word}` ? "text-lilacDeep scale-125" : "text-lilacDeep"}`}><Volume2 size={18} className={playingId === `rev-${w.word}` ? "animate-pulse" : ""} /></button>
               </div>
               <p className="text-sm text-inkSoft">{w.phonetic}{showWordZh ? ` · ${w.zh}` : ""}</p>
               <button onClick={() => { vocabularyService.toggleReview(w.word); reload(); }} className="chip bg-peach text-peachDeep text-xs mt-2">移出複習</button>
@@ -169,6 +174,9 @@ function RecordsInner() {
           record={activeRecord}
           showChinese={(activeRecord.type === "scene" || activeRecord.type === "custom") ? showSceneZh : showDialogueZh}
           onClose={() => setActiveRecord(null)}
+          playingId={playingId}
+          onSpeak={speakWithId}
+          onSpeakFull={speakRecordFull}
         />
       )}
       <BottomNav />
@@ -176,44 +184,48 @@ function RecordsInner() {
   );
 }
 
-function RecordList({ items, onOpen, showChinese }: { items: LearningRecord[]; onOpen: (record: LearningRecord) => void; showChinese: boolean }) {
+function RecordList({ items, onOpen, showChinese, playingId, onSpeak }: { items: LearningRecord[]; onOpen: (record: LearningRecord) => void; showChinese: boolean; playingId: string | null; onSpeak: (key: string, record: LearningRecord) => void }) {
   if (!items.length) return <Empty text="尚無紀錄。" />;
   return (
     <>
-      {items.map((r) => (
-        <button key={r.id} onClick={() => onOpen(r)} className="card !p-4 w-full text-left active:scale-[0.99] transition">
-          <div className="flex items-center justify-between">
-            <p className="font-bold text-ink">{r.title}</p>
-            <div className="flex shrink-0 gap-1">
-              <span className="chip bg-mint text-mintDeep text-xs">{getLearningLanguage(r.targetLanguage || "en").zhName}</span>
-              <span className="chip bg-lilac text-lilacDeep text-xs">{r.score} 分</span>
+      {items.map((r) => {
+        const playKey = `rec-${r.id}`;
+        const isPlaying = playingId === playKey;
+        return (
+          <button key={r.id} onClick={() => onOpen(r)} className="card !p-4 w-full text-left active:scale-[0.99] transition">
+            <div className="flex items-center justify-between">
+              <p className="font-bold text-ink">{r.title}</p>
+              <div className="flex shrink-0 gap-1">
+                <span className="chip bg-mint text-mintDeep text-xs">{getLearningLanguage(r.targetLanguage || "en").zhName}</span>
+                <span className="chip bg-lilac text-lilacDeep text-xs">{r.score} 分</span>
+              </div>
             </div>
-          </div>
-          <p className="text-xs text-inkSoft">{new Date(r.date).toLocaleString()} · {r.minutes} 分鐘</p>
-          {r.userAnswer && <p className="text-sm text-ink mt-1">你的回答：{r.userAnswer}</p>}
-          {showChinese && r.suggestion && <p className="text-sm text-inkSoft mt-1">建議：{r.suggestion}</p>}
-          <div className="mt-2 flex flex-wrap gap-2">
-            <span className="inline-flex items-center gap-1 text-xs font-bold text-lilacDeep">
-              <MessageSquare size={13} /> 查看完整對話紀錄
-            </span>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                speakRecord(r);
-              }}
-              className="inline-flex items-center gap-1 text-xs font-bold text-peachDeep"
-            >
-              <Volume2 size={13} /> 播放紀錄
-            </button>
-          </div>
-        </button>
-      ))}
+            <p className="text-xs text-inkSoft">{new Date(r.date).toLocaleString()} · {r.minutes} 分鐘</p>
+            {r.userAnswer && <p className="text-sm text-ink mt-1">你的回答：{r.userAnswer}</p>}
+            {showChinese && r.suggestion && <p className="text-sm text-inkSoft mt-1">建議：{r.suggestion}</p>}
+            <div className="mt-2 flex flex-wrap gap-2">
+              <span className="inline-flex items-center gap-1 text-xs font-bold text-lilacDeep">
+                <MessageSquare size={13} /> 查看完整對話紀錄
+              </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSpeak(playKey, r);
+                }}
+                className={`inline-flex items-center gap-1 text-xs font-bold transition-all ${isPlaying ? "text-lilacDeep" : "text-peachDeep"}`}
+              >
+                <Volume2 size={13} className={isPlaying ? "animate-pulse" : ""} /> {isPlaying ? "播放中…" : "播放紀錄"}
+              </button>
+            </div>
+          </button>
+        );
+      })}
     </>
   );
 }
 
-function RecordDetail({ record, showChinese, onClose }: { record: LearningRecord; showChinese: boolean; onClose: () => void }) {
+function RecordDetail({ record, showChinese, onClose, playingId, onSpeak, onSpeakFull }: { record: LearningRecord; showChinese: boolean; onClose: () => void; playingId: string | null; onSpeak: (key: string, text: string, lang: LearningLanguageCode) => void; onSpeakFull: (key: string, record: LearningRecord) => void }) {
   const fallbackLines = (record.userAnswer || "")
     .split(" / ")
     .map((en) => en.trim())
@@ -221,6 +233,7 @@ function RecordDetail({ record, showChinese, onClose }: { record: LearningRecord
     .map((en) => ({ role: "user" as const, en }));
   const lines: NonNullable<LearningRecord["transcript"]> = record.transcript?.length ? record.transcript : fallbackLines;
   const language = record.targetLanguage || "en";
+  const headerKey = `detail-header-${record.id}`;
 
   return (
     <div className="fixed inset-0 z-50 bg-cream/95 backdrop-blur overflow-y-auto">
@@ -231,8 +244,8 @@ function RecordDetail({ record, showChinese, onClose }: { record: LearningRecord
             <h2 className="text-2xl font-black text-ink break-words">{record.title}</h2>
             <p className="text-sm text-inkSoft">{new Date(record.date).toLocaleString()} · {record.score} 分</p>
           </div>
-          <button onClick={() => speakRecord(record)} className="h-11 w-11 rounded-2xl bg-lilac text-lilacDeep flex items-center justify-center">
-            <Volume2 size={20} />
+          <button onClick={() => onSpeakFull(headerKey, record)} className={`h-11 w-11 rounded-2xl flex items-center justify-center transition-all ${playingId === headerKey ? "bg-lilacDeep text-white" : "bg-lilac text-lilacDeep"}`}>
+            <Volume2 size={20} className={playingId === headerKey ? "animate-pulse" : ""} />
           </button>
           <button onClick={onClose} className="h-11 w-11 rounded-2xl bg-white shadow-softer text-inkSoft flex items-center justify-center">
             <X size={20} />
@@ -242,16 +255,18 @@ function RecordDetail({ record, showChinese, onClose }: { record: LearningRecord
         <div className="mt-5 space-y-3">
           {lines.length ? lines.map((line, index) => {
             const isUser = line.role === "user";
+            const lineKey = `detail-line-${record.id}-${index}`;
+            const lineIsPlaying = playingId === lineKey;
             return (
               <div key={`${line.role}-${index}`} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
                 <div className={`max-w-[88%] rounded-3xl p-3 ${isUser ? "bg-lilacDeep text-white" : "bg-white text-ink shadow-softer"}`}>
                   <p className="font-semibold leading-relaxed break-words">{line.en}</p>
                   {showChinese && line.zh && <p className={`mt-1 text-sm ${isUser ? "text-white/80" : "text-inkSoft"}`}>{line.zh}</p>}
                   <button
-                    onClick={() => speakRecordText(line.en, language)}
-                    className={`mt-2 inline-flex items-center gap-1 text-xs font-bold ${isUser ? "text-white/90" : "text-lilacDeep"}`}
+                    onClick={() => onSpeak(lineKey, line.en, language)}
+                    className={`mt-2 inline-flex items-center gap-1 text-xs font-bold transition-all ${isUser ? "text-white/90" : (lineIsPlaying ? "text-lilacDeep" : "text-lilacDeep")}`}
                   >
-                    <Volume2 size={13} /> 播放
+                    <Volume2 size={13} className={lineIsPlaying ? "animate-pulse" : ""} /> {lineIsPlaying ? "播放中…" : "播放"}
                   </button>
                   {isUser && (line.betterWay || (showChinese && (line.grammarTip || line.zhExplain))) && (
                     <div className="mt-3 rounded-2xl bg-white/95 p-3 text-sm text-ink">
