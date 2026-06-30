@@ -51,6 +51,7 @@ export const KEYS = {
   stats: "stats",
   records: "records",
   savedWords: "savedWords",
+  wordReviewMemory: "wordReviewMemory",
   recentSceneWords: "recentSceneWords",
   savedSentences: "savedSentences",
   examResults: "examResults",
