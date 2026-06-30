@@ -2,9 +2,13 @@ import type { LearningLanguageCode, Word, SavedSentence } from "@/types";
 import { dictionaryEntries } from "@/data/dictionary";
 import { learnerDictionaryEntries } from "@/data/learnerDictionary";
 import { multilingualDictionaryEntries } from "@/data/multilingualDictionary";
+import { expandedMultilingualDictionaryEntries } from "@/data/expandedMultilingualDictionary";
 import { getLearningLanguage } from "@/data/learningLanguages";
 import { vocabularyService } from "./vocabularyService";
+
 import { storageService, KEYS } from "./storageService";
+
+const allMultilingualEntries: Word[] = [...multilingualDictionaryEntries, ...expandedMultilingualDictionaryEntries];
 
 // Dictionary lookup. Tries the rich local dictionary first, then the larger
 // learner/core word bank and vocabulary list as fallbacks. A future free
@@ -209,7 +213,7 @@ function findMultilingualEntry(word: string, language: Exclude<LearningLanguageC
   const normalized = normalizeMultilingualToken(word, language);
   if (!normalized) return null;
   const candidates = multilingualCandidatesFor(normalized, language);
-  return multilingualDictionaryEntries.find((entry) => {
+  return allMultilingualEntries.find((entry) => {
     if (entry.language !== language) return false;
     const entryWord = normalizeMultilingualToken(entry.word, language);
     if (candidates.has(entryWord)) return true;
@@ -483,7 +487,7 @@ function isTargetScript(char: string, language: Exclude<LearningLanguageCode, "e
 
 function tokenizeWithDictionary(text: string, language: Exclude<LearningLanguageCode, "en">): ClickableToken[] {
   if (language === "it" || language === "es") return tokenizeWithRegex(text, language);
-  const entries = multilingualDictionaryEntries
+  const entries = allMultilingualEntries
     .filter((entry) => entry.language === language)
     .map((entry) => entry.word)
     .sort((a, b) => b.length - a.length);
@@ -542,7 +546,7 @@ export const dictionaryService = {
     const q = query.trim().toLowerCase();
     if (!q) return [];
     if (language !== "en") {
-      return multilingualDictionaryEntries
+      return allMultilingualEntries
         .filter((w) => w.language === language && normalizeMultilingualToken(w.word, language).startsWith(q))
         .slice(0, 8)
         .map((w) => w.word);

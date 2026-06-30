@@ -3,20 +3,27 @@ import { vocabulary } from "@/data/vocabulary";
 import { dictionaryEntries } from "@/data/dictionary";
 import { learnerDictionaryEntries } from "@/data/learnerDictionary";
 import { multilingualDictionaryEntries } from "@/data/multilingualDictionary";
+import { expandedVocabulary } from "@/data/expandedVocabulary";
+import { expandedMultilingualDictionaryEntries } from "@/data/expandedMultilingualDictionary";
 import { storageService, KEYS } from "./storageService";
 
 const allWords: Word[] = (() => {
   const map = new Map<string, Word>();
-  [...dictionaryEntries, ...learnerDictionaryEntries, ...vocabulary].forEach((w) => {
+  [...dictionaryEntries, ...learnerDictionaryEntries, ...vocabulary, ...expandedVocabulary].forEach((w) => {
     const k = w.word.toLowerCase();
     if (!map.has(k)) map.set(k, w);
   });
   return Array.from(map.values());
 })();
 
+export const allMultilingualEntries: Word[] = [
+  ...multilingualDictionaryEntries,
+  ...expandedMultilingualDictionaryEntries,
+];
+
 export const vocabularyService = {
   all(language: LearningLanguageCode = "en"): Word[] {
-    if (language !== "en") return multilingualDictionaryEntries.filter((w) => w.language === language);
+    if (language !== "en") return allMultilingualEntries.filter((w) => w.language === language);
     return allWords;
   },
 
