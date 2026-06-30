@@ -1,12 +1,21 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Sparkles, MessageCircle, BookOpen, GraduationCap } from "lucide-react";
 import CheerImage from "@/components/CheerImage";
+import { authService } from "@/services/authService";
 
 export default function Landing() {
   const router = useRouter();
+
+  useEffect(() => {
+    const user = authService.getCurrentUser();
+    if (user) {
+      router.replace(user.onboarded ? "/dashboard" : "/onboarding");
+    }
+  }, [router]);
   const features = [
     { icon: MessageCircle, title: "場景對話", desc: "100+ 真實情境練習" },
     { icon: BookOpen, title: "同尾字＆字典", desc: "多語單字、例句解釋" },
@@ -55,11 +64,8 @@ export default function Landing() {
       </div>
 
       <div className="mt-auto pt-8 space-y-3">
-        <button className="btn-primary w-full text-lg" onClick={() => router.push("/register")}>
+        <button className="btn-primary w-full text-lg" onClick={() => router.push("/login")}>
           開始學習
-        </button>
-        <button className="btn-secondary w-full" onClick={() => router.push("/login")}>
-          我已經有帳號
         </button>
       </div>
     </div>
