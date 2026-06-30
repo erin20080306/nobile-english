@@ -136,7 +136,12 @@ class AudioQueueService {
   }
 
   private ensureAudio(): HTMLAudioElement {
-    if (!this.audio) this.audio = new Audio();
+    if (!this.audio) {
+      this.audio = new Audio();
+      this.audio.preload = "auto";
+      this.audio.setAttribute("playsinline", "true");
+      this.audio.setAttribute("webkit-playsinline", "true");
+    }
     return this.audio;
   }
 
@@ -243,17 +248,10 @@ class AudioQueueService {
       audio.muted = false;
       audio.playbackRate = this.state.playbackRate;
 
-      await this.waitForCanPlay(audio, session);
+      await this.playWithTimeout(audio, session);
       if (!this.isActiveSession(session)) return;
 
       this.setState({ state: "playing" });
-      try {
-        await audio.play();
-      } catch (error) {
-        throw new Error(`audio.play() rejected: ${error instanceof Error ? error.message : String(error)}`);
-      }
-      if (!this.isActiveSession(session)) return;
-
       this.markStarted(session);
       await this.waitForEnded(audio, session);
       if (!this.isActiveSession(session)) return;
@@ -271,20 +269,14 @@ class AudioQueueService {
     }
   }
 
-  private waitForCanPlay(audio: HTMLAudioElement, session: PlaybackSession): Promise<void> {
+  private playWithTimeout(audio: HTMLAudioElement, session: PlaybackSession): Promise<void> {
     return new Promise((resolve, reject) => {
       let cleaned = false;
       const cleanup = () => {
         if (cleaned) return;
         cleaned = true;
         if (session.loadTimer) window.clearTimeout(session.loadTimer);
-        audio.removeEventListener("canplay", handleCanPlay);
-        audio.removeEventListener("loadeddata", handleCanPlay);
         audio.removeEventListener("error", handleError);
-      };
-      const handleCanPlay = () => {
-        cleanup();
-        resolve();
       };
       const handleError = () => {
         cleanup();
@@ -295,15 +287,17 @@ class AudioQueueService {
         reject(new Error("Audio load timeout"));
       }, AUDIO_LOAD_TIMEOUT_MS);
       session.cleanups.push(cleanup);
-      audio.addEventListener("canplay", handleCanPlay, { once: true });
-      audio.addEventListener("loadeddata", handleCanPlay, { once: true });
       audio.addEventListener("error", handleError, { once: true });
-      if (audio.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-        cleanup();
-        resolve();
-        return;
-      }
       audio.load();
+      audio.play()
+        .then(() => {
+          cleanup();
+          resolve();
+        })
+        .catch((error) => {
+          cleanup();
+          reject(new Error(`audio.play() rejected: ${error instanceof Error ? error.message : String(error)}`));
+        });
     });
   }
 
