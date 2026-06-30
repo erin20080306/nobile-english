@@ -17,6 +17,11 @@ import { expandedVocabularyPart3c } from "@/data/expandedVocabularyPart3c";
 import { expandedVocabularyPart4a } from "@/data/expandedVocabularyPart4a";
 import { expandedVocabularyPart4b } from "@/data/expandedVocabularyPart4b";
 import { expandedVocabularyPart4c } from "@/data/expandedVocabularyPart4c";
+import { expandedVocabularyPart5a } from "@/data/expandedVocabularyPart5a";
+import { expandedVocabularyPart5b } from "@/data/expandedVocabularyPart5b";
+import { expandedVocabularyPart5c } from "@/data/expandedVocabularyPart5c";
+import { expandedVocabularyPart5d } from "@/data/expandedVocabularyPart5d";
+import { expandedVocabularyPart5e } from "@/data/expandedVocabularyPart5e";
 import { storageService, KEYS } from "./storageService";
 
 function tupleToWord(t: [string, string, string, string, string, string]): Word {
@@ -39,6 +44,11 @@ const allWords: Word[] = (() => {
     ...(expandedVocabularyPart4a as any[]).map(tupleToWord),
     ...(expandedVocabularyPart4b as any[]).map(tupleToWord),
     ...(expandedVocabularyPart4c as any[]).map(tupleToWord),
+    ...(expandedVocabularyPart5a as any[]).map(tupleToWord),
+    ...(expandedVocabularyPart5b as any[]).map(tupleToWord),
+    ...(expandedVocabularyPart5c as any[]).map(tupleToWord),
+    ...(expandedVocabularyPart5d as any[]).map(tupleToWord),
+    ...(expandedVocabularyPart5e as any[]).map(tupleToWord),
   ].forEach((w: any) => {
     if (!w || !w.word) return;
     const k = (w.word as string).toLowerCase();

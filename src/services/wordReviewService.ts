@@ -69,12 +69,12 @@ interface WordReviewMemory {
   lastOptions?: Pick<WordReviewOptions, "language" | "count" | "learnedPercent">;
 }
 
-const LEVEL_RATIOS: Record<EnglishLevel, number> = {
-  Beginner: 0.35,
-  Elementary: 0.5,
-  Intermediate: 0.68,
-  "Upper-Intermediate": 0.85,
-  Advanced: 1,
+const LEVEL_LIMITS: Record<EnglishLevel, number> = {
+  Beginner: 1500,
+  Elementary: 2500,
+  Intermediate: 4000,
+  "Upper-Intermediate": 6000,
+  Advanced: 8000,
 };
 
 function nowIso() {
@@ -123,7 +123,7 @@ function uniqueWords(words: Word[]) {
 
 function levelWords(language: LearningLanguageCode, level: EnglishLevel) {
   const all = uniqueWords(vocabularyService.all(language).filter((word) => matchesLanguage(word, language)));
-  const limit = Math.max(30, Math.ceil(all.length * LEVEL_RATIOS[level]));
+  const limit = Math.min(all.length, LEVEL_LIMITS[level] || all.length);
   return all.slice(0, limit);
 }
 
