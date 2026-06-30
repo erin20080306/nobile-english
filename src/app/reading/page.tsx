@@ -1,13 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { BookOpen, Play, Pause, SkipBack, SkipForward, Volume2, Settings, Bookmark, CheckCircle, ArrowLeft } from "lucide-react";
+import { BookOpen, Play, Pause, SkipBack, SkipForward, Volume2, Bookmark, CheckCircle, ArrowLeft } from "lucide-react";
 import type { LearningLanguageCode } from "@/types";
-import { getLearningLanguage } from "@/data/learningLanguages";
+import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
 import { audioQueueService } from "@/services/audioQueueService";
+import { learningService } from "@/services/learningService";
+import { useUser } from "@/hooks/useUser";
 import WordSheet from "@/components/WordSheet";
+
+interface ReadingQuestion {
+  id: string;
+  question_type: string;
+  question_text: string;
+  options_json: { options: string[] };
+  correct_answer_json: { answer: string };
+  explanation_zh_tw: string;
+}
+
+interface ReadingSentence {
+  id: string;
+  sentence_order: number;
+  sentence_text: string;
+  sentence_zh_tw: string;
+  audio_url?: string | null;
+}
 
 interface ReadingArticle {
   id: string;
@@ -15,20 +34,22 @@ interface ReadingArticle {
   title_zh_tw: string;
   article_text: string;
   difficulty_level: string;
-  sentences: {
-    id: string;
-    sentence_order: number;
-    sentence_text: string;
-    sentence_zh_tw: string;
-    audio_url?: string;
-  }[];
+  sentences: ReadingSentence[];
+  questions?: ReadingQuestion[];
 }
+
+const LANG_VOICE: Record<string, string> = {
+  en: "nova", ja: "nova", ko: "nova", it: "nova", es: "nova",
+};
 
 export default function DailyReadingPage() {
   const router = useRouter();
+  const { user, ready } = useUser({ requireOnboarded: true });
+
   const [selectedLanguage, setSelectedLanguage] = useState<LearningLanguageCode>("en");
   const [article, setArticle] = useState<ReadingArticle | null>(null);
   const [loading, setLoading] = useState(true);
+  const [audioLoading, setAudioLoading] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [currentSentenceIndex, setCurrentSentenceIndex] = useState(0);
   const [showChinese, setShowChinese] = useState(true);
@@ -37,17 +58,28 @@ export default function DailyReadingPage() {
   const [completed, setCompleted] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
   const [selectedWord, setSelectedWord] = useState<{ word: string; sentence?: string } | null>(null);
+  const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
+
+  const blobUrlsRef = useRef<string[]>([]);
 
   const languageInfo = getLearningLanguage(selectedLanguage);
 
   useEffect(() => {
-    loadTodayArticle();
-  }, [selectedLanguage]);
+    if (!user) return;
+    const settings = learningService.getSettings(user.id);
+    setSelectedLanguage((settings.targetLanguage as LearningLanguageCode) || "en");
+  }, [user]);
 
   useEffect(() => {
-    if (autoScroll && currentSentenceIndex > 0) {
-      const element = document.getElementById(`sentence-${currentSentenceIndex}`);
-      element?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (ready && user) loadTodayArticle();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedLanguage, ready]);
+
+  useEffect(() => {
+    if (autoScroll) {
+      document.getElementById(`sentence-${currentSentenceIndex}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }, [currentSentenceIndex, autoScroll]);
 
@@ -55,64 +87,104 @@ export default function DailyReadingPage() {
     audioQueueService.setPlaybackRate(playbackSpeed);
   }, [playbackSpeed]);
 
+  useEffect(() => {
+    return () => {
+      audioQueueService.clearQueue();
+      blobUrlsRef.current.forEach((u) => { try { URL.revokeObjectURL(u); } catch {} });
+    };
+  }, []);
+
   async function loadTodayArticle() {
     setLoading(true);
+    setPlaying(false);
+    audioQueueService.clearQueue();
     try {
-      const response = await fetch(`/api/articles/today?language=${selectedLanguage}`);
-      if (response.ok) {
-        const data = await response.json();
-        setArticle(data);
-      }
-    } catch (error) {
-      console.error("Failed to load article:", error);
+      const res = await fetch(`/api/articles/today?language=${selectedLanguage}`);
+      setArticle(res.ok ? await res.json() : null);
+    } catch {
+      setArticle(null);
     } finally {
       setLoading(false);
+      setCurrentSentenceIndex(0);
+      setCompleted(false);
+      setQuizAnswers({});
+      setQuizSubmitted(false);
+    }
+  }
+
+  async function getSentenceAudioUrl(sentence: ReadingSentence): Promise<string | null> {
+    if (sentence.audio_url) return sentence.audio_url;
+    try {
+      const res = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          input: sentence.sentence_text,
+          voice: LANG_VOICE[selectedLanguage] ?? "nova",
+        }),
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        blobUrlsRef.current.push(url);
+        return url;
+      }
+    } catch {}
+    return null;
+  }
+
+  async function enqueueFrom(startIndex: number) {
+    if (!article) return;
+    const sentences = article.sentences.slice(startIndex);
+    if (sentences.length === 0) return;
+
+    const urls = await Promise.all(sentences.map((s) => getSentenceAudioUrl(s)));
+
+    for (let i = 0; i < sentences.length; i++) {
+      const url = urls[i];
+      if (!url) continue;
+      const s = sentences[i];
+      const idx = s.sentence_order - 1;
+      audioQueueService.enqueue({
+        id: `sentence-${s.id}-${Date.now()}-${i}`,
+        url,
+        text: s.sentence_text,
+        priority: 5,
+        onStart: () => { setCurrentSentenceIndex(idx); setPlaying(true); },
+        onEnd: () => {
+          if (idx === article.sentences.length - 1) {
+            setPlaying(false);
+            setCompleted(true);
+          }
+        },
+        onError: () => setPlaying(false),
+      });
     }
   }
 
   async function playFullArticle() {
     if (!article) return;
-
-    // 解鎖音訊
+    setAudioLoading(true);
     await audioQueueService.unlockAudio();
-
-    // 清空現有佇列
     audioQueueService.clearQueue();
-
-    // 將所有句子加入佇列
-    for (const sentence of article.sentences) {
-      audioQueueService.enqueue({
-        id: `sentence-${sentence.id}`,
-        url: sentence.audio_url || "", // TODO: 從 API 取得音檔 URL
-        text: sentence.sentence_text,
-        priority: 5,
-        onStart: () => {
-          setCurrentSentenceIndex(sentence.sentence_order);
-          setPlaying(true);
-        },
-        onEnd: () => {
-          if (sentence.sentence_order === article.sentences.length) {
-            setPlaying(false);
-            setCompleted(true);
-          }
-        },
-        onError: (error) => {
-          console.error("Playback error:", error);
-          setPlaying(false);
-        },
-      });
-    }
-
+    await enqueueFrom(0);
+    setAudioLoading(false);
     setPlaying(true);
   }
 
   function pausePlayback() {
     audioQueueService.stopCurrent();
+    audioQueueService.clearQueue();
     setPlaying(false);
   }
 
-  function resumePlayback() {
-    // TODO: 實作從當前句子恢復播放
+  async function resumePlayback() {
+    if (!article) return;
+    setAudioLoading(true);
+    await audioQueueService.unlockAudio();
+    audioQueueService.clearQueue();
+    await enqueueFrom(currentSentenceIndex);
+    setAudioLoading(false);
     setPlaying(true);
   }
 
@@ -123,70 +195,69 @@ export default function DailyReadingPage() {
     setCurrentSentenceIndex(0);
   }
 
+  async function playSpecificSentence(index: number) {
+    if (!article) return;
+    audioQueueService.stopCurrent();
+    audioQueueService.clearQueue();
+    setCurrentSentenceIndex(index);
+    setAudioLoading(true);
+    await audioQueueService.unlockAudio();
+    await enqueueFrom(index);
+    setAudioLoading(false);
+    setPlaying(true);
+  }
+
   function playPreviousSentence() {
-    if (currentSentenceIndex > 0) {
-      const newIndex = currentSentenceIndex - 1;
-      // TODO: 跳到指定句子播放
-      setCurrentSentenceIndex(newIndex);
-    }
+    if (currentSentenceIndex > 0) void playSpecificSentence(currentSentenceIndex - 1);
   }
 
   function playNextSentence() {
-    if (article && currentSentenceIndex < article.sentences.length - 1) {
-      const newIndex = currentSentenceIndex + 1;
-      // TODO: 跳到指定句子播放
-      setCurrentSentenceIndex(newIndex);
-    }
+    if (article && currentSentenceIndex < article.sentences.length - 1)
+      void playSpecificSentence(currentSentenceIndex + 1);
   }
 
   function toggleBookmark() {
-    setBookmarked(!bookmarked);
-    // TODO: 呼叫 API 保存收藏狀態
+    setBookmarked((b) => !b);
   }
 
   async function markAsCompleted() {
-    if (!article) return;
-
+    if (!article || completed) return;
+    setCompleted(true);
     try {
-      const response = await fetch('/api/articles/complete', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('supabase_token') || ''}`,
-        },
-        body: JSON.stringify({
-          articleId: article.id,
-          languageCode: selectedLanguage,
-        }),
+      await fetch("/api/articles/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ articleId: article.id, languageCode: selectedLanguage }),
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        setCompleted(true);
-        console.log('Article completed with rewards:', data.rewards);
-      } else {
-        const error = await response.text();
-        console.error('Failed to complete article:', error);
-      }
-    } catch (error) {
-      console.error('Failed to complete article:', error);
-    }
+    } catch {}
   }
 
-  function handleWordClick(e: React.MouseEvent, sentence: string) {
-    const selection = window.getSelection();
-    const selectedText = selection?.toString().trim();
+  function handleWordClick(_e: React.MouseEvent, sentence: string) {
+    const text = window.getSelection()?.toString().trim();
+    if (text) setSelectedWord({ word: text, sentence });
+  }
 
-    if (selectedText) {
-      setSelectedWord({ word: selectedText, sentence });
-    }
+  function getQuizScore() {
+    if (!article?.questions?.length) return 0;
+    const correct = article.questions.filter(
+      (q) => quizAnswers[q.id] === q.correct_answer_json.answer
+    ).length;
+    return Math.round((correct / article.questions.length) * 100);
+  }
+
+  if (!ready || !user) {
+    return (
+      <div className="min-h-screen bg-cream flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-lilacDeep" />
+      </div>
+    );
   }
 
   if (loading) {
     return (
       <div className="min-h-screen bg-cream flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-lilacDeep mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-lilacDeep mx-auto mb-4" />
           <p className="text-inkSoft">正在準備今日閱讀內容...</p>
         </div>
       </div>
@@ -206,10 +277,22 @@ export default function DailyReadingPage() {
           <BookOpen size={48} className="text-lilacDeep mx-auto mb-4" />
           <h2 className="text-xl font-bold text-ink mb-2">今日文章尚未準備好</h2>
           <p className="text-inkSoft mb-4">請稍後再試或切換其他語言</p>
-          <button
-            onClick={() => router.back()}
-            className="px-4 py-2 bg-lilacDeep text-white rounded-full"
-          >
+          <div className="flex gap-2 justify-center flex-wrap mb-4">
+            {LEARNING_LANGUAGES.map((lang) => (
+              <button
+                key={lang.code}
+                onClick={() => setSelectedLanguage(lang.code as LearningLanguageCode)}
+                className={`rounded-full px-3 py-1 text-sm font-bold transition ${
+                  selectedLanguage === lang.code
+                    ? "bg-lilacDeep text-white"
+                    : "bg-sand text-inkSoft"
+                }`}
+              >
+                {lang.flag} {lang.zhName}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => router.back()} className="px-4 py-2 bg-lilacDeep text-white rounded-full">
             返回
           </button>
         </div>
@@ -217,37 +300,53 @@ export default function DailyReadingPage() {
     );
   }
 
+  const isLastSentence = currentSentenceIndex >= article.sentences.length - 1;
+  const progress = ((currentSentenceIndex + 1) / article.sentences.length) * 100;
+
   return (
-    <div className="min-h-screen bg-cream pb-32">
+    <div className="min-h-screen bg-cream pb-48">
       {/* Header */}
       <div className="sticky top-0 bg-cream/95 backdrop-blur border-b border-sand p-4 z-10">
         <div className="max-w-2xl mx-auto">
-          <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center gap-3 mb-3">
             <button
               onClick={() => router.back()}
               className="p-2 rounded-full bg-sand text-ink hover:bg-sand/80 transition-colors"
             >
               <ArrowLeft size={24} />
             </button>
-            <h1 className="text-2xl font-bold text-ink flex-1">{article.title}</h1>
+            <h1 className="text-lg font-bold text-ink flex-1 truncate">{article.title}</h1>
             <button
               onClick={toggleBookmark}
               className={`p-2 rounded-full ${bookmarked ? "text-peachDeep" : "text-inkSoft"}`}
             >
-              <Bookmark size={24} fill={bookmarked ? "currentColor" : "none"} />
+              <Bookmark size={22} fill={bookmarked ? "currentColor" : "none"} />
             </button>
           </div>
-          <div className="flex items-center gap-4 text-sm">
-            <span className="px-2 py-1 bg-lilacLight text-lilacDeep rounded-full">
-              {languageInfo.nativeName}
-            </span>
-            <span className="px-2 py-1 bg-sand text-inkSoft rounded-full">
-              {article.difficulty_level}
-            </span>
+
+          {/* Language selector */}
+          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+            {LEARNING_LANGUAGES.map((lang) => (
+              <button
+                key={lang.code}
+                onClick={() => setSelectedLanguage(lang.code as LearningLanguageCode)}
+                className={`rounded-full px-3 py-1 text-xs font-bold whitespace-nowrap transition ${
+                  selectedLanguage === lang.code
+                    ? "bg-lilacDeep text-white"
+                    : "bg-sand text-inkSoft"
+                }`}
+              >
+                {lang.flag} {lang.zhName}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2 mt-2 text-xs flex-wrap">
+            <span className="px-2 py-0.5 bg-lilacLight text-lilacDeep rounded-full">{languageInfo.nativeName}</span>
+            <span className="px-2 py-0.5 bg-sand text-inkSoft rounded-full">{article.difficulty_level}</span>
             {completed && (
-              <span className="px-2 py-1 bg-greenLight text-greenDark rounded-full flex items-center gap-1">
-                <CheckCircle size={16} />
-                已完成
+              <span className="px-2 py-0.5 bg-mintLight text-mintDeep rounded-full flex items-center gap-1">
+                <CheckCircle size={12} />已完成
               </span>
             )}
           </div>
@@ -255,94 +354,160 @@ export default function DailyReadingPage() {
       </div>
 
       {/* Article Content */}
-      <div className="max-w-2xl mx-auto p-4">
-        <div className="space-y-4">
-          {article.sentences.map((sentence, index) => (
-            <motion.div
-              key={sentence.id}
-              id={`sentence-${index}`}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-              className={`p-4 rounded-lg border-2 transition-all ${
-                currentSentenceIndex === index
-                  ? "border-lilacDeep bg-lilacLight/30"
-                  : "border-transparent bg-white"
-              }`}
-            >
-              <p 
-                className="text-lg text-ink mb-2 cursor-pointer"
-                onClick={(e) => handleWordClick(e, sentence.sentence_text)}
-              >
-                {sentence.sentence_text}
-              </p>
-              {showChinese && (
-                <p className="text-sm text-inkSoft">{sentence.sentence_zh_tw}</p>
+      <div className="max-w-2xl mx-auto p-4 space-y-3">
+        {article.sentences.map((sentence, index) => (
+          <motion.div
+            key={sentence.id}
+            id={`sentence-${index}`}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: Math.min(index * 0.04, 0.4) }}
+            onClick={() => void playSpecificSentence(index)}
+            className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+              currentSentenceIndex === index
+                ? "border-lilacDeep bg-lilacLight/40 shadow-soft"
+                : "border-transparent bg-white"
+            }`}
+          >
+            <div className="flex items-start gap-2">
+              <span className={`text-xs font-bold mt-1 w-5 shrink-0 ${currentSentenceIndex === index ? "text-lilacDeep" : "text-inkSoft/40"}`}>
+                {sentence.sentence_order}
+              </span>
+              <div className="flex-1">
+                <p
+                  className="text-base text-ink leading-relaxed"
+                  onMouseUp={(e) => handleWordClick(e, sentence.sentence_text)}
+                >
+                  {sentence.sentence_text}
+                </p>
+                {showChinese && (
+                  <p className="text-sm text-inkSoft mt-1">{sentence.sentence_zh_tw}</p>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        ))}
+
+        {/* Quiz section — shown after completing */}
+        {completed && article.questions && article.questions.length > 0 && (
+          <div id="sentence-quiz" className="mt-4 pt-4 border-t border-sand">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-extrabold text-ink">📝 閱讀測驗</h3>
+              {quizSubmitted && (
+                <span className="text-sm font-bold text-lilacDeep">{getQuizScore()} 分</span>
               )}
-            </motion.div>
-          ))}
-        </div>
+            </div>
+            <div className="space-y-4">
+              {article.questions.map((q, qi) => (
+                <div key={q.id} className="bg-white rounded-xl p-4 shadow-softer">
+                  <p className="font-semibold text-ink mb-3">{qi + 1}. {q.question_text}</p>
+                  <div className="space-y-2">
+                    {q.options_json.options.map((opt) => {
+                      const isSelected = quizAnswers[q.id] === opt;
+                      const isCorrect = opt === q.correct_answer_json.answer;
+                      let cls = "w-full text-left px-3 py-2 rounded-lg text-sm border transition ";
+                      if (!quizSubmitted) {
+                        cls += isSelected
+                          ? "border-lilacDeep bg-lilacLight text-lilacDeep"
+                          : "border-sand bg-cream text-ink hover:bg-sand/50";
+                      } else {
+                        if (isCorrect) cls += "border-mintDeep bg-mintLight text-mintDeep font-bold";
+                        else if (isSelected) cls += "border-peachDeep bg-peachLight text-peachDeep";
+                        else cls += "border-sand bg-cream text-inkSoft";
+                      }
+                      return (
+                        <button
+                          key={opt}
+                          className={cls}
+                          disabled={quizSubmitted}
+                          onClick={() => setQuizAnswers((prev) => ({ ...prev, [q.id]: opt }))}
+                        >
+                          {opt}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {quizSubmitted && (
+                    <p className="text-xs text-inkSoft mt-2 leading-relaxed">💡 {q.explanation_zh_tw}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+            {!quizSubmitted && (
+              <button
+                onClick={() => setQuizSubmitted(true)}
+                disabled={Object.keys(quizAnswers).length < (article.questions?.length ?? 0)}
+                className="w-full mt-4 py-3 rounded-xl bg-lilacDeep text-white font-bold disabled:opacity-50 transition active:scale-[0.98]"
+              >
+                提交答案
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Playback Controls */}
-      <div className="fixed bottom-0 left-0 right-0 bg-cream/95 backdrop-blur border-t border-sand p-4">
+      <div className="fixed bottom-0 left-0 right-0 bg-cream/95 backdrop-blur border-t border-sand p-4 z-10">
         <div className="max-w-2xl mx-auto">
           {/* Progress Bar */}
-          <div className="mb-4">
-            <div className="h-2 bg-sand rounded-full overflow-hidden">
+          <div className="mb-3">
+            <div className="h-1.5 bg-sand rounded-full overflow-hidden">
               <motion.div
-                className="h-full bg-lilacDeep"
-                initial={{ width: 0 }}
-                animate={{
-                  width: `${((currentSentenceIndex + 1) / (article?.sentences.length || 1)) * 100}%`,
-                }}
+                className="h-full bg-lilacDeep rounded-full"
+                animate={{ width: `${progress}%` }}
+                transition={{ duration: 0.3 }}
               />
             </div>
             <div className="flex justify-between text-xs text-inkSoft mt-1">
-              <span>{currentSentenceIndex + 1} / {article?.sentences.length}</span>
-              <span>{Math.round((currentSentenceIndex + 1) / (article?.sentences.length || 1) * 100)}%</span>
+              <span>{currentSentenceIndex + 1} / {article.sentences.length}</span>
+              <span>{Math.round(progress)}%</span>
             </div>
           </div>
 
           {/* Main Controls */}
-          <div className="flex items-center justify-center gap-4 mb-4">
+          <div className="flex items-center justify-center gap-4 mb-3">
             <button
               onClick={playPreviousSentence}
-              disabled={currentSentenceIndex === 0}
-              className="p-3 rounded-full bg-sand text-ink disabled:opacity-50 disabled:cursor-not-allowed hover:bg-sand/80 transition-colors"
+              disabled={currentSentenceIndex === 0 || audioLoading}
+              className="p-2.5 rounded-full bg-sand text-ink disabled:opacity-40 hover:bg-sand/80 transition-colors"
             >
-              <SkipBack size={24} />
+              <SkipBack size={22} />
             </button>
 
-            {!playing ? (
+            {audioLoading ? (
+              <div className="p-4 rounded-full bg-lilacDeep/50 text-white">
+                <div className="h-7 w-7 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              </div>
+            ) : !playing ? (
               <button
                 onClick={currentSentenceIndex > 0 ? resumePlayback : playFullArticle}
-                className="p-4 rounded-full bg-lilacDeep text-white hover:bg-lilacDark transition-colors"
+                className="p-4 rounded-full bg-lilacDeep text-white hover:bg-lilacDark transition-colors shadow-soft active:scale-95"
               >
-                <Play size={32} fill="currentColor" />
+                <Play size={28} fill="currentColor" />
               </button>
             ) : (
               <button
                 onClick={pausePlayback}
-                className="p-4 rounded-full bg-lilacDeep text-white hover:bg-lilacDark transition-colors"
+                className="p-4 rounded-full bg-lilacDeep text-white hover:bg-lilacDark transition-colors shadow-soft active:scale-95"
               >
-                <Pause size={32} />
+                <Pause size={28} />
               </button>
             )}
 
             <button
               onClick={playNextSentence}
-              disabled={!article || currentSentenceIndex >= article.sentences.length - 1}
-              className="p-3 rounded-full bg-sand text-ink disabled:opacity-50 disabled:cursor-not-allowed hover:bg-sand/80 transition-colors"
+              disabled={isLastSentence || audioLoading}
+              className="p-2.5 rounded-full bg-sand text-ink disabled:opacity-40 hover:bg-sand/80 transition-colors"
             >
-              <SkipForward size={24} />
+              <SkipForward size={22} />
             </button>
 
             <button
               onClick={stopPlayback}
-              className="p-3 rounded-full bg-sand text-ink hover:bg-sand/80 transition-colors"
+              title="停止並回到開頭"
+              className="p-2.5 rounded-full bg-sand text-ink hover:bg-sand/80 transition-colors"
             >
-              <Volume2 size={24} />
+              <Volume2 size={22} />
             </button>
           </div>
 
@@ -350,16 +515,16 @@ export default function DailyReadingPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setShowChinese(!showChinese)}
-                className={`px-3 py-1 rounded-full text-sm ${
+                onClick={() => setShowChinese((v) => !v)}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition ${
                   showChinese ? "bg-lilacLight text-lilacDeep" : "bg-sand text-inkSoft"
                 }`}
               >
                 繁中
               </button>
               <button
-                onClick={() => setAutoScroll(!autoScroll)}
-                className={`px-3 py-1 rounded-full text-sm ${
+                onClick={() => setAutoScroll((v) => !v)}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition ${
                   autoScroll ? "bg-lilacLight text-lilacDeep" : "bg-sand text-inkSoft"
                 }`}
               >
@@ -371,7 +536,7 @@ export default function DailyReadingPage() {
               <select
                 value={playbackSpeed}
                 onChange={(e) => setPlaybackSpeed(parseFloat(e.target.value))}
-                className="px-3 py-1 rounded-full text-sm bg-sand text-ink"
+                className="px-2 py-1 rounded-full text-xs bg-sand text-ink"
               >
                 <option value={0.75}>0.75x</option>
                 <option value={0.9}>0.9x</option>
@@ -380,14 +545,21 @@ export default function DailyReadingPage() {
                 <option value={1.25}>1.25x</option>
               </select>
 
-              {!completed && (
+              {!completed ? (
                 <button
                   onClick={markAsCompleted}
-                  className="px-4 py-1 rounded-full text-sm bg-peachLight text-peachDeep hover:bg-peachLight/80 transition-colors"
+                  className="px-3 py-1 rounded-full text-xs font-bold bg-peachLight text-peachDeep hover:bg-peachLight/80 transition-colors"
                 >
                   完成閱讀
                 </button>
-              )}
+              ) : article.questions?.length && !quizSubmitted ? (
+                <button
+                  onClick={() => document.getElementById("sentence-quiz")?.scrollIntoView({ behavior: "smooth" })}
+                  className="px-3 py-1 rounded-full text-xs font-bold bg-lilacLight text-lilacDeep transition-colors"
+                >
+                  📝 做測驗
+                </button>
+              ) : null}
             </div>
           </div>
         </div>

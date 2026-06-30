@@ -91,7 +91,14 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 6. 組合回應
+    // 6. 取得文章測驗題目
+    const { data: questions } = await supabase
+      .from('reading_article_questions')
+      .select('*')
+      .eq('article_id', article.id)
+      .order('question_order');
+
+    // 7. 組合回應
     const sentencesWithAudio = sentences.map(sentence => ({
       ...sentence,
       audio_url: audioMap.get(sentence.id) || null,
@@ -100,6 +107,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       ...article,
       sentences: sentencesWithAudio,
+      questions: questions || [],
     });
   } catch (error) {
     console.error('Failed to fetch today article:', error);
