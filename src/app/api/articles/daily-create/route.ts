@@ -70,9 +70,15 @@ export async function POST(request: NextRequest) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    if (!supabaseUrl || !supabaseServiceKey) {
+    const missing: string[] = [];
+    if (!supabaseUrl) missing.push("NEXT_PUBLIC_SUPABASE_URL");
+    if (!supabaseServiceKey) missing.push("SUPABASE_SERVICE_ROLE_KEY");
+    if (missing.length > 0) {
       return NextResponse.json(
-        { error: "Supabase 環境變數未設定，請確認 .env.local" },
+        {
+          error: `Supabase 環境變數未設定：${missing.join("、")}。請至 Vercel Dashboard → Project → Settings → Environment Variables 新增這些變數後重新部署。`,
+          missing,
+        },
         { status: 500 }
       );
     }

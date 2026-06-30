@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import {
   BookOpen, Zap, CheckCircle, AlertCircle, Clock,
   RefreshCw, Globe, Users, ArrowLeft, Settings,
-  Database, Volume2, Send, ChevronRight,
+  Database, Volume2, Send, ChevronRight, KeyRound, ExternalLink,
 } from "lucide-react";
 import { LEARNING_LANGUAGES } from "@/data/learningLanguages";
 import { useUser } from "@/hooks/useUser";
@@ -37,6 +37,7 @@ export default function AdminPage() {
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [log, setLog] = useState<{ msg: string; type: "ok" | "error" | "info" }[]>([]);
   const [articleLoading, setArticleLoading] = useState(true);
+  const [envVars, setEnvVars] = useState<Record<string, boolean> | null>(null);
 
   useEffect(() => {
     if (!ready) return;
@@ -46,8 +47,21 @@ export default function AdminPage() {
     }
     checkSystem();
     loadArticleStatuses();
+    checkEnvVars();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, user]);
+
+  async function checkEnvVars() {
+    try {
+      const res = await fetch("/api/env-check");
+      if (res.ok) {
+        const data = await res.json();
+        setEnvVars(data.vars);
+      }
+    } catch {
+      setEnvVars(null);
+    }
+  }
 
   function addLog(msg: string, type: "ok" | "error" | "info" = "info") {
     setLog((prev) => [{ msg: `${new Date().toLocaleTimeString()} ${msg}`, type }, ...prev.slice(0, 19)]);
@@ -259,11 +273,38 @@ export default function AdminPage() {
 
       <div className="max-w-2xl mx-auto p-4 space-y-4">
 
+        {/* Env Vars Status – show warning if any missing */}
+        {envVars && Object.values(envVars).some((v) => !v) && (
+          <div className="bg-peachLight border-2 border-peachDeep rounded-2xl p-4">
+            <p className="font-extrabold text-peachDeep flex items-center gap-2 mb-2"><KeyRound size={16} /> 環境變數未設定</p>
+            <div className="space-y-1.5 mb-3">
+              {Object.entries(envVars).map(([key, set]) => (
+                <div key={key} className="flex items-center gap-2 text-xs">
+                  {set
+                    ? <CheckCircle size={14} className="text-mintDeep flex-shrink-0" />
+                    : <AlertCircle size={14} className="text-peachDeep flex-shrink-0" />}
+                  <span className={`font-mono ${set ? "text-mintDeep" : "text-peachDeep font-bold"}`}>{key}</span>
+                  {!set && <span className="text-peachDeep">← 未設定</span>}
+                </div>
+              ))}
+            </div>
+            <a
+              href="https://vercel.com/dashboard"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-peachDeep px-3 py-2 rounded-xl active:scale-95 transition"
+            >
+              <ExternalLink size={13} /> 前往 Vercel → Settings → Environment Variables
+            </a>
+            <p className="text-xs text-peachDeep mt-2">設定完成後需重新部署才生效。</p>
+          </div>
+        )}
+
         {/* System Status */}
         <div className="bg-white rounded-2xl p-4 shadow-softer">
           <div className="flex items-center justify-between mb-3">
             <p className="font-extrabold text-ink flex items-center gap-2"><Database size={16} /> 系統狀態</p>
-            <button onClick={checkSystem} className="text-xs text-lilacDeep flex items-center gap-1 hover:underline">
+            <button onClick={() => { checkSystem(); checkEnvVars(); }} className="text-xs text-lilacDeep flex items-center gap-1 hover:underline">
               <RefreshCw size={12} /> 重新檢查
             </button>
           </div>
