@@ -65,6 +65,7 @@ export default function WordReviewPage() {
   const [session, setSession] = useState<WordReviewSession | null>(null);
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState("");
+  const [typedAnswer, setTypedAnswer] = useState("");
   const [revealed, setRevealed] = useState(false);
   const [readyToFinish, setReadyToFinish] = useState(false);
   const [score, setScore] = useState<WordReviewScore | null>(null);
@@ -85,6 +86,7 @@ export default function WordReviewPage() {
   const currentAnswer = session && current ? session.answers.find((answer) => answer.word === current.word.word) : undefined;
   const questionKind = current?.questionKind || "meaningChoice";
   const isWordChoice = questionKind === "wordChoice";
+  const isFillQuestion = questionKind === "wordFill";
   const choices = useMemo(
     () => current ? wordReviewService.choicesFor(current.word, session?.language || language, current.questionKind) : [],
     [current, language, session?.language]
@@ -96,16 +98,19 @@ export default function WordReviewPage() {
     setSession(next);
     setIndex(0);
     setSelected("");
+    setTypedAnswer("");
     setRevealed(false);
     setReadyToFinish(false);
     setScore(null);
   }
 
-  function answer(option: string) {
+  function answer(rawAnswer: string) {
     if (!session || !current || revealed) return;
+    const option = rawAnswer.trim();
+    if (!option) return;
     const kind = current.questionKind;
     const correctText = wordReviewService.correctChoiceFor(current.word, kind);
-    const correct = option === correctText;
+    const correct = wordReviewService.isCorrectAnswer(option, current.word, kind);
     void playAnswerSound(correct);
     const answer = {
       word: current.word.word,
@@ -130,6 +135,7 @@ export default function WordReviewPage() {
     }
     setIndex((value) => value + 1);
     setSelected("");
+    setTypedAnswer("");
     setRevealed(false);
   }
 
@@ -204,13 +210,13 @@ export default function WordReviewPage() {
                     {current.source === "learned" ? "學過穿插" : "程度新字"}
                   </span>
                   <span className="chip bg-peach text-peachDeep text-xs">
-                    {isWordChoice ? "看意思選單字" : "看單字選意思"}
+                    {isFillQuestion ? "看意思填單字" : isWordChoice ? "看意思選單字" : "看單字選意思"}
                   </span>
                 </div>
-                {isWordChoice ? (
+                {isWordChoice || isFillQuestion ? (
                   <>
                     <h2 className="mt-4 text-3xl font-black text-ink break-words">{current.word.zh}</h2>
-                    <p className="mt-1 text-inkSoft">選出 {languageInfo.zhName} 單字</p>
+                    <p className="mt-1 text-inkSoft">{isFillQuestion ? `輸入 ${languageInfo.zhName} 單字` : `選出 ${languageInfo.zhName} 單字`}</p>
                   </>
                 ) : (
                   <>
@@ -220,7 +226,7 @@ export default function WordReviewPage() {
                 )}
               </div>
               <div className="h-12 w-12 shrink-0">
-                {(!isWordChoice || revealed) && (
+                {(!(isWordChoice || isFillQuestion) || revealed) && (
                   <button onClick={speakCurrent} className="h-12 w-12 rounded-2xl bg-lilacDeep text-white flex items-center justify-center shadow-softer">
                     <Volume2 size={22} />
                   </button>
@@ -232,7 +238,7 @@ export default function WordReviewPage() {
                 <p className="text-lg font-black">{currentAnswer.correct ? "正確" : "答錯了"}</p>
                 {!currentAnswer.correct && (
                   <div className="mt-2 space-y-1 text-sm font-bold">
-                    <p>你選：{currentAnswer.selectedText}</p>
+                    <p>{isFillQuestion ? "你填" : "你選"}：{currentAnswer.selectedText}</p>
                     <p>正確答案：{currentAnswer.correctText}</p>
                   </div>
                 )}
@@ -240,7 +246,7 @@ export default function WordReviewPage() {
             )}
             {revealed && (
               <div className="mt-4 rounded-3xl bg-cream p-3">
-                {isWordChoice && (
+                {(isWordChoice || isFillQuestion) && (
                   <div className="mb-3">
                     <p className="text-xs font-bold text-inkSoft">答案</p>
                     <p className="text-2xl font-black text-ink">{current.word.word}</p>
@@ -254,30 +260,55 @@ export default function WordReviewPage() {
             )}
           </motion.div>
 
-          <div className="grid gap-3">
-            {choices.map((choice, choiceIndex) => {
-              const active = selected === choice;
-              const correct = wordReviewService.isCorrectChoice(choice, current.word, questionKind);
-              return (
-                <button
-                  key={`${choice}-${choiceIndex}`}
-                  disabled={revealed}
-                  onClick={() => answer(choice)}
-                  className={`rounded-3xl p-4 text-left font-bold shadow-softer transition active:scale-[0.98] ${
-                    revealed && correct
-                      ? "bg-mint text-mintDeep"
-                      : revealed && active
-                        ? "bg-peach text-peachDeep"
-                        : "bg-white text-ink"
-                  }`}
-                >
-                  <span>{choice}</span>
-                  {revealed && correct && <span className="ml-2 text-xs font-black">正確</span>}
-                  {revealed && active && !correct && <span className="ml-2 text-xs font-black">答錯了</span>}
+          {isFillQuestion ? (
+            <form
+              className="grid gap-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                answer(typedAnswer);
+              }}
+            >
+              <input
+                value={typedAnswer}
+                disabled={revealed}
+                onChange={(event) => setTypedAnswer(event.target.value)}
+                placeholder={`輸入${languageInfo.zhName}單字`}
+                autoCapitalize="none"
+                autoCorrect="off"
+                className={`rounded-3xl bg-white p-4 text-lg font-bold text-ink shadow-softer outline-none ${revealed ? "opacity-70" : ""}`}
+              />
+              {!revealed && (
+                <button disabled={!typedAnswer.trim()} className="btn-primary w-full disabled:opacity-50">
+                  送出答案
                 </button>
-              );
-            })}
-          </div>
+              )}
+            </form>
+          ) : (
+            <div className="grid gap-3">
+              {choices.map((choice, choiceIndex) => {
+                const active = selected === choice;
+                const correct = wordReviewService.isCorrectAnswer(choice, current.word, questionKind);
+                return (
+                  <button
+                    key={`${choice}-${choiceIndex}`}
+                    disabled={revealed}
+                    onClick={() => answer(choice)}
+                    className={`rounded-3xl p-4 text-left font-bold shadow-softer transition active:scale-[0.98] ${
+                      revealed && correct
+                        ? "bg-mint text-mintDeep"
+                        : revealed && active
+                          ? "bg-peach text-peachDeep"
+                          : "bg-white text-ink"
+                    }`}
+                  >
+                    <span>{choice}</span>
+                    {revealed && correct && <span className="ml-2 text-xs font-black">正確</span>}
+                    {revealed && active && !correct && <span className="ml-2 text-xs font-black">答錯了</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {revealed && !readyToFinish && (
             <button onClick={nextCard} className="btn-primary w-full">
