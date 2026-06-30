@@ -253,6 +253,7 @@ export default function ConversationPractice({
 
   // Speak the opening tutor line once and unlock audio
   useEffect(() => {
+    mountedRef.current = true;
     let openingTimer: number | undefined;
     
     if (autoSpeak) {
@@ -263,6 +264,9 @@ export default function ConversationPractice({
             languageCode: targetLanguage,
             voiceGender: selectedTutor.gender,
             voiceProfileId: selectedTutor.id,
+            ttsVoice: selectedTutor.ttsVoice,
+            ttsInstructions: selectedTutor.ttsInstructions,
+            voiceKeywords: selectedTutor.voiceKeywords,
             onSpeakStart: () => setTutorVoiceActive(true),
             onSpeakEnd: () => setTutorVoiceActive(false),
           }
@@ -275,18 +279,22 @@ export default function ConversationPractice({
       }, 100);
       
       return () => {
-        mountedRef.current = false;
         if (openingTimer) window.clearTimeout(openingTimer);
+        setTutorVoiceActive(false);
         tutorVoiceService.stop();
         audioQueueService.clearQueue();
         stopListenRef.current?.();
+        stopKnownMicrophoneTracks();
+        mountedRef.current = false;
       };
     }
     return () => {
-      mountedRef.current = false;
+      setTutorVoiceActive(false);
       tutorVoiceService.stop();
       audioQueueService.clearQueue();
       stopListenRef.current?.();
+      stopKnownMicrophoneTracks();
+      mountedRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -338,6 +346,9 @@ export default function ConversationPractice({
         languageCode: targetLanguage,
         voiceGender: selectedTutor.gender,
         voiceProfileId: selectedTutor.id,
+        ttsVoice: selectedTutor.ttsVoice,
+        ttsInstructions: selectedTutor.ttsInstructions,
+        voiceKeywords: selectedTutor.voiceKeywords,
         onSpeakStart: animateTutor ? () => setTutorVoiceActive(true) : undefined,
         onSpeakEnd: animateTutor ? () => setTutorVoiceActive(false) : undefined,
       });
@@ -419,6 +430,9 @@ export default function ConversationPractice({
         languageCode: targetLanguage,
         voiceGender: selectedTutor.gender,
         voiceProfileId: selectedTutor.id,
+        ttsVoice: selectedTutor.ttsVoice,
+        ttsInstructions: selectedTutor.ttsInstructions,
+        voiceKeywords: selectedTutor.voiceKeywords,
         onSpeakStart: () => setTutorVoiceActive(true),
         onSpeakEnd: () => setTutorVoiceActive(false),
       });
@@ -433,10 +447,13 @@ export default function ConversationPractice({
   function toggleMic() {
     if (listening) {
       stopListenRef.current?.();
+      stopKnownMicrophoneTracks();
+      tutorVoiceService.setRecording(false);
       finishVoiceInput(true);
       return;
     }
     tutorVoiceService.stop();
+    setTutorVoiceActive(false);
     tutorVoiceService.setRecording(true);
     voiceRecognitionEndedRef.current = false;
     voiceDraftRef.current = "";
