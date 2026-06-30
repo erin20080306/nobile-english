@@ -461,6 +461,7 @@ export default function ConversationPractice({
         flashToast(msg);
         setListening(false);
         setVoiceDraft("");
+        setInput("");
       },
       onEnd: () => {
         voiceRecognitionEndedRef.current = true;
@@ -484,7 +485,7 @@ export default function ConversationPractice({
     voiceDraftRef.current = "";
     setVoiceDraft("");
     if (spoken) {
-      setInput(spoken);
+      setInput("");
       void handleSend(spoken, { fromVoiceInput: true });
     } else if (showEmptyToast) {
       flashToast("沒有辨識到語音，請再試一次或改用打字回覆。");
