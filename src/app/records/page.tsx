@@ -18,6 +18,7 @@ type RecordLanguageFilter = LearningLanguageCode | "all";
 
 const tabs = [
   { key: "words", label: "我的單字" },
+  { key: "word", label: "單字練習" },
   { key: "sentences", label: "我的句子" },
   { key: "dialogue", label: "對話紀錄" },
   { key: "scene", label: "場景紀錄" },
@@ -64,9 +65,10 @@ function RecordsInner() {
   }
 
   function speakRecordFull(key: string, record: LearningRecord) {
+    const fallbackText = record.type === "word" ? record.enContent || record.userAnswer || "" : record.userAnswer || record.enContent || "";
     const lines = record.transcript?.length
       ? record.transcript.map((line) => line.en)
-      : (record.userAnswer || record.enContent || "").split(" / ");
+      : fallbackText.split(" / ");
     const text = lines.map((line) => line.trim()).filter(Boolean).join(". ");
     if (text) speakWithId(key, text, record.targetLanguage || "en");
   }
@@ -102,7 +104,7 @@ function RecordsInner() {
       </div>
 
       <div className="px-5 mt-2 space-y-3">
-        {(tab === "dialogue" || tab === "scene") && (
+        {(tab === "dialogue" || tab === "scene" || tab === "word") && (
           <LanguageFilter value={languageFilter} onChange={setLanguageFilter} />
         )}
         {tab === "words" && (words.length ? words.map((w) => (
@@ -120,6 +122,19 @@ function RecordsInner() {
             <button onClick={() => { vocabularyService.toggleSave(w); reload(); }} className="chip bg-peach text-peachDeep text-xs mt-2 flex items-center gap-1"><Star size={12} /> 取消收藏</button>
           </div>
         )) : <Empty text="尚未收藏單字，點擊句子中的單字即可收藏。" />)}
+
+        {tab === "word" && (
+          <>
+            <div className="rounded-[30px] bg-gradient-to-br from-lilac via-white to-mint p-4 shadow-soft">
+              <p className="text-xs font-bold text-inkSoft">資料庫單字複習</p>
+              <p className="mt-1 text-lg font-extrabold text-ink">依程度抽字，穿插學過與答錯單字</p>
+              <button onClick={() => { window.location.href = "/word-review"; }} className="btn-primary mt-3 w-full">
+                開始單字練習
+              </button>
+            </div>
+            <RecordList items={filterByLanguage(records.filter((r) => r.type === "word"), languageFilter)} onOpen={setActiveRecord} showChinese={showWordZh} playingId={playingId} onSpeak={speakRecordFull} />
+          </>
+        )}
 
         {tab === "sentences" && (sentences.length ? sentences.map((s) => (
           <div key={s.id} className="card !p-4">
@@ -172,7 +187,7 @@ function RecordsInner() {
       {activeRecord && (
         <RecordDetail
           record={activeRecord}
-          showChinese={(activeRecord.type === "scene" || activeRecord.type === "custom") ? showSceneZh : showDialogueZh}
+          showChinese={activeRecord.type === "word" ? showWordZh : (activeRecord.type === "scene" || activeRecord.type === "custom") ? showSceneZh : showDialogueZh}
           onClose={() => setActiveRecord(null)}
           playingId={playingId}
           onSpeak={speakWithId}
@@ -201,11 +216,11 @@ function RecordList({ items, onOpen, showChinese, playingId, onSpeak }: { items:
               </div>
             </div>
             <p className="text-xs text-inkSoft">{new Date(r.date).toLocaleString()} · {r.minutes} 分鐘</p>
-            {r.userAnswer && <p className="text-sm text-ink mt-1">你的回答：{r.userAnswer}</p>}
+            {r.userAnswer && <p className="text-sm text-ink mt-1">{r.type === "word" ? r.userAnswer : `你的回答：${r.userAnswer}`}</p>}
             {showChinese && r.suggestion && <p className="text-sm text-inkSoft mt-1">建議：{r.suggestion}</p>}
             <div className="mt-2 flex flex-wrap gap-2">
               <span className="inline-flex items-center gap-1 text-xs font-bold text-lilacDeep">
-                <MessageSquare size={13} /> 查看完整對話紀錄
+                <MessageSquare size={13} /> {r.type === "word" ? "查看單字結果" : "查看完整對話紀錄"}
               </span>
               <button
                 type="button"
@@ -226,7 +241,8 @@ function RecordList({ items, onOpen, showChinese, playingId, onSpeak }: { items:
 }
 
 function RecordDetail({ record, showChinese, onClose, playingId, onSpeak, onSpeakFull }: { record: LearningRecord; showChinese: boolean; onClose: () => void; playingId: string | null; onSpeak: (key: string, text: string, lang: LearningLanguageCode) => void; onSpeakFull: (key: string, record: LearningRecord) => void }) {
-  const fallbackLines = (record.userAnswer || "")
+  const fallbackSource = record.type === "word" ? record.enContent || record.userAnswer || "" : record.userAnswer || "";
+  const fallbackLines = fallbackSource
     .split(" / ")
     .map((en) => en.trim())
     .filter(Boolean)
@@ -240,7 +256,7 @@ function RecordDetail({ record, showChinese, onClose, playingId, onSpeak, onSpea
       <div className="min-h-full px-5 py-6 pb-24">
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-bold text-inkSoft">完整對話紀錄</p>
+            <p className="text-xs font-bold text-inkSoft">{record.type === "word" ? "單字練習結果" : "完整對話紀錄"}</p>
             <h2 className="text-2xl font-black text-ink break-words">{record.title}</h2>
             <p className="text-sm text-inkSoft">{new Date(record.date).toLocaleString()} · {record.score} 分</p>
           </div>
