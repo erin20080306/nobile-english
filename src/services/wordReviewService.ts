@@ -10,15 +10,21 @@ export interface WordReviewOptions {
   learnedPercent: number;
 }
 
+export type WordReviewQuestionKind = "meaningChoice" | "wordChoice";
+
 export interface WordReviewItem {
   word: Word;
   source: "learned" | "level";
   dueReason: "new" | "due" | "missed" | "saved";
+  questionKind: WordReviewQuestionKind;
 }
 
 export interface WordReviewAnswer {
   word: string;
   correct: boolean;
+  selectedText: string;
+  correctText: string;
+  questionKind: WordReviewQuestionKind;
   selectedZh: string;
   correctZh: string;
   answeredAt: string;
@@ -163,8 +169,28 @@ function nextDueDate(correct: boolean, streak: number) {
   return due.toISOString();
 }
 
+function optionText(word: Word, questionKind: WordReviewQuestionKind) {
+  return questionKind === "wordChoice" ? word.word : word.zh || word.word;
+}
+
+function choiceScore(text: string, seed: number) {
+  return Array.from(text).reduce((sum, char) => sum + char.charCodeAt(0), seed);
+}
+
+function pickQuestionKinds(words: Word[]): WordReviewQuestionKind[] {
+  const wordChoiceCount = words.length >= 4 ? Math.max(1, Math.round(words.length * 0.35)) : words.length >= 2 ? 1 : 0;
+  const wordChoiceIndexes = new Set(
+    words
+      .map((_, index) => index)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, wordChoiceCount)
+  );
+  return words.map((_, index) => wordChoiceIndexes.has(index) ? "wordChoice" : "meaningChoice");
+}
+
 function answerText(answer: WordReviewAnswer) {
-  return `${answer.word}: ${answer.correct ? "OK" : `missed (${answer.selectedZh})`}`;
+  const selected = answer.selectedText || answer.selectedZh;
+  return `${answer.word}: ${answer.correct ? "OK" : `missed (${selected})`}`;
 }
 
 export const wordReviewService = {
@@ -190,6 +216,7 @@ export const wordReviewService = {
     const selectedNew = takeWords(pool, count - selectedLearned.length, excluded, language);
     const fill = takeWords([...learned, ...pool], count - selectedLearned.length - selectedNew.length, excluded, language);
     const selected = [...selectedLearned, ...selectedNew, ...fill].slice(0, count);
+    const questionKinds = pickQuestionKinds(selected);
 
     memory.lastOptions = { language, count, learnedPercent };
     saveMemory(memory);
@@ -201,7 +228,7 @@ export const wordReviewService = {
       count,
       learnedPercent,
       startedAt: nowIso(),
-      words: selected.map((word) => {
+      words: selected.map((word, index) => {
         const key = wordKey(language, word.word);
         const mem = memory.byWord[key];
         const savedWord = saved.some((item) => wordKey(language, item.word) === key);
@@ -209,24 +236,35 @@ export const wordReviewService = {
           word,
           source: mem || savedWord ? "learned" : "level",
           dueReason: mem?.wrong && mem.wrong > mem.correct ? "missed" : savedWord ? "saved" : mem ? "due" : "new",
+          questionKind: questionKinds[index],
         };
       }),
       answers: [],
     };
   },
 
-  choicesFor(target: Word, language: LearningLanguageCode): string[] {
-    const correct = target.zh;
+  correctChoiceFor(target: Word, questionKind: WordReviewQuestionKind = "meaningChoice"): string {
+    return optionText(target, questionKind);
+  },
+
+  isCorrectChoice(choice: string, target: Word, questionKind: WordReviewQuestionKind = "meaningChoice"): boolean {
+    return choice === optionText(target, questionKind);
+  },
+
+  choicesFor(target: Word, language: LearningLanguageCode, questionKind: WordReviewQuestionKind = "meaningChoice"): string[] {
+    const correct = optionText(target, questionKind);
     const all = vocabularyService.all(language)
-      .filter((word) => word.word !== target.word && word.zh && word.zh !== correct)
-      .map((word) => word.zh);
-    const seed = Array.from(target.word).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+      .filter((word) => matchesLanguage(word, language) && word.word !== target.word)
+      .map((word) => optionText(word, questionKind))
+      .filter((text) => text && text !== correct);
+    const seed = choiceScore(`${target.word}:${questionKind}`, questionKind === "wordChoice" ? 7 : 3);
     const distractors = [...new Set(all)]
-      .sort((a, b) => ((a.charCodeAt(0) + seed) % 17) - ((b.charCodeAt(0) + seed) % 17))
+      .sort((a, b) => (choiceScore(a, seed) % 17) - (choiceScore(b, seed) % 17))
       .slice(0, 3);
     return [correct, ...distractors]
+      .filter(Boolean)
       .slice(0, 4)
-      .sort((a, b) => ((a.length + seed) % 11) - ((b.length + seed) % 11));
+      .sort((a, b) => (choiceScore(a, seed) % 11) - (choiceScore(b, seed) % 11));
   },
 
   completeSession(session: WordReviewSession): WordReviewScore {
