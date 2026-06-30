@@ -14,6 +14,7 @@ const ASSET_TYPES = new Set<TtsAssetType>([
   "tutor_complete",
   "word_pronunciation",
   "dynamic_tutor_reply",
+  "reading_sentence",
 ]);
 
 export async function POST(req: Request) {
@@ -49,11 +50,14 @@ export async function POST(req: Request) {
       status: result.asset.status,
       cached: result.cached,
       signedUrl: result.signedUrl,
+      // This is intentionally a provider/storage path, not a URL. It lets
+      // server-side prewarm jobs save stable metadata without persisting an
+      // expiring signed URL in a reading article row.
+      audioPath: result.asset.audioPath,
       durationMs: result.asset.durationMs,
       audioFormat: result.asset.audioFormat,
     });
   } catch {
-    // Never leak provider/key details to the client.
     return NextResponse.json({ error: "TTS unavailable" }, { status: 503 });
   }
 }

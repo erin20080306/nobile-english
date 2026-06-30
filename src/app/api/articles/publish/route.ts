@@ -1,203 +1,106 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
-/**
- * 文章發布 API
- * 
- * POST /api/articles/publish
- * 
- * Body:
- * {
- *   topicId: string
- * }
- * 
- * 發布流程：
- * 1. 驗證所有語言版本都已 ready
- * 2. 驗證所有音檔都已 ready
- * 3. 更新 topic 狀態為 published
- * 4. 更新所有文章狀態為 published
- * 5. 設定 published_at
- */
+export const runtime = "nodejs";
 
-export async function POST(request: NextRequest) {
-  try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const REQUIRED_LANGUAGES = ["en", "ja", "ko", "it", "es"];
+type UntypedDatabase = { from: (table: string) => any };
+type TopicRow = { id: string; status: string };
+type ArticleRow = { id: string; language_code: string; status: string };
+type AudioRow = { sentence_id: string; status: string };
 
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return NextResponse.json(
-        { error: 'Supabase environment variables not configured' },
-        { status: 500 }
-      );
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    const body = await request.json();
-    const { topicId } = body;
-
-    if (!topicId) {
-      return NextResponse.json(
-        { error: 'topicId is required' },
-        { status: 400 }
-      );
-    }
-
-    // 1. 取得 topic 資訊
-    const { data: topic, error: topicError } = await supabase
-      .from('reading_article_topics')
-      .select('*')
-      .eq('id', topicId)
-      .single();
-
-    if (topicError || !topic) {
-      return NextResponse.json(
-        { error: 'Topic not found' },
-        { status: 404 }
-      );
-    }
-
-    if (topic.status !== 'ready') {
-      return NextResponse.json(
-        { error: 'Topic must be in ready status to publish' },
-        { status: 400 }
-      );
-    }
-
-    // 2. 取得所有文章
-    const { data: articles, error: articlesError } = await supabase
-      .from('reading_articles')
-      .select('*')
-      .eq('topic_id', topicId);
-
-    if (articlesError || !articles || articles.length === 0) {
-      return NextResponse.json(
-        { error: 'No articles found for this topic' },
-        { status: 400 }
-      );
-    }
-
-    // 3. 驗證所有文章都已 ready
-    const notReadyArticles = articles.filter(a => a.status !== 'ready');
-    if (notReadyArticles.length > 0) {
-      return NextResponse.json(
-        { error: 'Some articles are not ready yet', notReadyArticles },
-        { status: 400 }
-      );
-    }
-
-    // 4. 驗證所有音檔都已 ready
-    for (const article of articles) {
-      const { data: audioAssets, error: audioError } = await supabase
-        .from('reading_article_audio_assets')
-        .select('*')
-        .eq('article_id', article.id);
-
-      if (audioError) {
-        return NextResponse.json(
-          { error: `Failed to check audio assets for article ${article.id}` },
-          { status: 500 }
-        );
-      }
-
-      const notReadyAudio = audioAssets?.filter(a => a.status !== 'ready') || [];
-      if (notReadyAudio.length > 0) {
-        return NextResponse.json(
-          { error: `Some audio assets are not ready for article ${article.id}`, notReadyAudio },
-          { status: 400 }
-        );
-      }
-    }
-
-    // 5. 更新 topic 狀態為 published
-    const { error: topicUpdateError } = await supabase
-      .from('reading_article_topics')
-      .update({ status: 'published' })
-      .eq('id', topicId);
-
-    if (topicUpdateError) {
-      return NextResponse.json(
-        { error: 'Failed to update topic status' },
-        { status: 500 }
-      );
-    }
-
-    // 6. 更新所有文章狀態為 published
-    const { error: articlesUpdateError } = await supabase
-      .from('reading_articles')
-      .update({ 
-        status: 'published',
-        published_at: new Date().toISOString(),
-      })
-      .eq('topic_id', topicId);
-
-    if (articlesUpdateError) {
-      return NextResponse.json(
-        { error: 'Failed to update articles status' },
-        { status: 500 }
-      );
-    }
-
-    // 7. 建立獎勵記錄
-    for (const article of articles) {
-      await createArticleRewards(supabase, article.id, article.language_code);
-    }
-
-    return NextResponse.json({
-      success: true,
-      topicId,
-      articlesPublished: articles.length,
-    });
-  } catch (error) {
-    console.error('Article publish error:', error);
-    return NextResponse.json(
-      { error: 'Failed to publish articles' },
-      { status: 500 }
-    );
-  }
+function environment() {
+  return {
+    supabaseUrl: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    cronSecret: process.env.CRON_SECRET,
+  };
 }
 
-async function createArticleRewards(
-  supabase: any,
-  articleId: string,
-  languageCode: string
-): Promise<void> {
-  // 基礎獎勵：完成閱讀獲得金幣
-  await supabase
-    .from('reading_article_rewards')
-    .insert({
-      article_id: articleId,
-      language_code: languageCode,
-      reward_type: 'coins',
-      reward_amount: 10,
-    });
+function authorized(request: NextRequest, secret?: string): boolean {
+  if (!secret) return process.env.NODE_ENV !== "production";
+  return request.headers.get("x-cron-secret") === secret || request.headers.get("authorization") === `Bearer ${secret}`;
+}
 
-  // 語言專屬獎勵：種子
+async function ensureRewards(db: UntypedDatabase, articleId: string, languageCode: string) {
   const cropTypes: Record<string, string> = {
-    en: 'english_crop',
-    ja: 'japanese_crop',
-    ko: 'korean_crop',
-    it: 'italian_crop',
-    es: 'spanish_crop',
+    en: "english_crop", ja: "japanese_crop", ko: "korean_crop", it: "italian_crop", es: "spanish_crop",
   };
+  const rewards = [
+    { article_id: articleId, language_code: languageCode, reward_type: "coins", reward_amount: 10, crop_type: null },
+    { article_id: articleId, language_code: languageCode, reward_type: "seeds", reward_amount: 5, crop_type: cropTypes[languageCode] || "generic_crop" },
+    { article_id: articleId, language_code: languageCode, reward_type: "water", reward_amount: 3, crop_type: null },
+  ];
+  const { error } = await db.from("reading_article_rewards").upsert(rewards, {
+    onConflict: "article_id,language_code,reward_type",
+  });
+  if (error) throw new Error(`Failed to prepare ${languageCode} rewards`);
+}
 
-  await supabase
-    .from('reading_article_rewards')
-    .insert({
-      article_id: articleId,
-      language_code: languageCode,
-      reward_type: 'seeds',
-      reward_amount: 5,
-      crop_type: cropTypes[languageCode] || 'generic_crop',
-    });
+export async function POST(request: NextRequest) {
+  const env = environment();
+  if (!authorized(request, env.cronSecret)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!env.supabaseUrl || !env.serviceRoleKey) return NextResponse.json({ error: "Supabase service configuration is missing" }, { status: 500 });
 
-  // 複習題額外獎勵：水滴
-  await supabase
-    .from('reading_article_rewards')
-    .insert({
-      article_id: articleId,
-      language_code: languageCode,
-      reward_type: 'water',
-      reward_amount: 3,
-    });
+  const body = await request.json().catch(() => ({})) as { topicId?: string };
+  if (!body.topicId) return NextResponse.json({ error: "topicId is required" }, { status: 400 });
+
+  const db = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } }) as unknown as UntypedDatabase;
+  try {
+    const { data: rawTopic, error: topicError } = await db.from("reading_article_topics").select("id, status").eq("id", body.topicId).single();
+    const topic = rawTopic as TopicRow | null;
+    if (topicError || !topic) return NextResponse.json({ error: "Topic not found" }, { status: 404 });
+    if (topic.status !== "ready") return NextResponse.json({ error: "Topic must be ready before publish" }, { status: 409 });
+
+    const { data: rawArticles, error: articlesError } = await db.from("reading_articles").select("id, language_code, status").eq("topic_id", topic.id);
+    const articles = (rawArticles || []) as ArticleRow[];
+    if (articlesError) return NextResponse.json({ error: "Failed to read topic articles" }, { status: 500 });
+
+    const languages = articles.map((article) => article.language_code);
+    const missingLanguages = REQUIRED_LANGUAGES.filter((language) => !languages.includes(language));
+    if (articles.length !== REQUIRED_LANGUAGES.length || missingLanguages.length) {
+      return NextResponse.json({ error: "Five language articles are required", missingLanguages }, { status: 400 });
+    }
+    const notReady = articles.filter((article) => article.status !== "ready");
+    if (notReady.length) return NextResponse.json({ error: "Some articles are not ready", articles: notReady }, { status: 409 });
+
+    for (const article of articles) {
+      const [{ count: sentenceCount, error: sentenceError }, { count: questionCount, error: questionError }, { data: rawAudio, error: audioError }, { count: lexemeCount, error: lexemeError }] = await Promise.all([
+        db.from("reading_article_sentences").select("id", { count: "exact", head: true }).eq("article_id", article.id),
+        db.from("reading_article_questions").select("id", { count: "exact", head: true }).eq("article_id", article.id),
+        db.from("reading_article_audio_assets").select("sentence_id, status").eq("article_id", article.id),
+        db.from("reading_article_lexeme_links").select("id", { count: "exact", head: true }).eq("article_id", article.id),
+      ]);
+      if (sentenceError || questionError || audioError || lexemeError) {
+        return NextResponse.json({ error: `Failed to validate ${article.language_code} article` }, { status: 500 });
+      }
+      const audioRows = (rawAudio || []) as AudioRow[];
+      const audiosReady = audioRows.length === sentenceCount && audioRows.every((row) => row.status === "ready");
+      if (!sentenceCount || sentenceCount < 6 || sentenceCount > 10 || !questionCount || questionCount < 3 || questionCount > 5 || !lexemeCount || !audiosReady) {
+        return NextResponse.json({
+          error: `${article.language_code} article is incomplete`,
+          language: article.language_code,
+          sentenceCount,
+          questionCount,
+          lexemeCount,
+          audioCount: audioRows.length,
+          audiosReady,
+        }, { status: 409 });
+      }
+    }
+
+    const publishedAt = new Date().toISOString();
+    const { error: articleUpdateError } = await db.from("reading_articles").update({ status: "published", published_at: publishedAt }).eq("topic_id", topic.id);
+    if (articleUpdateError) throw new Error("Failed to publish articles");
+
+    for (const article of articles) await ensureRewards(db, article.id, article.language_code);
+
+    const { error: topicUpdateError } = await db.from("reading_article_topics").update({ status: "published" }).eq("id", topic.id);
+    if (topicUpdateError) throw new Error("Failed to publish topic");
+
+    return NextResponse.json({ success: true, topicId: topic.id, articlesPublished: articles.length });
+  } catch (error) {
+    console.error("Daily article publish error", error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to publish daily articles" }, { status: 500 });
+  }
 }
