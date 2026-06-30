@@ -335,18 +335,18 @@ export default function ConversationPractice({
 
   async function speak(text: string, animateTutor = true, messageIndex?: number) {
     try {
-      if (messageIndex !== undefined) {
-        setPlayingMessageIndex(messageIndex);
-      }
       await tutorVoiceService.playManual(text, {
         languageCode: targetLanguage,
         voiceGender: selectedTutor.gender,
         voiceProfileId: selectedTutor.id,
-        onSpeakStart: animateTutor ? () => setTutorVoiceActive(true) : undefined,
-        onSpeakEnd: animateTutor ? () => {
-          setTutorVoiceActive(false);
+        onSpeakStart: () => {
+          if (animateTutor) setTutorVoiceActive(true);
+          if (messageIndex !== undefined) setPlayingMessageIndex(messageIndex);
+        },
+        onSpeakEnd: () => {
+          if (animateTutor) setTutorVoiceActive(false);
           setPlayingMessageIndex(null);
-        } : () => setPlayingMessageIndex(null),
+        },
       });
     } catch (error) {
       setTutorVoiceActive(false);
@@ -589,16 +589,7 @@ export default function ConversationPractice({
                 {showZh && m.zh && <p className={`text-sm mt-1 ${m.role === "user" ? "text-white/80" : "text-inkSoft"}`}>{m.zh}</p>}
                 <div className="mt-1 flex gap-3">
                   <button onClick={() => speak(m.en, m.role === "tutor", i)} className={m.role === "user" ? "text-white/90" : "text-lilacDeep"} title="播放發音">
-                    {playingMessageIndex === i ? (
-                      <motion.div
-                        animate={{ scale: [1, 1.2, 1] }}
-                        transition={{ duration: 0.5, repeat: Infinity }}
-                      >
-                        <Volume2 size={15} />
-                      </motion.div>
-                    ) : (
-                      <Volume2 size={15} />
-                    )}
+                    {playingMessageIndex === i ? <SoundWaveIcon size={15} /> : <Volume2 size={15} />}
                   </button>
                   <button onClick={() => { dictionaryService.toggleSentence(m.en, m.zh, scene.name); flashToast("已收藏句子"); }} className={m.role === "user" ? "text-white/90" : "text-peachDeep"} title="收藏句子"><Star size={15} /></button>
                 </div>
@@ -722,5 +713,17 @@ export default function ConversationPractice({
         onClose={() => setActiveWord(null)}
       />
     </div>
+  );
+}
+
+function SoundWaveIcon({ size = 15 }: { size?: number }) {
+  const h = Math.round(size * 0.55);
+  const mh = size;
+  return (
+    <span className="flex items-end gap-[2px]" style={{ height: size, width: size }}>
+      <span className="rounded-sm bg-current animate-bounce" style={{ width: 3, height: h, animationDuration: "0.5s", animationDelay: "0ms" }} />
+      <span className="rounded-sm bg-current animate-bounce" style={{ width: 3, height: mh, animationDuration: "0.5s", animationDelay: "0.15s" }} />
+      <span className="rounded-sm bg-current animate-bounce" style={{ width: 3, height: h, animationDuration: "0.5s", animationDelay: "0.3s" }} />
+    </span>
   );
 }

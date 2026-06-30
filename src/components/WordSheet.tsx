@@ -90,9 +90,9 @@ export default function WordSheet({
 
   function speak() {
     if (!entry) return;
-    setIsPlaying(true);
     const r = speechService.speak(entry.word, {
       ...voiceForLanguage(language, learningService.getSpeechRate(language)),
+      onStart: () => setIsPlaying(true),
       onEnd: () => setIsPlaying(false),
       onError: (message) => { setIsPlaying(false); setToast(message); },
     });
@@ -152,10 +152,10 @@ export default function WordSheet({
                   <span className="chip bg-lilac text-lilacDeep">{entry.pos}</span>
                   <button
                     onClick={speak}
-                    className={`ml-auto h-11 w-11 rounded-2xl text-white flex items-center justify-center active:scale-90 transition-all ${isPlaying ? "bg-lilacDeep scale-110" : "bg-lilacDeep"}`}
+                    className={`ml-auto h-11 w-11 rounded-2xl text-white flex items-center justify-center active:scale-90 transition-all ${isPlaying ? "bg-peachDeep" : "bg-lilacDeep"}`}
                     aria-label="播放發音"
                   >
-                    <Volume2 size={20} className={isPlaying ? "animate-pulse" : ""} />
+                    {isPlaying ? <SoundWaveIcon /> : <Volume2 size={20} />}
                   </button>
                 </div>
                 <p className="text-inkSoft mt-1">{entry.phonetic}</p>
@@ -219,6 +219,16 @@ export default function WordSheet({
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+function SoundWaveIcon() {
+  return (
+    <span className="flex items-end gap-[2px]" style={{ height: 20, width: 20 }}>
+      <span className="rounded-sm bg-current animate-bounce" style={{ width: 3, height: 11, animationDuration: "0.5s", animationDelay: "0ms" }} />
+      <span className="rounded-sm bg-current animate-bounce" style={{ width: 3, height: 20, animationDuration: "0.5s", animationDelay: "0.15s" }} />
+      <span className="rounded-sm bg-current animate-bounce" style={{ width: 3, height: 11, animationDuration: "0.5s", animationDelay: "0.3s" }} />
+    </span>
   );
 }
 

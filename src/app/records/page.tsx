@@ -54,9 +54,9 @@ function RecordsInner() {
   const [playingId, setPlayingId] = useState<string | null>(null);
 
   function speakWithId(key: string, text: string, language: LearningLanguageCode = "en") {
-    setPlayingId(key);
     const r = speechService.speak(text, {
       ...voiceForLanguage(language, learningService.getSpeechRate(language)),
+      onStart: () => setPlayingId(key),
       onEnd: () => setPlayingId(null),
       onError: (message) => { setPlayingId(null); alert(message); },
     });
@@ -111,8 +111,8 @@ function RecordsInner() {
               <p className="font-extrabold text-ink">{w.word}</p>
               <span className="chip bg-lilac text-lilacDeep text-xs">{w.pos}</span>
               {w.inReview && <span className="chip bg-mint text-mintDeep text-xs">複習中</span>}
-              <button onClick={() => speakWithId(`word-${w.word}`, w.word, w.language || "en")} className={`ml-auto transition-all ${playingId === `word-${w.word}` ? "text-lilacDeep scale-125" : "text-lilacDeep"}`}>
-                <Volume2 size={18} className={playingId === `word-${w.word}` ? "animate-pulse" : ""} />
+              <button onClick={() => speakWithId(`word-${w.word}`, w.word, w.language || "en")} className={`ml-auto h-8 w-8 rounded-xl flex items-center justify-center transition-all ${playingId === `word-${w.word}` ? "bg-lilacDeep text-white" : "text-lilacDeep"}`}>
+                {playingId === `word-${w.word}` ? <SoundWave /> : <Volume2 size={18} />}
               </button>
             </div>
             <p className="text-sm text-inkSoft">{w.phonetic}{showWordZh ? ` · ${w.zh}` : ""}</p>
@@ -126,7 +126,7 @@ function RecordsInner() {
             <p className="text-ink font-semibold">{s.en}</p>
             {showSentenceZh && <p className="text-sm text-inkSoft">{s.zh}</p>}
             <div className="mt-2 flex gap-2">
-              <button onClick={() => speakWithId(`sent-${s.id}`, s.en, "en")} className={`chip text-xs flex items-center gap-1 transition-all ${playingId === `sent-${s.id}` ? "bg-lilacDeep text-white" : "bg-lilac text-lilacDeep"}`}><Volume2 size={12} className={playingId === `sent-${s.id}` ? "animate-pulse" : ""} /> 發音</button>
+              <button onClick={() => speakWithId(`sent-${s.id}`, s.en, "en")} className={`chip text-xs flex items-center gap-1 transition-all ${playingId === `sent-${s.id}` ? "bg-lilacDeep text-white" : "bg-lilac text-lilacDeep"}`}>{playingId === `sent-${s.id}` ? <SoundWave size={12} /> : <Volume2 size={12} />} {playingId === `sent-${s.id}` ? "播放中" : "發音"}</button>
               <button onClick={() => { dictionaryService.toggleSentence(s.en, s.zh); reload(); }} className="chip bg-peach text-peachDeep text-xs">移除</button>
             </div>
           </div>
@@ -161,7 +161,7 @@ function RecordsInner() {
             <div key={w.word} className="card !p-4">
               <div className="flex items-center gap-2">
                 <p className="font-extrabold text-ink">{w.word}</p>
-                <button onClick={() => speakWithId(`rev-${w.word}`, w.word, w.language || "en")} className={`ml-auto transition-all ${playingId === `rev-${w.word}` ? "text-lilacDeep scale-125" : "text-lilacDeep"}`}><Volume2 size={18} className={playingId === `rev-${w.word}` ? "animate-pulse" : ""} /></button>
+                <button onClick={() => speakWithId(`rev-${w.word}`, w.word, w.language || "en")} className={`ml-auto h-8 w-8 rounded-xl flex items-center justify-center transition-all ${playingId === `rev-${w.word}` ? "bg-lilacDeep text-white" : "text-lilacDeep"}`}>{playingId === `rev-${w.word}` ? <SoundWave /> : <Volume2 size={18} />}</button>
               </div>
               <p className="text-sm text-inkSoft">{w.phonetic}{showWordZh ? ` · ${w.zh}` : ""}</p>
               <button onClick={() => { vocabularyService.toggleReview(w.word); reload(); }} className="chip bg-peach text-peachDeep text-xs mt-2">移出複習</button>
@@ -215,7 +215,7 @@ function RecordList({ items, onOpen, showChinese, playingId, onSpeak }: { items:
                 }}
                 className={`inline-flex items-center gap-1 text-xs font-bold transition-all ${isPlaying ? "text-lilacDeep" : "text-peachDeep"}`}
               >
-                <Volume2 size={13} className={isPlaying ? "animate-pulse" : ""} /> {isPlaying ? "播放中…" : "播放紀錄"}
+                {isPlaying ? <SoundWave size={13} /> : <Volume2 size={13} />} {isPlaying ? "播放中" : "播放紀錄"}
               </button>
             </div>
           </button>
@@ -245,7 +245,7 @@ function RecordDetail({ record, showChinese, onClose, playingId, onSpeak, onSpea
             <p className="text-sm text-inkSoft">{new Date(record.date).toLocaleString()} · {record.score} 分</p>
           </div>
           <button onClick={() => onSpeakFull(headerKey, record)} className={`h-11 w-11 rounded-2xl flex items-center justify-center transition-all ${playingId === headerKey ? "bg-lilacDeep text-white" : "bg-lilac text-lilacDeep"}`}>
-            <Volume2 size={20} className={playingId === headerKey ? "animate-pulse" : ""} />
+            {playingId === headerKey ? <SoundWave size={20} /> : <Volume2 size={20} />}
           </button>
           <button onClick={onClose} className="h-11 w-11 rounded-2xl bg-white shadow-softer text-inkSoft flex items-center justify-center">
             <X size={20} />
@@ -266,7 +266,7 @@ function RecordDetail({ record, showChinese, onClose, playingId, onSpeak, onSpea
                     onClick={() => onSpeak(lineKey, line.en, language)}
                     className={`mt-2 inline-flex items-center gap-1 text-xs font-bold transition-all ${isUser ? "text-white/90" : (lineIsPlaying ? "text-lilacDeep" : "text-lilacDeep")}`}
                   >
-                    <Volume2 size={13} className={lineIsPlaying ? "animate-pulse" : ""} /> {lineIsPlaying ? "播放中…" : "播放"}
+                    {lineIsPlaying ? <SoundWave size={13} /> : <Volume2 size={13} />} {lineIsPlaying ? "播放中" : "播放"}
                   </button>
                   {isUser && (line.betterWay || (showChinese && (line.grammarTip || line.zhExplain))) && (
                     <div className="mt-3 rounded-2xl bg-white/95 p-3 text-sm text-ink">
@@ -315,6 +315,18 @@ function LanguageFilter({ value, onChange }: { value: RecordLanguageFilter; onCh
         ))}
       </HorizontalScrollChips>
     </div>
+  );
+}
+
+function SoundWave({ size = 18 }: { size?: number }) {
+  const h = Math.round(size * 0.55);
+  const mh = size;
+  return (
+    <span className="flex items-end gap-[2px]" style={{ height: size, width: size }}>
+      <span className="rounded-sm bg-current animate-bounce" style={{ width: 3, height: h, animationDuration: "0.5s", animationDelay: "0ms" }} />
+      <span className="rounded-sm bg-current animate-bounce" style={{ width: 3, height: mh, animationDuration: "0.5s", animationDelay: "0.15s" }} />
+      <span className="rounded-sm bg-current animate-bounce" style={{ width: 3, height: h, animationDuration: "0.5s", animationDelay: "0.3s" }} />
+    </span>
   );
 }
 
