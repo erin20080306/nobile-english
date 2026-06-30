@@ -1,255 +1,177 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { articleGenerationService } from '@/services/articleGenerationService';
-import type { LearningLanguageCode, CEFRLevel } from '@/types';
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { articleGenerationService } from "@/services/articleGenerationService";
+import type { CEFRLevel, LearningLanguageCode } from "@/types";
 
-/**
- * 每日文章生成 API
- * 
- * POST /api/articles/generate
- * 
- * Body:
- * {
- *   publishDate: string (YYYY-MM-DD)
- *   topicKey: string
- *   topicTitleZhTw: string
- *   topicCategory: string
- *   difficultyLevel: "A1" | "A2" | "B1"
- *   languages?: LearningLanguageCode[] (預設全部五種語言)
- * }
- */
+export const runtime = "nodejs";
 
-export async function POST(request: NextRequest) {
-  try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const ALL_LANGUAGES: LearningLanguageCode[] = ["en", "ja", "ko", "it", "es"];
 
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return NextResponse.json(
-        { error: 'Supabase environment variables not configured' },
-        { status: 500 }
-      );
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    const body = await request.json();
-    const {
-      publishDate,
-      topicKey,
-      topicTitleZhTw,
-      topicCategory,
-      difficultyLevel,
-      languages = ['en', 'ja', 'ko', 'it', 'es'] as LearningLanguageCode[],
-    } = body;
-
-    if (!publishDate || !topicKey || !topicTitleZhTw || !topicCategory || !difficultyLevel) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
-    }
-
-    // 1. 建立或取得 topic
-    const { data: topic, error: topicError } = await supabase
-      .from('reading_article_topics')
-      .upsert({
-        publish_date: publishDate,
-        topic_key: topicKey,
-        topic_title_zh_tw: topicTitleZhTw,
-        topic_category: topicCategory,
-        status: 'ready',
-      })
-      .select()
-      .single();
-
-    if (topicError || !topic) {
-      return NextResponse.json(
-        { error: 'Failed to create topic' },
-        { status: 500 }
-      );
-    }
-
-    // 2. 為每種語言生成文章
-    const articles: any[] = [];
-    const generationLogs: any[] = [];
-
-    for (const languageCode of languages) {
-      const articleResult = await generateArticleForLanguage(
-        supabase,
-        topic.id,
-        publishDate,
-        topicKey,
-        topicTitleZhTw,
-        topicCategory,
-        languageCode,
-        difficultyLevel
-      );
-
-      if (articleResult.success) {
-        articles.push(articleResult.article);
-        generationLogs.push(articleResult.log);
-      } else {
-        console.error(`Failed to generate article for ${languageCode}:`, articleResult.error);
-      }
-    }
-
-    // 3. 更新 topic 狀態為 ready
-    await supabase
-      .from('reading_article_topics')
-      .update({ status: 'ready' })
-      .eq('id', topic.id);
-
-    return NextResponse.json({
-      success: true,
-      topic,
-      articles,
-      generationLogs,
-    });
-  } catch (error) {
-    console.error('Article generation error:', error);
-    return NextResponse.json(
-      { error: 'Failed to generate articles' },
-      { status: 500 }
-    );
-  }
+interface GenerateBody {
+  publishDate?: string;
+  topicKey?: string;
+  topicTitleZhTw?: string;
+  topicCategory?: string;
+  difficultyLevel?: CEFRLevel;
+  languages?: LearningLanguageCode[];
 }
 
-async function generateArticleForLanguage(
-  supabase: any,
-  topicId: string,
-  publishDate: string,
-  topicKey: string,
-  topicTitleZhTw: string,
-  topicCategory: string,
-  languageCode: LearningLanguageCode,
-  difficultyLevel: CEFRLevel
-): Promise<{
-  success: boolean;
-  article?: any;
-  log?: any;
-  error?: string;
-}> {
+function configured() {
+  return {
+    supabaseUrl: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    cronSecret: process.env.CRON_SECRET,
+  };
+}
+
+function isAuthorized(request: NextRequest, secret?: string): boolean {
+  if (!secret) return process.env.NODE_ENV !== "production";
+  return request.headers.get("x-cron-secret") === secret || request.headers.get("authorization") === `Bearer ${secret}`;
+}
+
+function validDate(value: string | undefined): value is string {
+  return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
+}
+
+function allowedLanguages(input: LearningLanguageCode[] | undefined): LearningLanguageCode[] | null {
+  const selected = Array.from(new Set(input || ALL_LANGUAGES));
+  if (selected.length !== ALL_LANGUAGES.length) return null;
+  return selected.every((language) => ALL_LANGUAGES.includes(language)) ? selected : null;
+}
+
+function estimateDurationMs(text: string, language: LearningLanguageCode): number {
+  const charsPerSecond = language === "ja" || language === "ko" ? 7 : 12;
+  return Math.max(900, Math.round((Array.from(text).length / charsPerSecond) * 1000));
+}
+
+export async function POST(request: NextRequest) {
+  const env = configured();
+  if (!isAuthorized(request, env.cronSecret)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!env.supabaseUrl || !env.serviceRoleKey) {
+    return NextResponse.json({ error: "Supabase service configuration is missing" }, { status: 500 });
+  }
+
+  let body: GenerateBody;
   try {
-    // 1. 呼叫 Gemini 生成文章
-    const geminiResponse = await articleGenerationService.generateArticle({
-      topicKey,
-      topicTitleZhTw,
-      topicCategory,
-      languageCode,
-      difficultyLevel,
-    });
+    body = (await request.json()) as GenerateBody;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
 
-    // 2. 建立文章記錄
-    const { data: article, error: articleError } = await supabase
-      .from('reading_articles')
-      .insert({
-        topic_id: topicId,
-        language_code: languageCode,
-        title: geminiResponse.title,
-        title_zh_tw: geminiResponse.titleZhTw,
-        article_text: geminiResponse.articleText,
-        difficulty_level: difficultyLevel,
-        estimated_reading_seconds: estimateReadingTime(geminiResponse.articleText),
-        source_type: 'original_ai',
-        content_version: 1,
-        status: 'draft',
-      })
-      .select()
-      .single();
+  if (!validDate(body.publishDate) || !body.topicKey || !body.topicTitleZhTw || !body.topicCategory) {
+    return NextResponse.json({ error: "publishDate, topicKey, topicTitleZhTw, and topicCategory are required" }, { status: 400 });
+  }
+  if (body.difficultyLevel !== "A1" && body.difficultyLevel !== "A2" && body.difficultyLevel !== "B1") {
+    return NextResponse.json({ error: "difficultyLevel must be A1, A2, or B1" }, { status: 400 });
+  }
+  const languages = allowedLanguages(body.languages);
+  if (!languages) return NextResponse.json({ error: "All five languages are required" }, { status: 400 });
 
-    if (articleError || !article) {
-      return { success: false, error: 'Failed to create article' };
-    }
+  const supabase = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } });
+  const { data: existingTopic, error: existingError } = await supabase
+    .from("reading_article_topics")
+    .select("id, publish_date, status, reading_articles(id, language_code, status)")
+    .eq("publish_date", body.publishDate)
+    .maybeSingle();
+  if (existingError) return NextResponse.json({ error: "Failed to inspect daily article" }, { status: 500 });
+  if (existingTopic) {
+    return NextResponse.json({ success: true, existing: true, topic: existingTopic, articles: existingTopic.reading_articles || [] });
+  }
 
-    // 3. 建立句子記錄
-    const sentences: any[] = [];
-    for (const sentence of geminiResponse.sentences) {
-      const { data: sentenceData, error: sentenceError } = await supabase
-        .from('reading_article_sentences')
+  const { data: topic, error: topicError } = await supabase
+    .from("reading_article_topics")
+    .insert({
+      publish_date: body.publishDate,
+      topic_key: body.topicKey,
+      topic_title_zh_tw: body.topicTitleZhTw,
+      topic_category: body.topicCategory,
+      status: "draft",
+    })
+    .select()
+    .single();
+  if (topicError || !topic) return NextResponse.json({ error: "Failed to create article topic" }, { status: 500 });
+
+  try {
+    const articles: Array<{ id: string; language_code: LearningLanguageCode }> = [];
+    for (const languageCode of languages) {
+      const generated = await articleGenerationService.generateArticle({
+        topicKey: body.topicKey,
+        topicTitleZhTw: body.topicTitleZhTw,
+        topicCategory: body.topicCategory,
+        languageCode,
+        difficultyLevel: body.difficultyLevel,
+      });
+
+      const { data: article, error: articleError } = await supabase
+        .from("reading_articles")
         .insert({
-          article_id: article.id,
-          sentence_order: sentence.order,
-          sentence_text: sentence.text,
-          sentence_zh_tw: sentence.zhTw,
-          sentence_type: 'body',
-          estimated_duration_ms: estimateSentenceDuration(sentence.text),
+          topic_id: topic.id,
+          language_code: languageCode,
+          title: generated.title,
+          title_zh_tw: generated.titleZhTw,
+          article_text: generated.articleText,
+          difficulty_level: generated.difficultyLevel,
+          estimated_reading_seconds: Math.max(20, Math.round(generated.sentences.reduce(
+            (total, sentence) => total + estimateDurationMs(sentence.text, languageCode), 0
+          ) / 1000)),
+          source_type: "original_ai",
+          source_name: "Gemini",
+          content_version: 1,
+          status: "draft",
         })
-        .select()
+        .select("id, language_code")
         .single();
+      if (articleError || !article) throw new Error(`Failed to save ${languageCode} article`);
 
-      if (!sentenceError && sentenceData) {
-        sentences.push(sentenceData);
-      }
-    }
+      const sentenceRows = generated.sentences.map((sentence) => ({
+        article_id: article.id,
+        sentence_order: sentence.order,
+        sentence_text: sentence.text,
+        sentence_zh_tw: sentence.zhTw,
+        sentence_type: "body",
+        estimated_duration_ms: estimateDurationMs(sentence.text, languageCode),
+      }));
+      const { error: sentenceError } = await supabase.from("reading_article_sentences").insert(sentenceRows);
+      if (sentenceError) throw new Error(`Failed to save ${languageCode} sentences`);
 
-    // 4. 建立問題記錄
-    const questions: any[] = [];
-    for (const question of geminiResponse.questions) {
-      const { data: questionData, error: questionError } = await supabase
-        .from('reading_article_questions')
-        .insert({
-          article_id: article.id,
-          question_order: questions.length + 1,
-          question_type: question.type,
-          question_text: question.question,
-          options_json: { options: question.options },
-          correct_answer_json: { answer: question.answer },
-          explanation_zh_tw: question.explanationZhTw,
-        })
-        .select()
-        .single();
+      const questionRows = generated.questions.map((question, index) => ({
+        article_id: article.id,
+        question_order: index + 1,
+        question_type: question.type,
+        question_text: question.question,
+        options_json: question.options,
+        correct_answer_json: {
+          answer: question.answer,
+          index: question.options.indexOf(question.answer),
+        },
+        explanation_zh_tw: question.explanationZhTw,
+      }));
+      const { error: questionError } = await supabase.from("reading_article_questions").insert(questionRows);
+      if (questionError) throw new Error(`Failed to save ${languageCode} questions`);
 
-      if (!questionError && questionData) {
-        questions.push(questionData);
-      }
-    }
-
-    // 5. 建立成本記錄
-    const { data: log, error: logError } = await supabase
-      .from('daily_article_generation_log')
-      .insert({
-        publish_date: publishDate,
+      const { error: logError } = await supabase.from("daily_article_generation_log").upsert({
+        publish_date: body.publishDate,
         language_code: languageCode,
         article_id: article.id,
-        gemini_input_tokens: 0, // TODO: 從 Gemini API 取得
-        gemini_output_tokens: 0, // TODO: 從 Gemini API 取得
-        tts_character_count: geminiResponse.articleText.length,
+        gemini_input_tokens: 0,
+        gemini_output_tokens: 0,
+        tts_character_count: Array.from(generated.articleText).length,
         tts_cache_hit_count: 0,
         tts_cache_miss_count: 0,
         word_audio_cache_miss_count: 0,
-        estimated_cost_usd: 0, // TODO: 計算實際成本
-      })
-      .select()
-      .single();
+        estimated_cost_usd: 0,
+      }, { onConflict: "publish_date,language_code" });
+      if (logError) throw new Error(`Failed to create ${languageCode} generation log`);
 
-    return {
-      success: true,
-      article: {
-        ...article,
-        sentences,
-        questions,
-      },
-      log: log,
-    };
+      articles.push(article);
+    }
+
+    return NextResponse.json({ success: true, existing: false, topic, articles }, { status: 201 });
   } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    };
+    // A publish date must be retriable. Cascade delete prevents a half-created topic
+    // from blocking the next cron run.
+    await supabase.from("reading_article_topics").delete().eq("id", topic.id);
+    console.error("Daily article generation error", error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to generate daily articles" }, { status: 502 });
   }
-}
-
-function estimateReadingTime(text: string): number {
-  // 假設平均閱讀速度為每分鐘 200 字
-  const wordsPerMinute = 200;
-  const wordCount = text.split(/\s+/).length;
-  return Math.ceil((wordCount / wordsPerMinute) * 60);
-}
-
-function estimateSentenceDuration(text: string): number {
-  // 假設平均說話速度為每分鐘 150 字
-  const wordsPerMinute = 150;
-  const wordCount = text.split(/\s+/).length;
-  return Math.ceil((wordCount / wordsPerMinute) * 60 * 1000);
 }
