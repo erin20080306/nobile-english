@@ -16,7 +16,7 @@ import BottomNav from "@/components/BottomNav";
 const countOptions = [5, 10, 15, 20, 25, 30];
 const learnedOptions = [0, 25, 50, 75, 100];
 
-function playAnswerSound(correct: boolean) {
+async function playAnswerSound(correct: boolean) {
   if (typeof window === "undefined") return;
   try {
     const audioWindow = window as typeof window & { webkitAudioContext?: typeof AudioContext };
@@ -24,11 +24,13 @@ function playAnswerSound(correct: boolean) {
     if (!AudioContextClass) return;
 
     const context = new AudioContextClass();
-    const start = context.currentTime;
+    if (context.state === "suspended") await context.resume();
+
+    const start = context.currentTime + 0.01;
     const gain = context.createGain();
     gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.exponentialRampToValueAtTime(correct ? 0.08 : 0.07, start + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + (correct ? 0.28 : 0.2));
+    gain.gain.exponentialRampToValueAtTime(correct ? 0.18 : 0.16, start + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + (correct ? 0.34 : 0.26));
     gain.connect(context.destination);
 
     const playTone = (frequency: number, offset: number, duration: number) => {
@@ -41,15 +43,14 @@ function playAnswerSound(correct: boolean) {
     };
 
     if (correct) {
-      playTone(660, 0, 0.09);
-      playTone(880, 0.09, 0.13);
+      playTone(660, 0, 0.11);
+      playTone(880, 0.11, 0.16);
     } else {
-      playTone(240, 0, 0.08);
-      playTone(170, 0.08, 0.12);
+      playTone(260, 0, 0.1);
+      playTone(170, 0.1, 0.14);
     }
 
-    if (context.state === "suspended") void context.resume();
-    window.setTimeout(() => { void context.close(); }, correct ? 360 : 280);
+    window.setTimeout(() => { void context.close(); }, correct ? 480 : 380);
   } catch {
     // Sound is optional; answering should never fail because audio is blocked.
   }
@@ -81,6 +82,7 @@ export default function WordReviewPage() {
   const level = user?.level || "Beginner";
   const languageInfo = getLearningLanguage(language);
   const current = session?.words[index];
+  const currentAnswer = session && current ? session.answers.find((answer) => answer.word === current.word.word) : undefined;
   const questionKind = current?.questionKind || "meaningChoice";
   const isWordChoice = questionKind === "wordChoice";
   const choices = useMemo(
@@ -104,7 +106,7 @@ export default function WordReviewPage() {
     const kind = current.questionKind;
     const correctText = wordReviewService.correctChoiceFor(current.word, kind);
     const correct = option === correctText;
-    playAnswerSound(correct);
+    void playAnswerSound(correct);
     const answer = {
       word: current.word.word,
       correct,
@@ -225,6 +227,17 @@ export default function WordReviewPage() {
                 )}
               </div>
             </div>
+            {revealed && currentAnswer && (
+              <div className={`mt-4 rounded-3xl p-4 shadow-softer ${currentAnswer.correct ? "bg-mint text-mintDeep" : "bg-peach text-peachDeep"}`}>
+                <p className="text-lg font-black">{currentAnswer.correct ? "正確" : "答錯了"}</p>
+                {!currentAnswer.correct && (
+                  <div className="mt-2 space-y-1 text-sm font-bold">
+                    <p>你選：{currentAnswer.selectedText}</p>
+                    <p>正確答案：{currentAnswer.correctText}</p>
+                  </div>
+                )}
+              </div>
+            )}
             {revealed && (
               <div className="mt-4 rounded-3xl bg-cream p-3">
                 {isWordChoice && (
@@ -258,7 +271,9 @@ export default function WordReviewPage() {
                         : "bg-white text-ink"
                   }`}
                 >
-                  {choice}
+                  <span>{choice}</span>
+                  {revealed && correct && <span className="ml-2 text-xs font-black">正確</span>}
+                  {revealed && active && !correct && <span className="ml-2 text-xs font-black">答錯了</span>}
                 </button>
               );
             })}
