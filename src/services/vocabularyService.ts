@@ -5,6 +5,9 @@ import { learnerDictionaryEntries } from "@/data/learnerDictionary";
 import { multilingualDictionaryEntries } from "@/data/multilingualDictionary";
 import { expandedVocabulary } from "@/data/expandedVocabulary";
 import { expandedMultilingualDictionaryEntries } from "@/data/expandedMultilingualDictionary";
+import { expandedMultilingualPart1a } from "@/data/expandedMultilingualPart1a";
+import { expandedMultilingualPart1b } from "@/data/expandedMultilingualPart1b";
+import { expandedMultilingualPart1c } from "@/data/expandedMultilingualPart1c";
 import { expandedVocabularyPart2a } from "@/data/expandedVocabularyPart2a";
 import { expandedVocabularyPart2b } from "@/data/expandedVocabularyPart2b";
 import { expandedVocabularyPart2c } from "@/data/expandedVocabularyPart2c";
@@ -47,6 +50,9 @@ const allWords: Word[] = (() => {
 export const allMultilingualEntries: Word[] = [
   ...multilingualDictionaryEntries,
   ...expandedMultilingualDictionaryEntries,
+  ...expandedMultilingualPart1a,
+  ...expandedMultilingualPart1b,
+  ...expandedMultilingualPart1c,
 ];
 
 export const vocabularyService = {

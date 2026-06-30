@@ -1,6 +1,6 @@
 import type { LearningLanguageCode, Word } from "@/types";
 
-function entry(
+export function entry(
   language: Exclude<LearningLanguageCode, "en">,
   word: string,
   phonetic: string,
