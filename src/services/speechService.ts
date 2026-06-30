@@ -2,6 +2,7 @@
 // Designed so a future cloud TTS (e.g. Google/Azure) can replace the impl.
 
 let voicesReady: Promise<SpeechSynthesisVoice[]> | null = null;
+let currentUtterance: SpeechSynthesisUtterance | null = null;
 let currentAudio: HTMLAudioElement | null = null;
 let currentAudioContext: AudioContext | null = null;
 let currentPlaybackEnd: (() => void) | null = null;
@@ -64,6 +65,13 @@ function isEnglishLang(lang = "en-US") {
   return lang.toLowerCase().startsWith("en");
 }
 
+function speechSynthesisText(text: string, lang = "en-US") {
+  const clean = text.trim();
+  if (!isEnglishLang(lang)) return clean;
+  if (/^[A-Za-z']{1,6}$/.test(clean)) return `${clean}.`;
+  return clean;
+}
+
 function missingCloudVoiceMessage(lang = "en-US") {
   const label = lang.startsWith("ja")
     ? "日文"
@@ -78,6 +86,7 @@ function missingCloudVoiceMessage(lang = "en-US") {
 }
 
 function stopAudio() {
+  currentUtterance = null;
   const endPlayback = currentPlaybackEnd;
   currentPlaybackEnd = null;
   if (!currentAudio) {
@@ -104,7 +113,7 @@ function stopAudio() {
 
 function speakNow(text: string, opts?: SpeakOptions, voices = window.speechSynthesis.getVoices()) {
   const lang = opts?.lang ?? "en-US";
-  const utter = new SpeechSynthesisUtterance(text);
+  const utter = new SpeechSynthesisUtterance(speechSynthesisText(text, lang));
   utter.lang = lang;
   utter.rate = opts?.rate ?? 0.95;
   utter.pitch = 1;
@@ -112,19 +121,25 @@ function speakNow(text: string, opts?: SpeakOptions, voices = window.speechSynth
   const voice = pickVoice(voices, lang, opts?.voiceKeywords ?? []);
   if (voice) utter.voice = voice;
   currentPlaybackEnd = opts?.onEnd ?? null;
+  currentUtterance = utter;
   utter.onstart = () => opts?.onStart?.();
   utter.onend = () => {
+    if (currentUtterance === utter) currentUtterance = null;
     const endPlayback = currentPlaybackEnd;
     currentPlaybackEnd = null;
     endPlayback?.();
   };
   utter.onerror = () => {
+    if (currentUtterance === utter) currentUtterance = null;
     const endPlayback = currentPlaybackEnd;
     currentPlaybackEnd = null;
     endPlayback?.();
   };
   window.speechSynthesis.resume();
   window.speechSynthesis.speak(utter);
+  window.setTimeout(() => {
+    if (currentUtterance === utter) window.speechSynthesis.resume();
+  }, 120);
 }
 
 async function speakWithOpenAi(text: string, opts?: SpeakOptions) {
@@ -309,6 +324,7 @@ export const speechService = {
   },
 
   stop() {
+    currentUtterance = null;
     stopAudio();
     if (this.isSupported()) window.speechSynthesis.cancel();
   },
