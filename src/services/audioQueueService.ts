@@ -260,6 +260,9 @@ class AudioQueueService {
       text: item.text,
     });
 
+    // 停止前一個項目，必須在設定新 currentItem 之前，否則 stopCurrent 會對新項目觸發 onEnd
+    this.stopCurrent();
+
     this.setState({
       state: "loading",
       currentItem: item,
@@ -278,9 +281,6 @@ class AudioQueueService {
       if (!this.audio) {
         this.audio = new Audio();
       }
-
-      // 停止當前播放
-      this.stopCurrent();
 
       // 設定新音檔
       this.audio.src = item.url;
@@ -380,6 +380,11 @@ class AudioQueueService {
 
     if (this.audio) {
       try {
+        // 清除事件處理器，避免舊的 handler 對新音檔誤觸發
+        this.audio.oncanplay = null;
+        this.audio.onloadedmetadata = null;
+        this.audio.onended = null;
+        this.audio.onerror = null;
         this.audio.pause();
         this.audio.currentTime = 0;
         this.audio.src = "";
@@ -390,14 +395,16 @@ class AudioQueueService {
       }
     }
 
-    if (this.state.currentItem) {
-      this.state.currentItem.onEnd?.();
-    }
-
+    const stoppingItem = this.state.currentItem;
     this.setState({
       state: "ready",
       currentItem: null,
     });
+
+    // 先清除 currentItem 再呼叫 onEnd，避免重入問題
+    if (stoppingItem) {
+      stoppingItem.onEnd?.();
+    }
   }
 
   /**

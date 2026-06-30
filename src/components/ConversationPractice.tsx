@@ -530,7 +530,7 @@ export default function ConversationPractice({
             src={selectedTutor.photoUrl}
             alt={selectedTutor.name}
             onError={(e) => { e.currentTarget.src = TUTOR_FALLBACK_PHOTO; }}
-            animate={tutorSpeaking ? { scale: [1, 1.025, 1.01], y: [0, -3, 0] } : { scale: 1, y: 0 }}
+            animate={tutorSpeaking ? { scale: [1, 1.025, 1], y: [0, -3, 0] } : { scale: 1, y: 0 }}
             transition={tutorSpeaking ? { duration: 1.15, repeat: Infinity, ease: "easeInOut" } : { duration: 0.25 }}
             className={`relative h-full w-full object-contain object-center transition-[filter] duration-300 ${tutorSpeaking ? "drop-shadow-[0_0_24px_rgba(167,139,250,0.55)]" : ""}`}
           />
