@@ -258,7 +258,8 @@ export const wordReviewService = {
       .map((word) => optionText(word, questionKind))
       .filter((text) => text && text !== correct);
     const seed = choiceScore(`${target.word}:${questionKind}`, questionKind === "wordChoice" ? 7 : 3);
-    const distractors = [...new Set(all)]
+    const uniqueChoices = all.filter((text, index) => all.indexOf(text) === index);
+    const distractors = uniqueChoices
       .sort((a, b) => (choiceScore(a, seed) % 17) - (choiceScore(b, seed) % 17))
       .slice(0, 3);
     return [correct, ...distractors]
