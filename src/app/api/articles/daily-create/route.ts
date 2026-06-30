@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
 
     const today = new Date().toISOString().split("T")[0];
 
