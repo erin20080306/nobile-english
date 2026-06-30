@@ -157,26 +157,40 @@ export default function AdminPage() {
 
   async function runFullPipeline() {
     setLoadingAction("pipeline");
-    addLog("=== 開始完整流程：生成 → 預熱 → 發布 ===", "info");
-    await runGenerateOnly();
-    await runPrewarmOnly();
-    await runPublishOnly();
-    addLog("=== 完整流程執行完畢 ===", "ok");
+    addLog("=== 一鍵建立今日文章（生成 + 發布）===", "info");
+    try {
+      const res = await fetch("/api/articles/daily-create", { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (data.skipped) {
+          addLog(`ℹ️ 今日文章已存在，跳過生成`, "info");
+        } else {
+          addLog(`✅ 成功建立 ${data.articlesCreated}/5 篇文章，主題：${data.topic}`, "ok");
+          data.results?.forEach((r: { lang: string; success: boolean; title?: string; error?: string }) => {
+            addLog(`  ${r.success ? "✅" : "❌"} ${r.lang}: ${r.title ?? r.error}`, r.success ? "ok" : "error");
+          });
+        }
+      } else {
+        addLog(`❌ 建立失敗：${data.error}`, "error");
+      }
+    } catch (e) {
+      addLog(`❌ ${e instanceof Error ? e.message : String(e)}`, "error");
+    }
     setLoadingAction(null);
     await loadArticleStatuses();
   }
 
   async function runGenerateOnly() {
-    addLog("1/3 生成文章...", "info");
+    addLog("生成文章中...", "info");
     try {
-      const res = await fetch("/api/articles/generate", { method: "POST" });
+      const res = await fetch("/api/articles/daily-create", { method: "POST" });
       const data = await res.json();
-      addLog(res.ok ? `✅ 生成成功` : `❌ 生成失敗：${data.error}`, res.ok ? "ok" : "error");
+      addLog(res.ok ? `✅ ${data.skipped ? "已存在" : `生成成功（${data.articlesCreated} 篇）`}` : `❌ 失敗：${data.error}`, res.ok ? "ok" : "error");
     } catch (e) { addLog(`❌ ${e instanceof Error ? e.message : String(e)}`, "error"); }
   }
 
   async function runPrewarmOnly() {
-    addLog("2/3 預熱音檔...", "info");
+    addLog("預熱音檔...", "info");
     try {
       const res = await fetch("/api/articles/prewarm", { method: "POST" });
       const data = await res.json();
@@ -185,11 +199,11 @@ export default function AdminPage() {
   }
 
   async function runPublishOnly() {
-    addLog("3/3 發布文章...", "info");
+    addLog("重新發布...", "info");
     try {
-      const res = await fetch("/api/articles/publish", { method: "POST" });
+      const res = await fetch("/api/articles/daily-create", { method: "POST" });
       const data = await res.json();
-      addLog(res.ok ? `✅ 發布成功` : `❌ 發布失敗：${data.error}`, res.ok ? "ok" : "error");
+      addLog(res.ok ? `✅ 完成` : `❌ 失敗：${data.error}`, res.ok ? "ok" : "error");
     } catch (e) { addLog(`❌ ${e instanceof Error ? e.message : String(e)}`, "error"); }
   }
 
