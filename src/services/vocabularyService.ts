@@ -5,11 +5,40 @@ import { learnerDictionaryEntries } from "@/data/learnerDictionary";
 import { multilingualDictionaryEntries } from "@/data/multilingualDictionary";
 import { expandedVocabulary } from "@/data/expandedVocabulary";
 import { expandedMultilingualDictionaryEntries } from "@/data/expandedMultilingualDictionary";
+import { expandedVocabularyPart2a } from "@/data/expandedVocabularyPart2a";
+import { expandedVocabularyPart2b } from "@/data/expandedVocabularyPart2b";
+import { expandedVocabularyPart2c } from "@/data/expandedVocabularyPart2c";
+import { expandedVocabularyPart3a } from "@/data/expandedVocabularyPart3a";
+import { expandedVocabularyPart3b } from "@/data/expandedVocabularyPart3b";
+import { expandedVocabularyPart3c } from "@/data/expandedVocabularyPart3c";
+import { expandedVocabularyPart4a } from "@/data/expandedVocabularyPart4a";
+import { expandedVocabularyPart4b } from "@/data/expandedVocabularyPart4b";
+import { expandedVocabularyPart4c } from "@/data/expandedVocabularyPart4c";
 import { storageService, KEYS } from "./storageService";
+
+// Helper function to convert tuple to Word object
+function tupleToWord(tuple: [string, string, string, string, string, string]): Word {
+  const [word, phonetic, pos, enDef, zh, example] = tuple;
+  return { word, phonetic, pos: pos as any, enDef, zh, example, language: "en" };
+}
 
 const allWords: Word[] = (() => {
   const map = new Map<string, Word>();
-  [...dictionaryEntries, ...learnerDictionaryEntries, ...vocabulary, ...expandedVocabulary].forEach((w) => {
+  [
+    ...dictionaryEntries,
+    ...learnerDictionaryEntries,
+    ...vocabulary,
+    ...expandedVocabulary,
+    ...(expandedVocabularyPart2a as any).map(tupleToWord),
+    ...(expandedVocabularyPart2b as any).map(tupleToWord),
+    ...(expandedVocabularyPart2c as any).map(tupleToWord),
+    ...(expandedVocabularyPart3a as any).map(tupleToWord),
+    ...(expandedVocabularyPart3b as any).map(tupleToWord),
+    ...(expandedVocabularyPart3c as any).map(tupleToWord),
+    ...(expandedVocabularyPart4a as any).map(tupleToWord),
+    ...(expandedVocabularyPart4b as any).map(tupleToWord),
+    ...(expandedVocabularyPart4c as any).map(tupleToWord),
+  ].forEach((w) => {
     const k = w.word.toLowerCase();
     if (!map.has(k)) map.set(k, w);
   });
