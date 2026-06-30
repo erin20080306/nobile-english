@@ -275,24 +275,11 @@ export default function SettingsPage() {
             <span className="flex-1 text-sm text-ink">刪除帳號與資料</span>
             <ArrowRight size={16} className="text-inkSoft" />
           </button>
-          <button onClick={() => window.open("mailto:support@mobileenglish.app", "_blank")} className="w-full flex items-center gap-3 py-2 text-left active:scale-[0.99] transition">
+          <button onClick={() => window.open("mailto:erin20080306@gmail.com", "_blank")} className="w-full flex items-center gap-3 py-2 text-left active:scale-[0.99] transition">
             <Mail size={18} className="text-inkSoft" />
             <span className="flex-1 text-sm text-ink">聯絡客服</span>
             <ArrowRight size={16} className="text-inkSoft" />
           </button>
-        </div>
-
-        <div className="card space-y-2">
-          <p className="font-bold text-ink">真人感 AI 串接建議</p>
-          <Row label="免費 MVP" value="本機規則 + 內容題庫" />
-          <Row label="真人對話" value="OpenAI Realtime / LLM" />
-          <Row label="語音輸入" value="Whisper / Google STT" />
-          <Row label="自然發音" value="OpenAI TTS 已支援；可再升級 ElevenLabs" />
-          <Row label="登入綁定" value="Firebase / Supabase Auth" />
-          <Row label="錯誤日誌" value="Sentry / Firebase Crashlytics" />
-          <p className="text-xs text-inkSoft leading-relaxed">
-            已有 OpenAI key 時會優先使用 LLM 與高品質 TTS；沒有 key 時會自動退回本機回覆與系統語音。
-          </p>
         </div>
 
         <button onClick={logout} className="w-full rounded-3xl bg-white text-peachDeep font-bold py-4 shadow-softer flex items-center justify-center gap-2 active:scale-95 transition">
