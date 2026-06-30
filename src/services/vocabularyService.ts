@@ -70,6 +70,14 @@ export const vocabularyService = {
     storageService.set(KEYS.savedWords, saved);
     return true;
   },
+  saveWord(word: Word, source?: string): boolean {
+    const saved = this.getSaved();
+    const existing = saved.find((w) => w.word.toLowerCase() === word.word.toLowerCase());
+    if (existing) return false;
+    saved.unshift({ ...word, savedAt: new Date().toISOString(), inReview: false, source });
+    storageService.set(KEYS.savedWords, saved);
+    return true;
+  },
   toggleReview(word: string): void {
     const saved = this.getSaved().map((w) =>
       w.word.toLowerCase() === word.toLowerCase() ? { ...w, inReview: !w.inReview } : w

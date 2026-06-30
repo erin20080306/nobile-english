@@ -7,6 +7,7 @@ import { Volume2, Star, Target, BookOpen, Mic } from "lucide-react";
 import { sceneService } from "@/services/sceneService";
 import { learningService } from "@/services/learningService";
 import { dictionaryService } from "@/services/dictionaryService";
+import { vocabularyService } from "@/services/vocabularyService";
 import { sceneReviewService } from "@/services/sceneReviewService";
 import { gardenService } from "@/services/gardenService";
 import { speechService } from "@/services/speechService";
@@ -19,7 +20,7 @@ import ClickableText from "@/components/ClickableText";
 import WordSheet from "@/components/WordSheet";
 import ConversationPractice from "@/components/ConversationPractice";
 import { LevelBadge } from "@/components/ui";
-import type { DialogueResult, TutorFeedback, DialogueTranscriptLine } from "@/types";
+import type { DialogueResult, TutorFeedback, DialogueTranscriptLine, LearningLanguageCode } from "@/types";
 
 function buildTranscript(userTurns: string[], feedbacks: TutorFeedback[]): DialogueTranscriptLine[] {
   const transcript: DialogueTranscriptLine[] = [];
@@ -47,6 +48,13 @@ function buildTranscript(userTurns: string[], feedbacks: TutorFeedback[]): Dialo
     return userTurns.filter(Boolean).map((en) => ({ role: "user", en }));
   }
   return transcript;
+}
+
+function savePracticeWords(words: string[], language: LearningLanguageCode, source: string) {
+  Array.from(new Set(words.map((word) => word.trim()).filter(Boolean))).forEach((word) => {
+    const entry = dictionaryService.lookup(word, language).entry;
+    if (entry) vocabularyService.saveWord(entry, source);
+  });
 }
 
 export default function ScenePracticePage() {
@@ -145,6 +153,11 @@ export default function ScenePracticePage() {
       }))
       .filter((item) => item.meaning);
     gardenService.addSceneWords(targetLanguage, practicedWords);
+    savePracticeWords(
+      [...(activeScene!.keyWords || []), ...(result.newWords || []), ...(result.conversationWords || [])],
+      targetLanguage,
+      activeScene!.name
+    );
 
     const shouldShowSceneReview = sceneReviewService.isDue();
     storageService.set(KEYS.lastResult, {

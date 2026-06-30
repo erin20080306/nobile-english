@@ -10,6 +10,8 @@ import { authService } from "@/services/authService";
 import { sceneReviewService } from "@/services/sceneReviewService";
 import { storageService, KEYS } from "@/services/storageService";
 import { audioQueueService } from "@/services/audioQueueService";
+import { dictionaryService } from "@/services/dictionaryService";
+import { vocabularyService } from "@/services/vocabularyService";
 import { sceneCardStyle } from "@/data/sceneVisuals";
 import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
@@ -242,6 +244,13 @@ function buildTranscript(userTurns: string[], feedbacks: TutorFeedback[]): Dialo
   return transcript;
 }
 
+function savePracticeWords(words: string[], language: LearningLanguageCode, source: string) {
+  Array.from(new Set(words.map((word) => word.trim()).filter(Boolean))).forEach((word) => {
+    const entry = dictionaryService.lookup(word, language).entry;
+    if (entry) vocabularyService.saveWord(entry, source);
+  });
+}
+
 function Chat({ scene, onExit }: { scene: Scene; onExit: () => void }) {
   const router = useRouter();
   const targetLanguage = scene.targetLanguage || learningService.getCurrentLanguage();
@@ -269,6 +278,11 @@ function Chat({ scene, onExit }: { scene: Scene; onExit: () => void }) {
       completed: true,
       minutes: 8,
     });
+    savePracticeWords(
+      [...(scene.keyWords || []), ...(result.newWords || []), ...(result.conversationWords || [])],
+      targetLanguage,
+      scene.name
+    );
     const shouldShowSceneReview = sceneReviewService.isDue();
     storageService.set(KEYS.lastResult, {
       kind: "dialogue",
@@ -384,6 +398,11 @@ function FreeChat({ targetLanguage, onExit }: { targetLanguage: LearningLanguage
       completed: true,
       minutes: 10,
     });
+    savePracticeWords(
+      [...(freeScene.keyWords || []), ...(result.newWords || []), ...(result.conversationWords || [])],
+      targetLanguage,
+      freeScene.name
+    );
     storageService.set(KEYS.lastResult, {
       kind: "dialogue",
       title: `自由對話（${languageInfo.zhName}）`,
