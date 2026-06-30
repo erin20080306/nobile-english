@@ -36,18 +36,19 @@ export default function LoginPage() {
       });
 
       if (result.response) {
-        // In production, send this to backend to verify with Apple
-        // For now, create a mock user
-        const mockUser = {
+        const res = authService.loginWithApple({
           id: result.response.user || "apple_" + Date.now(),
           email: result.response.email || "apple@example.com",
           name: result.response.givenName || "Apple User",
-          onboarded: false,
-        };
-        go(mockUser);
+        });
+        if (!res.ok || !res.user) {
+          setError(res.error || "Apple 登入失敗");
+          return;
+        }
+        go(res.user);
       }
-    } catch (error) {
-      setError("Apple 登入失敗");
+    } catch {
+      setError("Apple 登入僅支援 iOS 裝置");
     }
   }
 

@@ -201,6 +201,34 @@ export const authService = {
     return { ok: true, user: bound.user };
   },
 
+  loginWithApple(appleUser: { id: string; email: string; name: string }): { ok: boolean; error?: string; user?: User } {
+    let users = this.getUsers();
+    let user = users.find(
+      (u) => u.id === appleUser.id || u.email.toLowerCase() === appleUser.email.toLowerCase()
+    );
+    if (!user) {
+      user = {
+        id: appleUser.id,
+        name: appleUser.name,
+        email: appleUser.email,
+        provider: "apple",
+        level: "Beginner",
+        cefrLevel: "A2",
+        createdAt: now(),
+        isDemo: false,
+        onboarded: false,
+      } as User;
+      users.push(ensureProfiles(user));
+      storageService.set(KEYS.settings, defaultSettings(user.id));
+    }
+    const bound = bindCurrentDevice({ ...user, provider: "apple" });
+    if (!bound.ok || !bound.user) return { ok: false, error: bound.error };
+    users = users.map((u) => (u.id === bound.user!.id ? bound.user! : u));
+    storageService.set(KEYS.users, users);
+    storageService.set(KEYS.session, bound.user.id);
+    return { ok: true, user: bound.user };
+  },
+
   loginDemo(): User {
     const result = this.loginWithGoogle();
     if (result.ok && result.user) return result.user;

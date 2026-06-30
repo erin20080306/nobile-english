@@ -37,7 +37,7 @@ export interface User {
   name: string;
   email: string;
   password?: string;
-  provider?: "local" | "google";
+  provider?: "local" | "google" | "apple";
   deviceId?: string;
   deviceName?: string;
   deviceBoundAt?: string;

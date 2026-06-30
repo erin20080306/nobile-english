@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, User as UserIcon, Globe, Volume2, ShieldCheck, Users, Plus, MessageSquareWarning, GraduationCap, Crown, RefreshCw, Trash2, FileText, Mail, ArrowRight } from "lucide-react";
+import { LogOut, User as UserIcon, Globe, Volume2, ShieldCheck, MessageSquareWarning, GraduationCap, Crown, Trash2, FileText, Mail, ArrowRight, Settings2 } from "lucide-react";
 import type { User, UserSettings, OnboardingProfile } from "@/types";
 import { useUser } from "@/hooks/useUser";
 import { learningService } from "@/services/learningService";
@@ -19,8 +19,6 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [profile, setProfile] = useState<Partial<OnboardingProfile>>({});
   const [accountUser, setAccountUser] = useState<User | null>(null);
-  const [newProfileName, setNewProfileName] = useState("");
-  const [profileError, setProfileError] = useState("");
 
   useEffect(() => {
     if (!user) return;
@@ -31,10 +29,9 @@ export default function SettingsPage() {
 
   if (!ready || !user || !settings) return <div className="p-10 text-center text-inkSoft">載入中…</div>;
 
+  const ADMIN_EMAIL = "erin20080306@gmail.com";
   const shownUser = accountUser || user;
   const deviceInfo = authService.getDeviceInfo(shownUser);
-  const profiles = shownUser.profiles || [];
-  const activeProfileId = shownUser.activeProfileId || profiles[0]?.id;
   const currentLanguage = getLearningLanguage(settings.targetLanguage);
   const currentSpeechRate = settings.speechRateByLanguage?.[settings.targetLanguage] ?? 1;
 
@@ -77,27 +74,6 @@ export default function SettingsPage() {
     learningService.saveSettings(next);
   }
 
-  function addProfile() {
-    const res = authService.addProfile(newProfileName);
-    if (!res.ok || !res.user) {
-      setProfileError(res.error || "新增學習者失敗");
-      return;
-    }
-    setAccountUser(res.user);
-    setNewProfileName("");
-    setProfileError("");
-  }
-
-  function switchProfile(profileId: string) {
-    const res = authService.switchProfile(profileId);
-    if (!res.ok || !res.user) {
-      setProfileError(res.error || "切換學習者失敗");
-      return;
-    }
-    setAccountUser(res.user);
-    setProfileError("");
-  }
-
   function logout() {
     authService.logout();
     router.replace("/login");
@@ -117,40 +93,13 @@ export default function SettingsPage() {
         </div>
 
         <div className="card space-y-3">
-          <p className="font-bold text-ink flex items-center gap-2"><ShieldCheck size={18} className="text-mintDeep" /> Google 帳號與手機綁定</p>
-          <Row label="登入方式" value={shownUser.provider === "google" ? "Google 帳號" : "本機帳號"} />
+          <p className="font-bold text-ink flex items-center gap-2"><ShieldCheck size={18} className="text-mintDeep" /> 帳號與裝置綁定</p>
+          <Row label="登入方式" value={shownUser.provider === "google" ? "Google 帳號" : shownUser.provider === "apple" ? "Apple 帳號" : "帳號登入"} />
           <Row label="綁定規則" value="一個帳號只能綁定 1 支手機" />
           <Row label="綁定手機" value={`${shownUser.deviceName || deviceInfo.currentDeviceName} · ${deviceInfo.shortId}`} />
           <p className="text-xs text-inkSoft leading-relaxed">
-            多位家人或同學共用同一帳號時，只能在這支手機上切換學習者；不能在多支手機同時綁定。
+            帳號綁定後，其他手機無法使用此帳號登入。如需換手機，請先聯絡客服。
           </p>
-        </div>
-
-        <div className="card space-y-3">
-          <p className="font-bold text-ink flex items-center gap-2"><Users size={18} className="text-lilacDeep" /> 同手機學習者</p>
-          <div className="flex flex-wrap gap-2">
-            {profiles.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => switchProfile(p.id)}
-                className={`chip transition ${activeProfileId === p.id ? "bg-lilacDeep text-white" : "bg-cream text-ink"}`}
-              >
-                {p.name}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <input
-              value={newProfileName}
-              onChange={(e) => setNewProfileName(e.target.value)}
-              placeholder="新增學習者名稱"
-              className="min-w-0 flex-1 rounded-2xl bg-cream px-3 py-2 outline-none text-ink"
-            />
-            <button onClick={addProfile} className="h-11 w-11 rounded-2xl bg-lilacDeep text-white flex items-center justify-center active:scale-90 transition">
-              <Plus size={18} />
-            </button>
-          </div>
-          {profileError && <p className="text-sm font-semibold text-peachDeep">{profileError}</p>}
         </div>
 
         <div className="card">
@@ -281,6 +230,19 @@ export default function SettingsPage() {
             <ArrowRight size={16} className="text-inkSoft" />
           </button>
         </div>
+
+        {shownUser.email === ADMIN_EMAIL && (
+          <button onClick={() => router.push("/admin")} className="w-full card !py-4 flex items-center gap-3 text-left active:scale-[0.99] transition">
+            <span className="h-12 w-12 rounded-2xl bg-lilac flex items-center justify-center text-lilacDeep">
+              <Settings2 size={20} />
+            </span>
+            <span className="flex-1">
+              <span className="block font-extrabold text-ink">管理後台</span>
+              <span className="block text-sm text-inkSoft">文章管理、系統狀態</span>
+            </span>
+            <ArrowRight size={18} className="text-inkSoft" />
+          </button>
+        )}
 
         <button onClick={logout} className="w-full rounded-3xl bg-white text-peachDeep font-bold py-4 shadow-softer flex items-center justify-center gap-2 active:scale-95 transition">
           <LogOut size={18} /> 登出
