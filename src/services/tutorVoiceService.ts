@@ -1,23 +1,22 @@
 /**
- * AI 導師語音自動播放服務
- * 
- * 處理：
- * - AI 導師回覆後的自動播放判斷
- * - TTS API 呼叫
- * - 音檔 URL 取得
- * - 加入 Audio Queue
- * - 統一 AI_TTS debug log
+ * AI 導師語音自動播放服務。
+ *
+ * 正式語音先走 /api/tts/get-or-create 與全站快取；當目前環境仍為
+ * Chirp stub 或正式音檔暫時不可用時，改以「目前選擇的導師」設定取得
+ * fallback MP3，並放回同一個已解鎖的 Audio Queue。不可直接讓第二套
+ * unmanaged Audio / speechSynthesis 接管，否則 iOS 常只會播放第一句。
  */
 
 import { audioQueueService } from "./audioQueueService";
 import { speechService } from "./speechService";
 import { voiceForLanguage } from "@/data/learningLanguages";
-import type { TutorFeedback } from "@/types";
-import type { LearningLanguageCode } from "@/types";
+import { getTutorById } from "@/data/tutors";
+import type { LearningLanguageCode, TutorFeedback } from "@/types";
 
 interface TutorVoiceOptions {
   languageCode: string;
   voiceGender?: string;
+  /** Existing caller passes the selected UI tutor id, e.g. emma / jake / yui. */
   voiceProfileId?: string;
   audioFormat?: string;
   audioVersionString?: string;
@@ -27,135 +26,124 @@ interface TutorVoiceOptions {
   onSpeakEnd?: () => void;
 }
 
+/** Server-side Chirp profile ids corresponding to each visual tutor. */
+const TUTOR_TO_CHIRP_PROFILE: Record<string, string> = {
+  jake: "vp-en-charon",
+  william: "vp-en-charon",
+  emma: "vp-en-aoede",
+  amy: "vp-en-aoede",
+  sophie: "vp-en-aoede",
+  lily: "vp-en-aoede",
+  haruto: "vp-ja-charon",
+  yui: "vp-ja-aoede",
+  minjun: "vp-ko-charon",
+  seoyeon: "vp-ko-aoede",
+  marco: "vp-it-charon",
+  giulia: "vp-it-aoede",
+  carlos: "vp-es-charon",
+  sofia: "vp-es-aoede",
+};
+
+function toLearningLanguage(languageCode: string): LearningLanguageCode {
+  return (["en", "ja", "ko", "it", "es"] as string[]).includes(languageCode)
+    ? (languageCode as LearningLanguageCode)
+    : "en";
+}
+
 class TutorVoiceService {
   private isPlaying = false;
 
-  /**
-   * 自動播放 AI 導師回覆
-   */
-  async playTutorReply(
-    feedback: TutorFeedback,
-    options: TutorVoiceOptions
-  ): Promise<void> {
-    const replyText = feedback.reply?.trim() || "";
-    const ttsCandidate = feedback.ttsCandidate?.trim() || "";
-    const ttsText = ttsCandidate || replyText || "";
+  private resolveTtsText(feedback: TutorFeedback): string {
+    return String(feedback.ttsCandidate || feedback.reply || "").trim();
+  }
 
+  private resolveTutor(options: TutorVoiceOptions) {
+    const language = toLearningLanguage(options.languageCode);
+    const tutorId = options.voiceProfileId || "";
+    const resolved = getTutorById(tutorId, language);
+    const isSelectedTutor = Boolean(tutorId && resolved.id === tutorId);
+    return {
+      tutor: isSelectedTutor ? resolved : null,
+      chirpVoiceProfileId: isSelectedTutor ? TUTOR_TO_CHIRP_PROFILE[tutorId] : undefined,
+    };
+  }
+
+  async playTutorReply(feedback: TutorFeedback, options: TutorVoiceOptions): Promise<void> {
+    const ttsText = this.resolveTtsText(feedback);
     this.log("[AI_TTS] tutor feedback received", {
+      hasReply: Boolean(feedback.reply?.trim()),
+      hasTtsCandidate: Boolean(feedback.ttsCandidate?.trim()),
+      hasResolvedText: Boolean(ttsText),
       languageCode: options.languageCode,
-      reply: feedback.reply,
-      replyZh: feedback.replyZh,
-      ttsCandidate: feedback.ttsCandidate,
-    });
-    this.log("[AI_TTS] reply exists", { exists: !!replyText });
-    this.log("[AI_TTS] ttsCandidate exists", { exists: !!ttsCandidate });
-    this.log("[AI_TTS] resolved ttsText", {
-      exists: !!ttsText,
-      text: ttsText,
+      tutorId: options.voiceProfileId,
+      requestedGender: options.voiceGender,
     });
 
     if (!ttsText) {
-      this.log("[AI_TTS] playback skipped reason", {
-        reason: !replyText && !ttsCandidate ? "reply 空白 / ttsCandidate 空白" : "resolved ttsText 空白",
-      });
+      this.log("[AI_TTS] playback skipped", { reason: "empty_tutor_reply" });
       return;
     }
 
-    // 1. 強制解鎖音訊（確保可以播放）
     try {
       await audioQueueService.unlockAudio();
     } catch (error) {
-      this.log("[AI_TTS] Audio unlock failed, continuing anyway", {
+      this.log("[AI_TTS] audio unlock failed", {
         error: error instanceof Error ? error.message : String(error),
       });
     }
 
-    // 2. 檢查自動播放設定
     const state = audioQueueService.getState();
     if (!state.autoPlayTutorVoice) {
-      this.log("[AI_TTS] playback skipped reason", {
-        reason: "autoPlayTutorVoice 關閉",
-      });
+      this.log("[AI_TTS] playback skipped", { reason: "autoplay_disabled" });
       return;
     }
 
+    // Voice-recognition callbacks can arrive slightly before the browser fully
+    // releases the audio session. Release it and wait briefly instead of skipping.
     if (state.recording) {
-      this.log("[AI_TTS] playback skipped reason", {
-        reason: "recording still active",
-      });
-      return;
+      this.log("[AI_TTS] releasing recording before tutor playback");
+      this.setRecording(false);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 300));
     }
 
-    // 3. 清空佇列並停止當前播放，確保導師語音優先播放
     audioQueueService.clearQueue();
     this.stop();
 
-    // 4. 取得音檔 URL
-    this.log("[AI_TTS] Fetching TTS audio URL", {
-      text: ttsText,
-      languageCode: options.languageCode,
+    const { chirpVoiceProfileId } = this.resolveTutor(options);
+    let audioUrl = await this.getTtsAudioUrl(ttsText, {
+      ...options,
+      voiceProfileId: chirpVoiceProfileId || options.voiceProfileId,
     });
+    let revokeBlobUrl = false;
 
-    let audioUrl: string | null = null;
-    try {
-      audioUrl = await this.getTtsAudioUrl(ttsText, options);
-      if (audioUrl) this.log("[AI_TTS] audio URL received", { url: "received" });
-    } catch (error) {
-      this.log("[AI_TTS] playback skipped reason", {
-        reason: "TTS API 失敗",
-        error: error instanceof Error ? error.message : String(error),
+    // A stub:// result is intentionally treated as unavailable. We still request
+    // a real audio blob from the existing legacy endpoint and put it in AudioQueue.
+    if (!audioUrl) {
+      audioUrl = await this.getQueuedFallbackAudioUrl(ttsText, options);
+      revokeBlobUrl = Boolean(audioUrl);
+      this.log("[AI_TTS] fallback result", {
+        provider: audioUrl ? "legacy_tts_queue" : "system_speech",
+        tutorId: options.voiceProfileId,
+        requestedGender: options.voiceGender,
       });
-      this.speakFallback(ttsText, options.languageCode, options.onSpeakStart, options.onSpeakEnd);
-      return;
     }
 
     if (!audioUrl) {
-      this.log("[AI_TTS] playback skipped reason", {
-        reason: "TTS API 失敗或無有效 signed URL",
-      });
-      this.speakFallback(ttsText, options.languageCode, options.onSpeakStart, options.onSpeakEnd);
+      this.speakSystemFallback(ttsText, options);
       return;
     }
 
-    // 5. 加入 Audio Queue
-    this.log("[AI_TTS] queue enqueue", {
-      url: audioUrl,
+    this.enqueueAudio({
+      idPrefix: "tutor",
       text: ttsText,
-    });
-
-    audioQueueService.enqueue({
-      id: `tutor-${Date.now()}`,
       url: audioUrl,
-      text: ttsText,
-      priority: 30, // 導師語音優先級最高（高於手動播放的 20）
-      onStart: () => {
-        this.isPlaying = true;
-        options.onSpeakStart?.();
-        this.log("[AI_TTS] playback started");
-      },
-      onEnd: () => {
-        this.isPlaying = false;
-        options.onSpeakEnd?.();
-        this.log("[AI_TTS] playback ended");
-      },
-      onError: (error) => {
-        this.isPlaying = false;
-        this.log("[AI_TTS] playback skipped reason", {
-          reason: error.message.includes("play()") ? "audio.play() 被拒絕" : "signed URL 失效",
-          error: error.message,
-        });
-        this.speakFallback(ttsText, options.languageCode, options.onSpeakStart, options.onSpeakEnd);
-      },
+      priority: 30,
+      revokeBlobUrl,
+      options,
     });
   }
 
-  /**
-   * 取得 TTS 音檔 URL
-   */
-  private async getTtsAudioUrl(
-    text: string,
-    options: TutorVoiceOptions
-  ): Promise<string | null> {
+  private async getTtsAudioUrl(text: string, options: TutorVoiceOptions): Promise<string | null> {
     try {
       const response = await fetch("/api/tts/get-or-create", {
         method: "POST",
@@ -174,46 +162,28 @@ class TutorVoiceService {
       });
 
       if (!response.ok) {
-        this.log("[AI_TTS] TTS API request failed", {
-          status: response.status,
-          statusText: response.statusText,
-        });
+        this.log("[AI_TTS] cache endpoint failed", { status: response.status });
         return null;
       }
 
       const data = await response.json();
-      this.log("[AI_TTS] TTS API response", {
-        id: data.id,
-        status: data.status,
-        cached: data.cached,
-        hasSignedUrl: !!data.signedUrl,
-      });
+      const url: string | null = data.signedUrl || null;
       this.log(data.cached ? "[AI_TTS] cache hit" : "[AI_TTS] cache miss", {
         id: data.id,
         status: data.status,
+        hasSignedUrl: Boolean(url),
+        voiceProfileId: options.voiceProfileId,
       });
 
-      const url: string | null = data.signedUrl || null;
-      // Stub provider returns stub:// URLs which cannot be played — treat as null
-      if (url && url.startsWith("stub://")) {
-        this.log("[AI_TTS] playback skipped reason", {
-          reason: "stub URL",
-        });
-        this.log("[AI_TTS] fallback used", {
-          reason: "stub URL",
-        });
-        return null;
-      }
-      if (!url) {
-        this.log("[AI_TTS] playback skipped reason", {
-          reason: "signed URL 失效",
+      if (!url || url.startsWith("stub://")) {
+        this.log("[AI_TTS] cache audio unavailable", {
+          reason: !url ? "missing_signed_url" : "stub_provider",
         });
         return null;
       }
       return url;
     } catch (error) {
-      this.log("[AI_TTS] playback skipped reason", {
-        reason: "TTS API 失敗",
+      this.log("[AI_TTS] cache endpoint error", {
         error: error instanceof Error ? error.message : String(error),
       });
       return null;
@@ -221,132 +191,187 @@ class TutorVoiceService {
   }
 
   /**
-   * Web Speech API fallback
+   * Uses the existing server endpoint to obtain a tutor-specific MP3, then lets
+   * AudioQueue perform the only actual playback. This keeps follow-up speech in
+   * the same unlocked audio pipeline as the first line.
    */
-  private speakFallback(text: string, languageCode: string, onSpeakStart?: () => void, onSpeakEnd?: () => void): void {
-    this.log("[AI_TTS] fallback used", { text, languageCode });
-    const opts = voiceForLanguage(languageCode as LearningLanguageCode);
-    const result = speechService.speak(text, {
-      ...opts,
-      onStart: () => {
-        this.isPlaying = true;
-        onSpeakStart?.();
-        this.log("[AI_TTS] playback started", { fallback: true });
-      },
-      onEnd: () => {
-        this.isPlaying = false;
-        onSpeakEnd?.();
-        this.log("[AI_TTS] playback ended", { fallback: true });
-      },
-      onError: (msg) => {
-        this.log("[AI_TTS] playback skipped reason", {
-          reason: "Web Speech fallback 失敗",
-          error: msg,
-        });
-        this.isPlaying = false;
-        onSpeakEnd?.();
-      },
-    });
-    this.log("[AI_TTS] Web Speech API speak result", { ok: result.ok, message: result.message });
-    if (!result.ok) {
-      this.log("[AI_TTS] playback skipped reason", {
-        reason: "Web Speech fallback 失敗",
-        error: result.message,
+  private async getQueuedFallbackAudioUrl(text: string, options: TutorVoiceOptions): Promise<string | null> {
+    const language = toLearningLanguage(options.languageCode);
+    const { tutor } = this.resolveTutor(options);
+    const fallback = voiceForLanguage(language, audioQueueService.getPlaybackRate());
+
+    try {
+      const response = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          input: text,
+          voice: tutor?.ttsVoice || fallback.ttsVoice || "nova",
+          instructions: tutor?.ttsInstructions || fallback.ttsInstructions,
+          speed: audioQueueService.getPlaybackRate(),
+        }),
       });
-      this.isPlaying = false;
-      onSpeakEnd?.();
+      if (!response.ok) {
+        this.log("[AI_TTS] legacy fallback failed", { status: response.status });
+        return null;
+      }
+      const blob = await response.blob();
+      if (!blob.size) return null;
+      return URL.createObjectURL(blob);
+    } catch (error) {
+      this.log("[AI_TTS] legacy fallback error", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
     }
   }
 
-  /**
-   * 手動播放導師語音
-   */
-  async playManual(
-    text: string,
-    options: TutorVoiceOptions
-  ): Promise<void> {
-    this.log("[AI_TTS] playManual called", {
-      text,
-      languageCode: options.languageCode,
-    });
+  private enqueueAudio({
+    idPrefix,
+    text,
+    url,
+    priority,
+    revokeBlobUrl,
+    options,
+  }: {
+    idPrefix: string;
+    text: string;
+    url: string;
+    priority: number;
+    revokeBlobUrl: boolean;
+    options: TutorVoiceOptions;
+  }): void {
+    let cleaned = false;
+    const cleanup = () => {
+      if (!cleaned && revokeBlobUrl && url.startsWith("blob:")) {
+        cleaned = true;
+        URL.revokeObjectURL(url);
+      }
+    };
 
-    // 解鎖音訊
-    await audioQueueService.unlockAudio();
-
-    // 取得音檔 URL
-    const audioUrl = await this.getTtsAudioUrl(text, options);
-    if (!audioUrl) {
-      this.log("[AI_TTS] fallback used", { reason: "manual playback no audio URL" });
-      this.speakFallback(text, options.languageCode, options.onSpeakStart, options.onSpeakEnd);
-      return;
-    }
-
-    // 加入 Audio Queue
     audioQueueService.enqueue({
-      id: `manual-${Date.now()}`,
-      url: audioUrl,
+      id: `${idPrefix}-${Date.now()}`,
+      url,
       text,
-      priority: 20, // 手動播放優先級最高
+      priority,
       onStart: () => {
         this.isPlaying = true;
         options.onSpeakStart?.();
-        this.log("[AI_TTS] Manual playback started");
+        this.log("[AI_TTS] playback started", { tutorId: options.voiceProfileId });
       },
       onEnd: () => {
         this.isPlaying = false;
+        cleanup();
         options.onSpeakEnd?.();
-        this.log("[AI_TTS] Manual playback ended");
+        this.log("[AI_TTS] playback ended", { tutorId: options.voiceProfileId });
       },
       onError: (error) => {
         this.isPlaying = false;
-        options.onSpeakEnd?.();
-        this.log("[AI_TTS] Manual playback error", {
+        cleanup();
+        this.log("[AI_TTS] queue playback failed", {
           error: error.message,
+          tutorId: options.voiceProfileId,
         });
+        this.speakSystemFallback(text, options);
       },
     });
   }
 
-  /**
-   * 停止當前播放
-   */
+  /** Last-resort device speech, retaining the selected tutor's language hints. */
+  private speakSystemFallback(text: string, options: TutorVoiceOptions): void {
+    const language = toLearningLanguage(options.languageCode);
+    const { tutor } = this.resolveTutor(options);
+    const defaults = voiceForLanguage(language, audioQueueService.getPlaybackRate());
+
+    this.log("[AI_TTS] system fallback used", {
+      tutorId: tutor?.id || options.voiceProfileId,
+      requestedGender: options.voiceGender,
+      languageCode: options.languageCode,
+    });
+
+    const result = speechService.speak(text, {
+      ...defaults,
+      lang: tutor?.lang || defaults.lang,
+      voiceKeywords: tutor?.voiceKeywords || defaults.voiceKeywords,
+      // Do not call the separate OpenAI Audio implementation from speechService.
+      // It would create another unmanaged player and reintroduce autoplay issues.
+      ttsVoice: undefined,
+      ttsInstructions: undefined,
+      volumeGain: 1,
+      onStart: () => {
+        this.isPlaying = true;
+        options.onSpeakStart?.();
+      },
+      onEnd: () => {
+        this.isPlaying = false;
+        options.onSpeakEnd?.();
+      },
+      onError: (message) => {
+        this.log("[AI_TTS] system fallback failed", { error: message });
+        this.isPlaying = false;
+        options.onSpeakEnd?.();
+      },
+    });
+
+    if (!result.ok) {
+      this.isPlaying = false;
+      options.onSpeakEnd?.();
+    }
+  }
+
+  async playManual(text: string, options: TutorVoiceOptions): Promise<void> {
+    const clean = text.trim();
+    if (!clean) return;
+
+    await audioQueueService.unlockAudio();
+    audioQueueService.clearQueue();
+    const { chirpVoiceProfileId } = this.resolveTutor(options);
+    let audioUrl = await this.getTtsAudioUrl(clean, {
+      ...options,
+      voiceProfileId: chirpVoiceProfileId || options.voiceProfileId,
+    });
+    let revokeBlobUrl = false;
+
+    if (!audioUrl) {
+      audioUrl = await this.getQueuedFallbackAudioUrl(clean, options);
+      revokeBlobUrl = Boolean(audioUrl);
+    }
+
+    if (!audioUrl) {
+      this.speakSystemFallback(clean, options);
+      return;
+    }
+
+    this.enqueueAudio({
+      idPrefix: "manual",
+      text: clean,
+      url: audioUrl,
+      priority: 20,
+      revokeBlobUrl,
+      options,
+    });
+  }
+
   stop(): void {
-    this.log("[AI_TTS] Stop called");
     audioQueueService.stopCurrent();
     this.isPlaying = false;
   }
 
-  /**
-   * 設定自動播放導師語音
-   */
   setAutoPlay(autoPlay: boolean): void {
-    this.log("[AI_TTS] Set autoPlay", { autoPlay });
     audioQueueService.setAutoPlayTutorVoice(autoPlay);
   }
 
-  /**
-   * 設定錄音狀態
-   */
   setRecording(recording: boolean): void {
-    this.log("[AI_TTS] Set recording", { recording });
     audioQueueService.setRecording(recording);
   }
 
-  /**
-   * 檢查是否正在播放
-   */
   isPlayingNow(): boolean {
     return this.isPlaying;
   }
 
-  private log(message: string, data?: any): void {
-    const logData = {
-      ...data,
-      timestamp: new Date().toISOString(),
-    };
-    console.log(message, logData);
+  private log(message: string, data?: Record<string, unknown>): void {
+    console.log(message, { ...data, timestamp: new Date().toISOString() });
   }
 }
 
-// 單例
 export const tutorVoiceService = new TutorVoiceService();
