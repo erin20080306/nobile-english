@@ -52,8 +52,11 @@ export async function POST(req: Request) {
       durationMs: result.asset.durationMs,
       audioFormat: result.asset.audioFormat,
     });
-  } catch {
+  } catch (error) {
     // Never leak provider/key details to the client.
-    return NextResponse.json({ error: "TTS unavailable" }, { status: 503 });
+    return NextResponse.json(
+      { error: "TTS unavailable", message: error instanceof Error ? error.message : String(error) },
+      { status: 503 }
+    );
   }
 }

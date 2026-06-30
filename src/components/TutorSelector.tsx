@@ -6,7 +6,7 @@ import { Check, Volume2 } from "lucide-react";
 import { TUTORS, getTutorById, getDefaultTutorId, type TutorProfile } from "@/data/tutors";
 import type { LearningLanguageCode } from "@/types";
 import { storageService } from "@/services/storageService";
-import { speechService } from "@/services/speechService";
+import { tutorVoiceService } from "@/services/tutorVoiceService";
 import { learningService } from "@/services/learningService";
 
 const TUTOR_KEY = "selected_tutor_id";
@@ -114,14 +114,13 @@ function TutorCard({
   onPick: (t: TutorProfile) => void;
 }) {
   function previewVoice() {
-    speechService.speak(tutor.sampleLine, {
-      lang: tutor.lang,
+    void tutorVoiceService.playManual(tutor.sampleLine, {
+      languageCode: tutor.targetLanguage,
+      voiceGender: tutor.gender,
+      voiceProfileId: tutor.id,
       voiceKeywords: tutor.voiceKeywords,
       ttsVoice: tutor.ttsVoice,
       ttsInstructions: tutor.ttsInstructions,
-      rate: learningService.getSpeechRate(tutor.targetLanguage),
-      volumeGain: tutor.ttsVolumeGain,
-      onError: (message) => alert(message),
     });
   }
 

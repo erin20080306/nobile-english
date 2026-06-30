@@ -1,13 +1,3 @@
-/**
- * 全 App 單一 Audio Queue 服務
- * 
- * 處理：
- * - Audio Unlock 機制（iOS Safari 自動播放限制）
- * - 全 App 單一 Audio Queue
- * - 音檔載入與播放保護
- * - 統一 AI_TTS debug log
- */
-
 export type AudioPlaybackState =
   | "locked"
   | "unlocking"
@@ -38,6 +28,18 @@ interface AudioState {
   playbackRate: number;
 }
 
+type PlaybackSession = {
+  id: number;
+  item: AudioQueueItem;
+  started: boolean;
+  ended: boolean;
+  canceled: boolean;
+  loadTimer?: number;
+  cleanups: Array<() => void>;
+};
+
+const AUDIO_LOAD_TIMEOUT_MS = 10000;
+
 class AudioQueueService {
   private audio: HTMLAudioElement | null = null;
   private audioContext: AudioContext | null = null;
@@ -51,8 +53,12 @@ class AudioQueueService {
     playbackRate: 1.0,
   };
   private listeners: Set<(state: AudioState) => void> = new Set();
-  private platform: string = "web";
-  private browser: string = "unknown";
+  private platform = "web";
+  private browser = "unknown";
+  private activeSession: PlaybackSession | null = null;
+  private sessionSeq = 0;
+  private processing = false;
+  private silentUnlockUrl: string | null = null;
 
   constructor() {
     this.detectPlatform();
@@ -71,115 +77,101 @@ class AudioQueueService {
     }
 
     const ua = navigator.userAgent;
-    
-    // Detect platform
-    if (/iPad|iPhone|iPod/.test(ua)) {
-      this.platform = "ios";
-    } else if (/Android/.test(ua)) {
-      this.platform = "android";
-    } else {
-      this.platform = "web";
-    }
+    if (/iPad|iPhone|iPod/.test(ua)) this.platform = "ios";
+    else if (/Android/.test(ua)) this.platform = "android";
+    else this.platform = "web";
 
-    // Detect browser
-    if (/Safari/.test(ua) && !/Chrome/.test(ua)) {
-      this.browser = "safari";
-    } else if (/Chrome/.test(ua)) {
-      this.browser = "chrome";
-    } else if (/Firefox/.test(ua)) {
-      this.browser = "firefox";
-    } else if (/FBAV|FB_IAB|FBAN/.test(ua)) {
-      this.browser = "facebook";
-    } else if (/Line/.test(ua)) {
-      this.browser = "line";
-    } else {
-      this.browser = "unknown";
-    }
+    if (/Safari/.test(ua) && !/Chrome/.test(ua)) this.browser = "safari";
+    else if (/Chrome/.test(ua)) this.browser = "chrome";
+    else if (/Firefox/.test(ua)) this.browser = "firefox";
+    else if (/FBAV|FB_IAB|FBAN/.test(ua)) this.browser = "facebook";
+    else if (/Line/.test(ua)) this.browser = "line";
+    else this.browser = "unknown";
   }
 
-  /**
-   * Audio Unlock 機制
-   * 使用者第一次互動時解鎖音訊
-   */
   async unlockAudio(): Promise<boolean> {
     this.log("[AI_TTS] unlockAudio called", {
       currentState: this.state.state,
       audioUnlocked: this.state.audioUnlocked,
     });
 
-    if (this.state.audioUnlocked) {
-      this.log("[AI_TTS] Audio already unlocked");
+    if (this.state.audioUnlocked && this.audio && !this.audio.paused && this.audio.src) {
+      this.log("[AI_TTS] audio unlocked", { alreadyUnlocked: true, primed: true });
       return true;
+    }
+
+    if (this.state.state === "loading" || this.state.state === "playing") {
+      this.log("[AI_TTS] audio unlocked", { alreadyUnlocked: this.state.audioUnlocked, activePlayback: true });
+      return this.state.audioUnlocked;
     }
 
     this.setState({ state: "unlocking" });
 
     try {
-      // 建立或取得 Audio element
-      if (!this.audio) {
-        this.audio = new Audio();
-      }
-
-      // 建立 AudioContext
-      if (!this.audioContext) {
+      const audio = this.ensureAudio();
+      if (!this.audioContext && typeof window !== "undefined") {
         const AudioContextCtor =
           window.AudioContext ||
           (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-        if (AudioContextCtor) {
-          this.audioContext = new AudioContextCtor();
-        }
+        if (AudioContextCtor) this.audioContext = new AudioContextCtor();
       }
 
-      // 播放極短靜音音檔解鎖
       const silentUrl = this.createSilentAudio();
-      this.audio.src = silentUrl;
-      this.audio.volume = 0;
-      
-      await this.audio.play();
-      this.audio.pause();
-      
-      // 清理
-      URL.revokeObjectURL(silentUrl);
-      this.audio.src = "";
+      this.revokeSilentUnlockUrl();
+      this.silentUnlockUrl = silentUrl;
+      audio.src = silentUrl;
+      audio.volume = 1;
+      audio.muted = false;
+      audio.loop = true;
+      await audio.play();
 
-      this.setState({
-        state: "ready",
-        audioUnlocked: true,
-      });
-
-      this.log("[AI_TTS] Audio unlocked successfully");
+      this.setState({ state: "ready", audioUnlocked: true });
+      this.log("[AI_TTS] audio unlocked", { platform: this.platform, browser: this.browser, primed: true });
       return true;
     } catch (error) {
-      this.log("[AI_TTS] Audio unlock failed", {
+      this.log("[AI_TTS] playback failed", {
+        stage: "unlock",
         error: error instanceof Error ? error.message : String(error),
         errorName: error instanceof Error ? error.name : "Unknown",
       });
-      
-      this.setState({
-        state: "error",
-        audioUnlocked: false,
-      });
-      
+      this.setState({ state: "error", audioUnlocked: false });
       return false;
+    } finally {
+      if (this.audio && !this.state.audioUnlocked) this.audio.volume = 1;
     }
   }
 
+  private revokeSilentUnlockUrl(): void {
+    if (!this.silentUnlockUrl) return;
+    try {
+      URL.revokeObjectURL(this.silentUnlockUrl);
+    } catch {
+      /* ignore */
+    }
+    this.silentUnlockUrl = null;
+  }
+
+  private ensureAudio(): HTMLAudioElement {
+    if (!this.audio) {
+      this.audio = new Audio();
+      this.audio.preload = "auto";
+      this.audio.setAttribute("playsinline", "true");
+      this.audio.setAttribute("webkit-playsinline", "true");
+    }
+    return this.audio;
+  }
+
   private createSilentAudio(): string {
-    // 建立極短靜音音檔
     const sampleRate = 44100;
-    const samples = sampleRate * 0.1; // 0.1 秒
+    const samples = sampleRate * 0.1;
     const buffer = new Float32Array(samples);
-    
     const wavHeader = new ArrayBuffer(44);
     const view = new DataView(wavHeader);
-    
-    // WAV header
-    const writeString = (offset: number, string: string) => {
-      for (let i = 0; i < string.length; i++) {
-        view.setUint8(offset + i, string.charCodeAt(i));
-      }
+
+    const writeString = (offset: number, value: string) => {
+      for (let i = 0; i < value.length; i++) view.setUint8(offset + i, value.charCodeAt(i));
     };
-    
+
     writeString(0, "RIFF");
     view.setUint32(4, 36 + samples * 2, true);
     writeString(8, "WAVE");
@@ -193,196 +185,235 @@ class AudioQueueService {
     view.setUint16(34, 16, true);
     writeString(36, "data");
     view.setUint32(40, samples * 2, true);
-    
+
     const wavData = new Uint8Array(wavHeader.byteLength + samples * 2);
     wavData.set(new Uint8Array(wavHeader), 0);
-    
+
     for (let i = 0; i < samples; i++) {
       const sample = Math.max(-1, Math.min(1, buffer[i]));
-      wavData[44 + i * 2] = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
-      wavData[45 + i * 2] = (sample < 0 ? sample * 0x8000 : sample * 0x7FFF) >> 8;
+      const value = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+      wavData[44 + i * 2] = value;
+      wavData[45 + i * 2] = value >> 8;
     }
-    
-    const blob = new Blob([wavData], { type: "audio/wav" });
-    return URL.createObjectURL(blob);
+
+    return URL.createObjectURL(new Blob([wavData], { type: "audio/wav" }));
   }
 
-  /**
-   * 加入音檔到佇列
-   */
   enqueue(item: AudioQueueItem): void {
-    this.log("[AI_TTS] Enqueue item", {
+    this.log("[AI_TTS] queue item enqueued", {
       id: item.id,
-      text: item.text,
+      textLength: item.text?.length ?? 0,
       priority: item.priority,
       queueLength: this.state.queue.length,
     });
 
     this.state.queue.push(item);
-    this.processQueue();
+    void this.processQueue();
   }
 
-  /**
-   * 處理音檔佇列
-   */
   private async processQueue(): Promise<void> {
-    if (this.state.state === "playing" || this.state.state === "loading") {
-      this.log("[AI_TTS] Queue processing skipped - busy");
-      return;
-    }
-
-    if (this.state.queue.length === 0) {
-      this.log("[AI_TTS] Queue empty");
-      return;
-    }
-
+    if (this.processing || this.activeSession || this.state.state === "playing" || this.state.state === "loading") return;
+    if (this.state.queue.length === 0) return;
     if (this.state.recording) {
-      this.log("[AI_TTS] playback skipped reason", {
-        reason: "recording still active",
-      });
+      this.log("[AI_TTS] playback skipped reason", { reason: "recording still active" });
       return;
     }
 
-    // 取得優先級最高的項目
+    this.processing = true;
     this.state.queue.sort((a, b) => b.priority - a.priority);
     const item = this.state.queue.shift()!;
-
-    await this.playItem(item);
+    try {
+      await this.playItem(item);
+    } finally {
+      this.processing = false;
+      if (!this.state.recording && this.state.queue.length > 0) void this.processQueue();
+    }
   }
 
-  /**
-   * 播放單一音檔
-   */
   private async playItem(item: AudioQueueItem): Promise<void> {
     this.log("[AI_TTS] Play item", {
       id: item.id,
-      url: item.url,
-      text: item.text,
+      urlType: item.url.startsWith("blob:") ? "blob" : item.url.startsWith("stub:") ? "stub" : "remote",
+      textLength: item.text?.length ?? 0,
     });
 
-    this.setState({
-      state: "loading",
-      currentItem: item,
-    });
+    this.stopCurrent();
+
+    const session: PlaybackSession = {
+      id: ++this.sessionSeq,
+      item,
+      started: false,
+      ended: false,
+      canceled: false,
+      cleanups: [],
+    };
+    this.activeSession = session;
+    this.setState({ state: "loading", currentItem: item });
 
     try {
-      // 確認 Audio unlocked
       if (!this.state.audioUnlocked) {
         const unlocked = await this.unlockAudio();
         if (!unlocked) {
-          throw new Error("Audio unlock failed");
+          this.log("[AI_TTS] playback unlock unavailable; trying direct play", {
+            id: item.id,
+          });
         }
+        if (!this.isActiveSession(session)) return;
       }
 
-      // 建立或取得 Audio element
-      if (!this.audio) {
-        this.audio = new Audio();
-      }
+      const audio = this.ensureAudio();
+      this.resetAudioHandlers(audio);
+      audio.loop = false;
+      this.revokeSilentUnlockUrl();
+      audio.src = item.url;
+      audio.volume = 1;
+      audio.muted = false;
+      audio.playbackRate = this.state.playbackRate;
 
-      // 停止當前播放
-      this.stopCurrent();
+      await this.playWithTimeout(audio, session);
+      if (!this.isActiveSession(session)) return;
 
-      // 設定新音檔
-      this.audio.src = item.url;
-      this.audio.volume = 1;
-      this.audio.muted = false;
-      this.audio.playbackRate = this.state.playbackRate;
-
-      // 等待 canplay
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error("Audio load timeout"));
-        }, 10000);
-
-        this.audio!.oncanplay = () => {
-          clearTimeout(timeout);
-          this.log("[AI_TTS] Audio canplay received");
-          resolve();
-        };
-
-        this.audio!.onerror = () => {
-          clearTimeout(timeout);
-          this.log("[AI_TTS] playback skipped reason", {
-            reason: "signed URL 失效",
-          });
-          reject(new Error("signed URL invalid or audio load error"));
-        };
-
-        this.audio!.onloadedmetadata = () => {
-          this.log("[AI_TTS] Audio loadedmetadata received");
-        };
-      });
-
-      // 播放
       this.setState({ state: "playing" });
+      this.markStarted(session);
+      await this.waitForEnded(audio, session);
+      if (!this.isActiveSession(session)) return;
 
-      this.log("[AI_TTS] Calling audio.play()");
-      try {
-        await this.audio.play();
-      } catch (error) {
-        this.log("[AI_TTS] playback skipped reason", {
-          reason: "audio.play() 被拒絕",
-          error: error instanceof Error ? error.message : String(error),
-          errorName: error instanceof Error ? error.name : "Unknown",
-        });
-        throw new Error(`audio.play() rejected: ${error instanceof Error ? error.message : String(error)}`);
-      }
-      this.log("[AI_TTS] audio.play() succeeded");
-      item.onStart?.();
-
-      // 等待播放結束
-      await new Promise<void>((resolve) => {
-        this.audio!.onended = () => {
-          this.log("[AI_TTS] Audio ended");
-          resolve();
-        };
-
-        this.audio!.onerror = (e) => {
-          this.log("[AI_TTS] Audio error during playback", {
-            error: e,
-          });
-          resolve();
-        };
-      });
-
-      this.setState({
-        state: "ready",
-        currentItem: null,
-      });
-
-      item.onEnd?.();
-
-      // 處理下一個項目
-      this.processQueue();
+      this.finishSession(session, "natural");
     } catch (error) {
-      this.log("[AI_TTS] Play item failed", {
-        error: error instanceof Error ? error.message : String(error),
-        errorName: error instanceof Error ? error.name : "Unknown",
+      if (!this.isActiveSession(session)) return;
+      const playbackError = error instanceof Error ? error : new Error(String(error));
+      this.log("[AI_TTS] playback failed", {
+        id: item.id,
+        error: playbackError.message,
+        errorName: playbackError.name,
       });
-
-      this.setState({
-        state: "error",
-        currentItem: null,
-      });
-
-      item.onError?.(error instanceof Error ? error : new Error(String(error)));
-
-      // 處理下一個項目
-      this.processQueue();
+      this.finishSession(session, "error", playbackError);
     }
   }
 
-  /**
-   * 停止當前播放
-   */
+  private playWithTimeout(audio: HTMLAudioElement, session: PlaybackSession): Promise<void> {
+    return new Promise((resolve, reject) => {
+      let cleaned = false;
+      const cleanup = () => {
+        if (cleaned) return;
+        cleaned = true;
+        if (session.loadTimer) window.clearTimeout(session.loadTimer);
+        audio.removeEventListener("error", handleError);
+      };
+      const handleError = () => {
+        cleanup();
+        reject(new Error("signed URL invalid or audio load error"));
+      };
+      session.loadTimer = window.setTimeout(() => {
+        cleanup();
+        reject(new Error("Audio load timeout"));
+      }, AUDIO_LOAD_TIMEOUT_MS);
+      session.cleanups.push(cleanup);
+      audio.addEventListener("error", handleError, { once: true });
+      audio.load();
+      audio.play()
+        .then(() => {
+          cleanup();
+          resolve();
+        })
+        .catch((error) => {
+          cleanup();
+          reject(new Error(`audio.play() rejected: ${error instanceof Error ? error.message : String(error)}`));
+        });
+    });
+  }
+
+  private waitForEnded(audio: HTMLAudioElement, session: PlaybackSession): Promise<void> {
+    return new Promise((resolve, reject) => {
+      let cleaned = false;
+      const cleanup = () => {
+        if (cleaned) return;
+        cleaned = true;
+        audio.removeEventListener("ended", handleEnded);
+        audio.removeEventListener("error", handleError);
+      };
+      const handleEnded = () => {
+        cleanup();
+        resolve();
+      };
+      const handleError = () => {
+        cleanup();
+        reject(new Error("Audio playback error"));
+      };
+      session.cleanups.push(cleanup);
+      audio.addEventListener("ended", handleEnded, { once: true });
+      audio.addEventListener("error", handleError, { once: true });
+    });
+  }
+
+  private isActiveSession(session: PlaybackSession): boolean {
+    return this.activeSession === session && !session.canceled;
+  }
+
+  private markStarted(session: PlaybackSession) {
+    if (session.started || session.canceled) return;
+    session.started = true;
+    this.log("[AI_TTS] playback started", { id: session.item.id });
+    session.item.onStart?.();
+  }
+
+  private finishSession(session: PlaybackSession, reason: "natural" | "manual" | "error", error?: Error) {
+    if (session.ended) return;
+    session.ended = true;
+    session.canceled = true;
+    if (session.loadTimer) window.clearTimeout(session.loadTimer);
+    session.cleanups.splice(0).forEach((cleanup) => cleanup());
+
+    const audio = this.audio;
+    if (audio) {
+      this.resetAudioHandlers(audio);
+      if (reason !== "natural") {
+        try {
+          audio.pause();
+          audio.removeAttribute("src");
+          audio.load();
+          this.setState({ audioUnlocked: false });
+          this.revokeSilentUnlockUrl();
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+
+    if (this.activeSession === session) this.activeSession = null;
+    this.setState({ state: reason === "error" ? "error" : "ready", currentItem: null });
+
+    if (error) session.item.onError?.(error);
+    if (session.started) {
+      this.log("[AI_TTS] playback ended", { id: session.item.id, reason });
+      session.item.onEnd?.();
+    }
+  }
+
+  private resetAudioHandlers(audio: HTMLAudioElement) {
+    audio.oncanplay = null;
+    audio.onloadedmetadata = null;
+    audio.onerror = null;
+    audio.onended = null;
+    audio.onplay = null;
+  }
+
   stopCurrent(): void {
     this.log("[AI_TTS] Stop current");
+    const session = this.activeSession;
+    if (session) {
+      this.finishSession(session, "manual");
+      return;
+    }
 
     if (this.audio) {
       try {
+        this.resetAudioHandlers(this.audio);
         this.audio.pause();
-        this.audio.currentTime = 0;
-        this.audio.src = "";
+        this.audio.removeAttribute("src");
+        this.audio.load();
+        this.revokeSilentUnlockUrl();
+        this.state.audioUnlocked = false;
       } catch (error) {
         this.log("[AI_TTS] Stop current error", {
           error: error instanceof Error ? error.message : String(error),
@@ -390,99 +421,54 @@ class AudioQueueService {
       }
     }
 
-    if (this.state.currentItem) {
-      this.state.currentItem.onEnd?.();
-    }
-
-    this.setState({
-      state: "ready",
-      currentItem: null,
-    });
+    this.setState({ state: this.state.recording ? "recording" : "ready", currentItem: null });
   }
 
-  /**
-   * 清空佇列
-   */
-  clearQueue(): void {
-    this.log("[AI_TTS] Clear queue", {
-      queueLength: this.state.queue.length,
-    });
-
-    this.stopCurrent();
+  clearQueue(options: { preserveUnlockedPrimer?: boolean } = {}): void {
+    this.log("[AI_TTS] Clear queue", { queueLength: this.state.queue.length });
     this.state.queue = [];
+    if (options.preserveUnlockedPrimer && !this.activeSession && !this.state.currentItem) {
+      this.setState({ state: this.state.recording ? "recording" : "ready", currentItem: null });
+      return;
+    }
+    this.stopCurrent();
   }
 
-  /**
-   * 設定錄音狀態
-   */
   setRecording(recording: boolean): void {
-    this.log("[AI_TTS] Set recording", {
-      recording,
-      previousState: this.state.recording,
-    });
-
+    this.log("[AI_TTS] Set recording", { recording, previousState: this.state.recording });
     this.state.recording = recording;
 
     if (recording) {
-      // 錄音時停止播放
       this.stopCurrent();
-      this.setState({ state: "recording" });
-    } else {
-      // 錄音結束後等待 300ms 再處理佇列
-      setTimeout(() => {
-        if (!this.state.recording) {
-          this.processQueue();
-        }
-      }, 300);
+      this.setState({ state: "recording", recording: true });
+      return;
     }
+
+    this.setState({ recording: false, state: this.activeSession ? this.state.state : "ready" });
+    window.setTimeout(() => {
+      if (!this.state.recording) void this.processQueue();
+    }, 300);
   }
 
-  /**
-   * 設定自動播放導師語音
-   */
   setAutoPlayTutorVoice(autoPlay: boolean): void {
-    this.log("[AI_TTS] Set autoPlayTutorVoice", {
-      autoPlay,
-      previous: this.state.autoPlayTutorVoice,
-    });
-
+    this.log("[AI_TTS] Set autoPlayTutorVoice", { autoPlay, previous: this.state.autoPlayTutorVoice });
     this.state.autoPlayTutorVoice = autoPlay;
   }
 
-  /**
-   * 設定播放速度
-   */
   setPlaybackRate(rate: number): void {
-    this.log("[AI_TTS] Set playback rate", {
-      rate,
-      previous: this.state.playbackRate,
-    });
-
+    this.log("[AI_TTS] Set playback rate", { rate, previous: this.state.playbackRate });
     this.state.playbackRate = rate;
-
-    // 如果正在播放，即時應用新速度
-    if (this.audio && this.state.state === "playing") {
-      this.audio.playbackRate = rate;
-    }
+    if (this.audio && this.state.state === "playing") this.audio.playbackRate = rate;
   }
 
-  /**
-   * 取得播放速度
-   */
   getPlaybackRate(): number {
     return this.state.playbackRate;
   }
 
-  /**
-   * 取得當前狀態
-   */
   getState(): AudioState {
-    return { ...this.state };
+    return { ...this.state, queue: [...this.state.queue] };
   }
 
-  /**
-   * 訂閱狀態變更
-   */
   subscribe(listener: (state: AudioState) => void): () => void {
     this.listeners.add(listener);
     return () => {
@@ -505,17 +491,14 @@ class AudioQueueService {
     });
   }
 
-  private log(message: string, data?: any): void {
-    const logData = {
+  private log(message: string, data?: Record<string, unknown>): void {
+    console.log(message.startsWith("[AI_TTS]") ? message : `[AI_TTS] ${message}`, {
       ...data,
       timestamp: new Date().toISOString(),
       platform: this.platform,
       browser: this.browser,
-    };
-
-    console.log(message.startsWith("[AI_TTS]") ? message : `[AI_TTS] ${message}`, logData);
+    });
   }
 }
 
-// 單例
 export const audioQueueService = new AudioQueueService();

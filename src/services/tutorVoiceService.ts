@@ -18,6 +18,9 @@ interface TutorVoiceOptions {
   voiceGender?: string;
   /** Existing caller passes the selected UI tutor id, e.g. emma / jake / yui. */
   voiceProfileId?: string;
+  ttsVoice?: string;
+  ttsInstructions?: string;
+  voiceKeywords?: string[];
   audioFormat?: string;
   audioVersionString?: string;
   sceneId?: string;
@@ -68,6 +71,36 @@ class TutorVoiceService {
     };
   }
 
+  private resolveSelectedVoice(options: TutorVoiceOptions) {
+    const language = toLearningLanguage(options.languageCode);
+    const { tutor, chirpVoiceProfileId } = this.resolveTutor(options);
+    const languageFallback = voiceForLanguage(language, audioQueueService.getPlaybackRate());
+    const ttsVoice = options.ttsVoice || tutor?.ttsVoice || languageFallback.ttsVoice || "nova";
+    const ttsInstructions = options.ttsInstructions || tutor?.ttsInstructions || languageFallback.ttsInstructions;
+    const voiceKeywords = options.voiceKeywords || tutor?.voiceKeywords || languageFallback.voiceKeywords || [];
+    const lang = tutor?.lang || languageFallback.lang;
+
+    this.log("[AI_TTS] selected tutor voice", {
+      tutorId: tutor?.id || options.voiceProfileId,
+      gender: tutor?.gender || options.voiceGender,
+      ttsVoice,
+      hasInstructions: Boolean(ttsInstructions),
+      voiceKeywords,
+      chirpVoiceProfileId,
+      languageCode: options.languageCode,
+    });
+
+    return {
+      tutor,
+      chirpVoiceProfileId,
+      ttsVoice,
+      ttsInstructions,
+      voiceKeywords,
+      lang,
+      volumeGain: tutor?.ttsVolumeGain || languageFallback.volumeGain || 1,
+    };
+  }
+
   async playTutorReply(feedback: TutorFeedback, options: TutorVoiceOptions): Promise<void> {
     const ttsText = this.resolveTtsText(feedback);
     this.log("[AI_TTS] tutor feedback received", {
@@ -84,13 +117,8 @@ class TutorVoiceService {
       return;
     }
 
-    try {
-      await audioQueueService.unlockAudio();
-    } catch (error) {
-      this.log("[AI_TTS] audio unlock failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+    audioQueueService.clearQueue({ preserveUnlockedPrimer: true });
+    this.isPlaying = false;
 
     const state = audioQueueService.getState();
     if (!state.autoPlayTutorVoice) {
@@ -106,13 +134,18 @@ class TutorVoiceService {
       await new Promise<void>((resolve) => window.setTimeout(resolve, 300));
     }
 
-    audioQueueService.clearQueue();
-    this.stop();
+    try {
+      await audioQueueService.unlockAudio();
+    } catch (error) {
+      this.log("[AI_TTS] audio unlock failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
 
-    const { chirpVoiceProfileId } = this.resolveTutor(options);
+    const selectedVoice = this.resolveSelectedVoice(options);
     let audioUrl = await this.getTtsAudioUrl(ttsText, {
       ...options,
-      voiceProfileId: chirpVoiceProfileId || options.voiceProfileId,
+      voiceProfileId: selectedVoice.chirpVoiceProfileId || options.voiceProfileId,
     });
     let revokeBlobUrl = false;
 
@@ -121,8 +154,8 @@ class TutorVoiceService {
     if (!audioUrl) {
       audioUrl = await this.getQueuedFallbackAudioUrl(ttsText, options);
       revokeBlobUrl = Boolean(audioUrl);
-      this.log("[AI_TTS] fallback result", {
-        provider: audioUrl ? "legacy_tts_queue" : "system_speech",
+      this.log("[AI_TTS] fallback provider used", {
+        provider: audioUrl ? "/api/tts" : "speechSynthesis",
         tutorId: options.voiceProfileId,
         requestedGender: options.voiceGender,
       });
@@ -140,6 +173,7 @@ class TutorVoiceService {
       priority: 30,
       revokeBlobUrl,
       options,
+      retryWithApiOnError: !revokeBlobUrl,
     });
   }
 
@@ -162,7 +196,10 @@ class TutorVoiceService {
       });
 
       if (!response.ok) {
-        this.log("[AI_TTS] cache endpoint failed", { status: response.status });
+        this.log("[AI_TTS] cache endpoint failed", {
+          status: response.status,
+          error: await this.safeResponseMessage(response),
+        });
         return null;
       }
 
@@ -196,9 +233,7 @@ class TutorVoiceService {
    * the same unlocked audio pipeline as the first line.
    */
   private async getQueuedFallbackAudioUrl(text: string, options: TutorVoiceOptions): Promise<string | null> {
-    const language = toLearningLanguage(options.languageCode);
-    const { tutor } = this.resolveTutor(options);
-    const fallback = voiceForLanguage(language, audioQueueService.getPlaybackRate());
+    const selectedVoice = this.resolveSelectedVoice(options);
 
     try {
       const response = await fetch("/api/tts", {
@@ -206,20 +241,28 @@ class TutorVoiceService {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           input: text,
-          voice: tutor?.ttsVoice || fallback.ttsVoice || "nova",
-          instructions: tutor?.ttsInstructions || fallback.ttsInstructions,
+          voice: selectedVoice.ttsVoice,
+          instructions: selectedVoice.ttsInstructions,
           speed: audioQueueService.getPlaybackRate(),
         }),
       });
       if (!response.ok) {
-        this.log("[AI_TTS] legacy fallback failed", { status: response.status });
+        this.log("[AI_TTS] playback failed", {
+          provider: "/api/tts",
+          status: response.status,
+          error: await this.safeResponseMessage(response),
+        });
         return null;
       }
       const blob = await response.blob();
-      if (!blob.size) return null;
+      if (!blob.size) {
+        this.log("[AI_TTS] playback failed", { provider: "/api/tts", error: "empty audio blob" });
+        return null;
+      }
       return URL.createObjectURL(blob);
     } catch (error) {
-      this.log("[AI_TTS] legacy fallback error", {
+      this.log("[AI_TTS] playback failed", {
+        provider: "/api/tts",
         error: error instanceof Error ? error.message : String(error),
       });
       return null;
@@ -233,6 +276,7 @@ class TutorVoiceService {
     priority,
     revokeBlobUrl,
     options,
+    retryWithApiOnError,
   }: {
     idPrefix: string;
     text: string;
@@ -240,6 +284,7 @@ class TutorVoiceService {
     priority: number;
     revokeBlobUrl: boolean;
     options: TutorVoiceOptions;
+    retryWithApiOnError: boolean;
   }): void {
     let cleaned = false;
     const cleanup = () => {
@@ -268,36 +313,85 @@ class TutorVoiceService {
       onError: (error) => {
         this.isPlaying = false;
         cleanup();
-        this.log("[AI_TTS] queue playback failed", {
+        this.log("[AI_TTS] playback failed", {
           error: error.message,
           tutorId: options.voiceProfileId,
+          retryWithApiOnError,
         });
+        if (retryWithApiOnError) {
+          void this.retryWithQueuedFallback({
+            idPrefix,
+            text,
+            priority: priority + 1,
+            options,
+            reason: error.message,
+          });
+          return;
+        }
+        options.onSpeakEnd?.();
         this.speakSystemFallback(text, options);
       },
     });
   }
 
+  private async retryWithQueuedFallback({
+    idPrefix,
+    text,
+    priority,
+    options,
+    reason,
+  }: {
+    idPrefix: string;
+    text: string;
+    priority: number;
+    options: TutorVoiceOptions;
+    reason: string;
+  }): Promise<void> {
+    this.log("[AI_TTS] fallback provider used", {
+      provider: "/api/tts",
+      reason,
+      tutorId: options.voiceProfileId,
+      requestedGender: options.voiceGender,
+    });
+
+    const fallbackUrl = await this.getQueuedFallbackAudioUrl(text, options);
+    if (!fallbackUrl) {
+      options.onSpeakEnd?.();
+      this.speakSystemFallback(text, options);
+      return;
+    }
+
+    this.enqueueAudio({
+      idPrefix: `${idPrefix}-fallback`,
+      text,
+      url: fallbackUrl,
+      priority,
+      revokeBlobUrl: true,
+      options,
+      retryWithApiOnError: false,
+    });
+  }
+
   /** Last-resort device speech, retaining the selected tutor's language hints. */
   private speakSystemFallback(text: string, options: TutorVoiceOptions): void {
-    const language = toLearningLanguage(options.languageCode);
-    const { tutor } = this.resolveTutor(options);
-    const defaults = voiceForLanguage(language, audioQueueService.getPlaybackRate());
+    const selectedVoice = this.resolveSelectedVoice(options);
 
-    this.log("[AI_TTS] system fallback used", {
-      tutorId: tutor?.id || options.voiceProfileId,
+    this.log("[AI_TTS] fallback provider used", {
+      provider: "speechSynthesis",
+      tutorId: selectedVoice.tutor?.id || options.voiceProfileId,
       requestedGender: options.voiceGender,
       languageCode: options.languageCode,
     });
 
     const result = speechService.speak(text, {
-      ...defaults,
-      lang: tutor?.lang || defaults.lang,
-      voiceKeywords: tutor?.voiceKeywords || defaults.voiceKeywords,
+      rate: audioQueueService.getPlaybackRate(),
+      lang: selectedVoice.lang,
+      voiceKeywords: selectedVoice.voiceKeywords,
       // Do not call the separate OpenAI Audio implementation from speechService.
       // It would create another unmanaged player and reintroduce autoplay issues.
       ttsVoice: undefined,
       ttsInstructions: undefined,
-      volumeGain: 1,
+      volumeGain: selectedVoice.volumeGain,
       onStart: () => {
         this.isPlaying = true;
         options.onSpeakStart?.();
@@ -323,18 +417,23 @@ class TutorVoiceService {
     const clean = text.trim();
     if (!clean) return;
 
+    audioQueueService.clearQueue({ preserveUnlockedPrimer: true });
     await audioQueueService.unlockAudio();
-    audioQueueService.clearQueue();
-    const { chirpVoiceProfileId } = this.resolveTutor(options);
+    const selectedVoice = this.resolveSelectedVoice(options);
     let audioUrl = await this.getTtsAudioUrl(clean, {
       ...options,
-      voiceProfileId: chirpVoiceProfileId || options.voiceProfileId,
+      voiceProfileId: selectedVoice.chirpVoiceProfileId || options.voiceProfileId,
     });
     let revokeBlobUrl = false;
 
     if (!audioUrl) {
       audioUrl = await this.getQueuedFallbackAudioUrl(clean, options);
       revokeBlobUrl = Boolean(audioUrl);
+      this.log("[AI_TTS] fallback provider used", {
+        provider: audioUrl ? "/api/tts" : "speechSynthesis",
+        tutorId: options.voiceProfileId,
+        requestedGender: options.voiceGender,
+      });
     }
 
     if (!audioUrl) {
@@ -349,6 +448,7 @@ class TutorVoiceService {
       priority: 20,
       revokeBlobUrl,
       options,
+      retryWithApiOnError: !revokeBlobUrl,
     });
   }
 
@@ -363,6 +463,7 @@ class TutorVoiceService {
 
   setRecording(recording: boolean): void {
     audioQueueService.setRecording(recording);
+    if (!recording) this.log("[AI_TTS] recording released");
   }
 
   isPlayingNow(): boolean {
@@ -371,6 +472,19 @@ class TutorVoiceService {
 
   private log(message: string, data?: Record<string, unknown>): void {
     console.log(message, { ...data, timestamp: new Date().toISOString() });
+  }
+
+  private async safeResponseMessage(response: Response): Promise<string> {
+    try {
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const data = await response.clone().json();
+        return String(data.error || data.message || response.statusText || "Request failed");
+      }
+      return (await response.clone().text()).slice(0, 240) || response.statusText || "Request failed";
+    } catch {
+      return response.statusText || "Request failed";
+    }
   }
 }
 

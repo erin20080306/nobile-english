@@ -9,6 +9,7 @@ import { learningService } from "@/services/learningService";
 import { authService } from "@/services/authService";
 import { sceneReviewService } from "@/services/sceneReviewService";
 import { storageService, KEYS } from "@/services/storageService";
+import { audioQueueService } from "@/services/audioQueueService";
 import { sceneCardStyle } from "@/data/sceneVisuals";
 import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
@@ -46,12 +47,25 @@ function DialogueInner() {
     setIsFreeMode(false);
   }
 
-  function pickScene(nextScene: Scene) {
+  async function prepareTutorAudio() {
+    try {
+      await audioQueueService.unlockAudio();
+    } catch (error) {
+      console.log("[AI_TTS] playback failed", {
+        source: "dialogue_prepare_audio",
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  async function pickScene(nextScene: Scene) {
+    await prepareTutorAudio();
     setIsFreeMode(false);
     setScene({ ...nextScene, targetLanguage: nextScene.targetLanguage || language });
   }
 
-  function startFreeMode() {
+  async function startFreeMode() {
+    await prepareTutorAudio();
     setIsFreeMode(true);
     setScene(buildFreeScene(language));
   }
@@ -97,7 +111,7 @@ function ScenerPicker({
   useEffect(() => {
     if (preset) {
       const s = sceneService.getScene(preset);
-      if (s) onPick(s);
+      if (s) void onPick(s);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preset]);
@@ -157,7 +171,7 @@ function ScenerPicker({
         )}
 
         <div className="grid grid-cols-1 gap-3 mb-4">
-          <button onClick={onFreeMode} className="w-full card !p-4 text-left transition-colors bg-gradient-to-r from-peach to-peachDeep text-white">
+          <button onClick={() => void onFreeMode()} className="w-full card !p-4 text-left transition-colors bg-gradient-to-r from-peach to-peachDeep text-white">
             <p className="font-bold">自由對話</p>
             <p className="text-xs opacity-90">可自由聊天，也可直接請 AI 建立練習主題</p>
           </button>
@@ -178,7 +192,7 @@ function ScenerPicker({
                 {scenes.map((s) => (
                   <button
                     key={s.id}
-                    onClick={() => onPick(s)}
+                    onClick={() => void onPick(s)}
                     className="relative h-36 rounded-3xl p-4 text-left transition-colors overflow-hidden shadow-soft flex flex-col justify-between"
                     style={sceneCardStyle(t.color, 0.16, t.id)}
                   >
@@ -236,7 +250,6 @@ function Chat({ scene, onExit }: { scene: Scene; onExit: () => void }) {
     return u ? learningService.getSettings(u.id) : null;
   }, []);
   const showZh = settings ? settings.showChineseGlobal && settings.dialogueChinese : true;
-  const pron = settings ? settings.pronunciationOn : true;
 
   function handleFinish(result: DialogueResult, userTurns: string[], feedbacks: TutorFeedback[]) {
     const transcript = buildTranscript(userTurns, feedbacks);
@@ -294,7 +307,7 @@ function Chat({ scene, onExit }: { scene: Scene; onExit: () => void }) {
       <ConversationPractice
         scene={scene}
         showZh={showZh}
-        pronunciationOn={pron}
+        pronunciationOn={true}
         finishLabel="結束對話並看成果"
         onFinish={handleFinish}
       />
@@ -309,11 +322,22 @@ function FreeChat({ targetLanguage, onExit }: { targetLanguage: LearningLanguage
     return u ? learningService.getSettings(u.id) : null;
   }, []);
   const showZh = settings ? settings.showChineseGlobal && settings.dialogueChinese : true;
-  const pron = settings ? settings.pronunciationOn : true;
   const [createdScene, setCreatedScene] = useState<CustomScene | null>(null);
 
   const languageInfo = getLearningLanguage(targetLanguage);
   const freeScene = buildFreeScene(targetLanguage);
+
+  async function openCreatedScene(sceneId: string) {
+    try {
+      await audioQueueService.unlockAudio();
+    } catch (error) {
+      console.log("[AI_TTS] playback failed", {
+        source: "dialogue_created_scene_prepare_audio",
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    router.push(`/dialogue?scene=${sceneId}`);
+  }
 
   function createScenarioFromText(latest: string) {
     const explicitCreate = /建立|產生|自訂|新增|做一個|create|make|generate/i.test(latest) &&
@@ -431,7 +455,7 @@ function FreeChat({ targetLanguage, onExit }: { targetLanguage: LearningLanguage
 
           <button
             className="btn-primary w-full flex items-center justify-center gap-2"
-            onClick={() => router.push(`/dialogue?scene=${scene.id}`)}
+            onClick={() => void openCreatedScene(scene.id)}
           >
             <Play size={18} /> 開始自訂場景練習
           </button>
@@ -455,7 +479,7 @@ function FreeChat({ targetLanguage, onExit }: { targetLanguage: LearningLanguage
       <ConversationPractice
         scene={freeScene}
         showZh={showZh}
-        pronunciationOn={pron}
+        pronunciationOn={true}
         finishLabel="結束對話並看成果"
         onUserTurn={createScenarioFromText}
         onFinish={handleFinish}
