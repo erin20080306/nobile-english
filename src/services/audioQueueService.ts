@@ -57,7 +57,7 @@ class AudioQueueService {
     if (!this.audio) {
       this.audio = new Audio();
       this.audio.preload = "auto";
-      this.audio.playsInline = true;
+      this.audio.setAttribute("playsinline", "");
     }
     return this.audio;
   }
@@ -235,7 +235,7 @@ class AudioQueueService {
         if (this.cancelPendingWait === cancel) this.cancelPendingWait = null;
         callback();
       };
-      const cancel = () => finish(() => resolve());
+      const cancel = () => finish(resolve);
       const timeout = window.setTimeout(() => finish(() => reject(new Error("Audio load timeout"))), 10000);
       this.cancelPendingWait = cancel;
       audio.oncanplay = () => finish(resolve);
