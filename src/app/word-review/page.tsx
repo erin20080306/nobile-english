@@ -50,25 +50,35 @@ function writeAscii(view: DataView, offset: number, text: string) {
 function answerTonePlan(correct: boolean): AnswerTone[] {
   return correct
     ? [
-        { frequency: 523.25, duration: 0.2 },
-        { frequency: 659.25, duration: 0.22 },
-        { frequency: 783.99, duration: 0.26 },
-        { frequency: 1046.5, duration: 0.34 },
+        // Jackpot / coin-win style: quick ascending arpeggio, a bouncy
+        // trill back down and up, then a bright sustained ring.
+        { frequency: 1046.5, duration: 0.09 }, // C6
+        { frequency: 1318.5, duration: 0.09 }, // E6
+        { frequency: 1568.0, duration: 0.09 }, // G6
+        { frequency: 2093.0, duration: 0.09 }, // C7
+        { frequency: 1568.0, duration: 0.07 }, // G6 bounce
+        { frequency: 2093.0, duration: 0.07 }, // C7 bounce
+        { frequency: 2637.0, duration: 0.09 }, // E7
+        { frequency: 3136.0, duration: 0.32 }, // G7 final ring
       ]
     : [
-        { frequency: 349.23, duration: 0.24 },
-        { frequency: 261.63, duration: 0.28 },
-        { frequency: 196, duration: 0.34 },
+        { frequency: 349.23, duration: 0.16 },
+        { frequency: 261.63, duration: 0.16 },
+        { frequency: 196, duration: 0.3 },
       ];
 }
 
-function toneFrequencyAt(tones: AnswerTone[], time: number) {
+function toneStateAt(tones: AnswerTone[], time: number) {
   let elapsed = 0;
   for (const tone of tones) {
+    const noteStart = elapsed;
     elapsed += tone.duration;
-    if (time <= elapsed) return tone.frequency;
+    if (time <= elapsed) {
+      return { frequency: tone.frequency, noteElapsed: time - noteStart, noteDuration: tone.duration };
+    }
   }
-  return tones[tones.length - 1]?.frequency || 440;
+  const last = tones[tones.length - 1];
+  return { frequency: last?.frequency || 440, noteElapsed: last?.duration || 0, noteDuration: last?.duration || 1 };
 }
 
 function makeAnswerSoundUrl(correct: boolean) {
@@ -100,14 +110,19 @@ function makeAnswerSoundUrl(correct: boolean) {
 
   for (let index = 0; index < sampleCount; index += 1) {
     const time = index / sampleRate;
-    const frequency = toneFrequencyAt(tones, time);
-    const attack = Math.min(1, index / (sampleRate * 0.025));
-    const release = Math.min(1, (sampleCount - index) / (sampleRate * 0.14));
-    const envelope = attack * release;
-    const harmonic = correct ? 0.28 : 0.18;
-    const shimmer = correct ? 1 + 0.08 * Math.sin(2 * Math.PI * 12 * time) : 1;
+    const { frequency, noteElapsed, noteDuration } = toneStateAt(tones, time);
+    // Fast attack + exponential decay per note gives each ding its own bell/coin
+    // percussive shape, instead of one glissando envelope across the whole clip.
+    const attack = Math.min(1, noteElapsed / 0.006);
+    const decayRate = correct ? 6 : 5.5;
+    const decay = Math.exp(-noteElapsed * decayRate);
+    // Ease the very end of the last note so it doesn't cut off abruptly.
+    const tailFade = Math.min(1, (noteDuration - noteElapsed) / 0.03 + 0.4);
+    const envelope = attack * decay * Math.min(1, tailFade);
+    const harmonic = correct ? 0.3 : 0.18;
+    const shimmer = correct ? 1 + 0.12 * Math.sin(2 * Math.PI * 18 * time) : 1;
     const wave = Math.sin(2 * Math.PI * frequency * time) + harmonic * Math.sin(2 * Math.PI * frequency * 2 * time);
-    const sample = wave * (correct ? 0.3 : 0.26) * envelope * shimmer;
+    const sample = wave * (correct ? 0.32 : 0.24) * envelope * shimmer;
     view.setInt16(44 + index * 2, Math.max(-1, Math.min(1, sample)) * 0x7fff, true);
   }
 
