@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { getSupabaseServerClient } from "@/server/supabaseClient";
 import { assetCacheKey } from "./hash";
 import type {
   AudioFormat,
@@ -137,15 +138,205 @@ class InMemoryTtsAssetStore implements TtsAssetStore {
   }
 }
 
-// Persist the in-memory store across hot reloads in dev.
+type TtsAudioAssetRow = {
+  id: string;
+  language_code: string;
+  voice_profile_id: string | null;
+  voice_profile_key?: string | null;
+  provider: string;
+  provider_model: string;
+  normalized_text: string;
+  text_hash: string;
+  audio_format: AudioFormat;
+  audio_path: string | null;
+  duration_ms: number | null;
+  audio_version: number;
+  asset_type: TtsAssetType;
+  scene_id: string | null;
+  scene_version: number | null;
+  status: "generating" | "ready" | "failed";
+  created_at: string;
+  updated_at: string;
+  raw_audio_path: string | null;
+  processed_audio_path: string | null;
+  audio_version_string: AudioVersionString;
+  integrated_lufs: number | null;
+  true_peak_dbtp: number | null;
+  loudness_range_lu: number | null;
+  processing_status: "none" | "pending" | "processing" | "ready" | "failed";
+  processing_error: string | null;
+  processed_at: string | null;
+};
+
+function rowToAsset(row: TtsAudioAssetRow): TtsAudioAsset {
+  return {
+    id: row.id,
+    languageCode: row.language_code,
+    voiceProfileId: row.voice_profile_key || row.voice_profile_id || "",
+    provider: row.provider,
+    providerModel: row.provider_model,
+    normalizedText: row.normalized_text,
+    textHash: row.text_hash,
+    audioFormat: row.audio_format,
+    audioPath: row.audio_path,
+    durationMs: row.duration_ms,
+    audioVersion: row.audio_version,
+    assetType: row.asset_type,
+    sceneId: row.scene_id,
+    sceneVersion: row.scene_version,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    rawAudioPath: row.raw_audio_path,
+    processedAudioPath: row.processed_audio_path,
+    audioVersionString: row.audio_version_string,
+    integratedLufs: row.integrated_lufs,
+    truePeakDbtp: row.true_peak_dbtp,
+    loudnessRangeLu: row.loudness_range_lu,
+    processingStatus: row.processing_status,
+    processingError: row.processing_error,
+    processedAt: row.processed_at,
+  };
+}
+
+class SupabaseTtsAssetStore implements TtsAssetStore {
+  private readonly supabase = getSupabaseServerClient();
+
+  private requireClient() {
+    if (!this.supabase) throw new Error("Supabase TTS store is not configured");
+    return this.supabase;
+  }
+
+  private async findByKey(params: {
+    provider: string;
+    providerModel: string;
+    languageCode: string;
+    voiceProfileId: string;
+    textHash: string;
+    audioFormat: AudioFormat;
+    audioVersionString: AudioVersionString;
+  }) {
+    const { data, error } = await this.requireClient()
+      .from("tts_audio_assets")
+      .select("*")
+      .eq("provider", params.provider)
+      .eq("provider_model", params.providerModel)
+      .eq("language_code", params.languageCode)
+      .eq("voice_profile_key", params.voiceProfileId)
+      .eq("text_hash", params.textHash)
+      .eq("audio_format", params.audioFormat)
+      .eq("audio_version_string", params.audioVersionString)
+      .maybeSingle();
+
+    if (error) throw new Error(`TTS cache lookup failed: ${error.message}`);
+    return data ? rowToAsset(data as TtsAudioAssetRow) : null;
+  }
+
+  async getReadyByKey(params: {
+    provider: string;
+    providerModel: string;
+    languageCode: string;
+    voiceProfileId: string;
+    textHash: string;
+    audioFormat: AudioFormat;
+    audioVersionString: AudioVersionString;
+  }): Promise<TtsAudioAsset | null> {
+    const asset = await this.findByKey(params);
+    return asset?.status === "ready" ? asset : null;
+  }
+
+  async reserve(input: ReserveInput): Promise<{ asset: TtsAudioAsset; created: boolean }> {
+    const existing = await this.findByKey(input);
+    if (existing) return { asset: existing, created: false };
+
+    const row = {
+      language_code: input.languageCode,
+      voice_profile_id: null,
+      voice_profile_key: input.voiceProfileId,
+      provider: input.provider,
+      provider_model: input.providerModel,
+      normalized_text: input.normalizedText,
+      text_hash: input.textHash,
+      audio_format: input.audioFormat,
+      audio_version: 1,
+      audio_version_string: input.audioVersionString,
+      asset_type: input.assetType,
+      scene_id: input.sceneId ?? null,
+      scene_version: input.sceneVersion ?? null,
+      status: "generating",
+      processing_status: "none",
+    };
+
+    const { data, error } = await this.requireClient()
+      .from("tts_audio_assets")
+      .insert(row)
+      .select("*")
+      .single();
+
+    if (error) {
+      const raced = await this.findByKey(input);
+      if (raced) return { asset: raced, created: false };
+      throw new Error(`TTS cache reserve failed: ${error.message}`);
+    }
+
+    return { asset: rowToAsset(data as TtsAudioAssetRow), created: true };
+  }
+
+  async markReady(id: string, output: SynthesisOutput): Promise<TtsAudioAsset> {
+    const { data, error } = await this.requireClient()
+      .from("tts_audio_assets")
+      .update({
+        status: "ready",
+        audio_path: output.audioPath,
+        duration_ms: output.durationMs,
+        audio_format: output.audioFormat,
+        processed_audio_path: output.audioPath,
+        processing_status: "ready",
+        processed_at: nowIso(),
+      })
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    if (error) throw new Error(`TTS cache markReady failed: ${error.message}`);
+    return rowToAsset(data as TtsAudioAssetRow);
+  }
+
+  async markFailed(id: string): Promise<TtsAudioAsset> {
+    const { data, error } = await this.requireClient()
+      .from("tts_audio_assets")
+      .update({
+        status: "failed",
+        processing_status: "failed",
+      })
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    if (error) throw new Error(`TTS cache markFailed failed: ${error.message}`);
+    return rowToAsset(data as TtsAudioAssetRow);
+  }
+
+  async getById(id: string): Promise<TtsAudioAsset | null> {
+    const { data, error } = await this.requireClient()
+      .from("tts_audio_assets")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (error) throw new Error(`TTS cache getById failed: ${error.message}`);
+    return data ? rowToAsset(data as TtsAudioAssetRow) : null;
+  }
+}
+
+// Persist the store across hot reloads in dev.
 const globalForStore = globalThis as unknown as { __ttsAssetStore?: TtsAssetStore };
 
 export function getTtsAssetStore(): TtsAssetStore {
-  // TODO(prod): when SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are present and
-  // @supabase/supabase-js is installed, return a Supabase-backed store that maps
-  // to the tts_audio_assets table and relies on its unique index for de-dupe.
   if (!globalForStore.__ttsAssetStore) {
-    globalForStore.__ttsAssetStore = new InMemoryTtsAssetStore();
+    globalForStore.__ttsAssetStore = getSupabaseServerClient()
+      ? new SupabaseTtsAssetStore()
+      : new InMemoryTtsAssetStore();
   }
   return globalForStore.__ttsAssetStore;
 }

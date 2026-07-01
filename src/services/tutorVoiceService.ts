@@ -11,7 +11,20 @@ import { audioQueueService } from "./audioQueueService";
 import { speechService } from "./speechService";
 import { voiceForLanguage } from "@/data/learningLanguages";
 import { getTutorById } from "@/data/tutors";
+import { getTutorVoiceProfileId } from "@/data/tutorVoiceProfiles";
 import type { LearningLanguageCode, TutorFeedback } from "@/types";
+
+type TutorAudioAssetType =
+  | "practice_sentence"
+  | "tutor_reply"
+  | "tutor_pass"
+  | "tutor_minor_correction"
+  | "tutor_retry"
+  | "tutor_hint"
+  | "tutor_complete"
+  | "word_pronunciation"
+  | "dynamic_tutor_reply"
+  | "reading_sentence";
 
 interface TutorVoiceOptions {
   languageCode: string;
@@ -22,32 +35,23 @@ interface TutorVoiceOptions {
   audioVersionString?: string;
   sceneId?: string;
   sceneVersion?: string;
+  assetType?: TutorAudioAssetType;
+  cacheOnly?: boolean;
   onSpeakStart?: () => void;
   onSpeakEnd?: () => void;
 }
 
-/** Server-side Chirp profile ids corresponding to each visual tutor. */
-const TUTOR_TO_CHIRP_PROFILE: Record<string, string> = {
-  jake: "vp-en-charon",
-  william: "vp-en-charon",
-  emma: "vp-en-aoede",
-  amy: "vp-en-aoede",
-  sophie: "vp-en-aoede",
-  lily: "vp-en-aoede",
-  haruto: "vp-ja-charon",
-  yui: "vp-ja-aoede",
-  minjun: "vp-ko-charon",
-  seoyeon: "vp-ko-aoede",
-  marco: "vp-it-charon",
-  giulia: "vp-it-aoede",
-  carlos: "vp-es-charon",
-  sofia: "vp-es-aoede",
-};
-
 function toLearningLanguage(languageCode: string): LearningLanguageCode {
-  return (["en", "ja", "ko", "it", "es"] as string[]).includes(languageCode)
-    ? (languageCode as LearningLanguageCode)
-    : "en";
+  const lower = languageCode.toLowerCase();
+  if (lower === "ja" || lower.startsWith("ja-")) return "ja";
+  if (lower === "ko" || lower.startsWith("ko-")) return "ko";
+  if (lower === "it" || lower.startsWith("it-")) return "it";
+  if (lower === "es" || lower.startsWith("es-")) return "es";
+  return "en";
+}
+
+function isTutorRoleAsset(assetType: TutorAudioAssetType) {
+  return assetType === "dynamic_tutor_reply" || assetType.startsWith("tutor_");
 }
 
 class TutorVoiceService {
@@ -64,7 +68,7 @@ class TutorVoiceService {
     const isSelectedTutor = Boolean(tutorId && resolved.id === tutorId);
     return {
       tutor: isSelectedTutor ? resolved : null,
-      chirpVoiceProfileId: isSelectedTutor ? TUTOR_TO_CHIRP_PROFILE[tutorId] : undefined,
+      chirpVoiceProfileId: isSelectedTutor ? getTutorVoiceProfileId(tutorId) : undefined,
     };
   }
 
@@ -109,16 +113,20 @@ class TutorVoiceService {
     audioQueueService.clearQueue();
     this.stop();
 
+    const assetType = options.assetType || "dynamic_tutor_reply";
+    const cacheOnly = options.cacheOnly ?? false;
+    const canUsePaidFallback = !cacheOnly;
+
     const { chirpVoiceProfileId } = this.resolveTutor(options);
     let audioUrl = await this.getTtsAudioUrl(ttsText, {
       ...options,
       voiceProfileId: chirpVoiceProfileId || options.voiceProfileId,
-    });
+    }, assetType, cacheOnly);
     let revokeBlobUrl = false;
 
     // A stub:// result is intentionally treated as unavailable. We still request
     // a real audio blob from the existing legacy endpoint and put it in AudioQueue.
-    if (!audioUrl) {
+    if (!audioUrl && canUsePaidFallback) {
       audioUrl = await this.getQueuedFallbackAudioUrl(ttsText, options);
       revokeBlobUrl = Boolean(audioUrl);
       this.log("[AI_TTS] fallback result", {
@@ -129,6 +137,20 @@ class TutorVoiceService {
     }
 
     if (!audioUrl) {
+      if (isTutorRoleAsset(assetType)) {
+        this.log("[AI_TTS] playback failed", {
+          reason: cacheOnly ? "cache_only_miss_no_tutor_voice" : "cloud_audio_unavailable_no_tutor_voice",
+          tutorId: options.voiceProfileId,
+          assetType,
+        });
+        options.onSpeakEnd?.();
+        return;
+      }
+      this.log("[AI_TTS] fallback provider used", {
+        provider: "system_speech",
+        reason: cacheOnly ? "cache_only_miss" : "cloud_audio_unavailable",
+        tutorId: options.voiceProfileId,
+      });
       this.speakSystemFallback(ttsText, options);
       return;
     }
@@ -143,7 +165,12 @@ class TutorVoiceService {
     });
   }
 
-  private async getTtsAudioUrl(text: string, options: TutorVoiceOptions): Promise<string | null> {
+  private async getTtsAudioUrl(
+    text: string,
+    options: TutorVoiceOptions,
+    assetType: TutorAudioAssetType,
+    cacheOnly: boolean
+  ): Promise<string | null> {
     try {
       const response = await fetch("/api/tts/get-or-create", {
         method: "POST",
@@ -151,13 +178,14 @@ class TutorVoiceService {
         body: JSON.stringify({
           text,
           languageCode: options.languageCode,
-          assetType: "dynamic_tutor_reply",
+          assetType,
           voiceGender: options.voiceGender,
           voiceProfileId: options.voiceProfileId,
           audioFormat: options.audioFormat,
           audioVersionString: options.audioVersionString,
           sceneId: options.sceneId,
           sceneVersion: options.sceneVersion,
+          cacheOnly,
         }),
       });
 
@@ -248,6 +276,7 @@ class TutorVoiceService {
         URL.revokeObjectURL(url);
       }
     };
+    const assetType = options.assetType || (idPrefix === "manual" ? "tutor_reply" : "dynamic_tutor_reply");
 
     audioQueueService.enqueue({
       id: `${idPrefix}-${Date.now()}`,
@@ -268,10 +297,15 @@ class TutorVoiceService {
       onError: (error) => {
         this.isPlaying = false;
         cleanup();
-        this.log("[AI_TTS] queue playback failed", {
+        this.log("[AI_TTS] playback failed", {
           error: error.message,
           tutorId: options.voiceProfileId,
+          assetType,
         });
+        if (isTutorRoleAsset(assetType)) {
+          options.onSpeakEnd?.();
+          return;
+        }
         this.speakSystemFallback(text, options);
       },
     });
@@ -325,19 +359,37 @@ class TutorVoiceService {
 
     await audioQueueService.unlockAudio();
     audioQueueService.clearQueue();
+    const assetType = options.assetType || "tutor_reply";
+    const cacheOnly = options.cacheOnly ?? false;
+    const canUsePaidFallback = !cacheOnly;
+
     const { chirpVoiceProfileId } = this.resolveTutor(options);
     let audioUrl = await this.getTtsAudioUrl(clean, {
       ...options,
       voiceProfileId: chirpVoiceProfileId || options.voiceProfileId,
-    });
+    }, assetType, cacheOnly);
     let revokeBlobUrl = false;
 
-    if (!audioUrl) {
+    if (!audioUrl && canUsePaidFallback) {
       audioUrl = await this.getQueuedFallbackAudioUrl(clean, options);
       revokeBlobUrl = Boolean(audioUrl);
     }
 
     if (!audioUrl) {
+      if (isTutorRoleAsset(assetType)) {
+        this.log("[AI_TTS] playback failed", {
+          reason: cacheOnly ? "cache_only_miss_no_tutor_voice" : "cloud_audio_unavailable_no_tutor_voice",
+          tutorId: options.voiceProfileId,
+          assetType,
+        });
+        options.onSpeakEnd?.();
+        return;
+      }
+      this.log("[AI_TTS] fallback provider used", {
+        provider: "system_speech",
+        reason: cacheOnly ? "cache_only_miss" : "cloud_audio_unavailable",
+        tutorId: options.voiceProfileId,
+      });
       this.speakSystemFallback(clean, options);
       return;
     }

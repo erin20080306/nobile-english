@@ -6,36 +6,36 @@ export const runtime = "nodejs";
 
 const LEVEL_TARGETS: Record<LearningLanguageCode, Record<EnglishLevel, number>> = {
   en: {
-    Beginner: 1500,
-    Elementary: 2500,
+    Beginner: 650,
+    Elementary: 1800,
     Intermediate: 4000,
     "Upper-Intermediate": 6000,
     Advanced: 16000,
   },
   ja: {
-    Beginner: 1500,
-    Elementary: 2500,
+    Beginner: 650,
+    Elementary: 1800,
     Intermediate: 4000,
     "Upper-Intermediate": 6000,
     Advanced: 10000,
   },
   ko: {
-    Beginner: 1500,
-    Elementary: 2500,
+    Beginner: 650,
+    Elementary: 1800,
     Intermediate: 4000,
     "Upper-Intermediate": 6000,
     Advanced: 10000,
   },
   it: {
-    Beginner: 1500,
-    Elementary: 2500,
+    Beginner: 650,
+    Elementary: 1800,
     Intermediate: 4000,
     "Upper-Intermediate": 6000,
     Advanced: 10000,
   },
   es: {
-    Beginner: 1500,
-    Elementary: 2500,
+    Beginner: 650,
+    Elementary: 1800,
     Intermediate: 4000,
     "Upper-Intermediate": 6000,
     Advanced: 10000,
@@ -59,6 +59,7 @@ type DictionaryRow = {
   examples_json: unknown;
   synonyms_json: unknown;
   antonyms_json: unknown;
+  cefr_level: string | null;
   frequency_rank: number | null;
 };
 
@@ -157,6 +158,27 @@ function rowToWord(row: DictionaryRow, language: LearningLanguageCode): Word {
   };
 }
 
+function containsCjk(text: string) {
+  return /[\u3400-\u9fff]/.test(text);
+}
+
+function wordCount(text = "") {
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function isFriendlyForLevel(word: Word, level: EnglishLevel, language: LearningLanguageCode) {
+  if (level !== "Beginner" && level !== "Elementary") return true;
+  const surface = word.word.trim();
+  const maxSurface = level === "Beginner" ? 13 : 18;
+  const maxDefWords = level === "Beginner" ? 9 : 16;
+  const maxExampleWords = level === "Beginner" ? 9 : 14;
+  if (!surface || Array.from(surface).length > maxSurface) return false;
+  if (language === "en" && /\s/.test(surface)) return false;
+  if (wordCount(word.enDef || word.zh) > maxDefWords && !containsCjk(word.zh)) return false;
+  if (word.example && wordCount(word.example) > maxExampleWords) return false;
+  return true;
+}
+
 function createSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
@@ -174,7 +196,7 @@ async function fetchRankedRows(
 ) {
   const { data, error } = await supabase
     .from("dictionary_entries")
-    .select("lemma, display_word, reading, romanization, ipa, part_of_speech, definitions_json, definitions_zh_tw_json, examples_json, synonyms_json, antonyms_json, frequency_rank")
+    .select("lemma, display_word, reading, romanization, ipa, part_of_speech, definitions_json, definitions_zh_tw_json, examples_json, synonyms_json, antonyms_json, cefr_level, frequency_rank")
     .eq("language_code", language)
     .gte("frequency_rank", fromRank)
     .lte("frequency_rank", toRank)
@@ -192,7 +214,7 @@ async function fetchFallbackRows(
 ) {
   const { data, error } = await supabase
     .from("dictionary_entries")
-    .select("lemma, display_word, reading, romanization, ipa, part_of_speech, definitions_json, definitions_zh_tw_json, examples_json, synonyms_json, antonyms_json, frequency_rank")
+    .select("lemma, display_word, reading, romanization, ipa, part_of_speech, definitions_json, definitions_zh_tw_json, examples_json, synonyms_json, antonyms_json, cefr_level, frequency_rank")
     .eq("language_code", language)
     .order("frequency_rank", { ascending: true, nullsFirst: false })
     .order("lemma", { ascending: true })
@@ -202,13 +224,14 @@ async function fetchFallbackRows(
   return (data || []) as DictionaryRow[];
 }
 
-function uniqueRows(rows: DictionaryRow[], language: LearningLanguageCode): Word[] {
+function uniqueRows(rows: DictionaryRow[], language: LearningLanguageCode, level: EnglishLevel): Word[] {
   const seen = new Set<string>();
   const words: Word[] = [];
 
   for (const row of rows) {
     const word = rowToWord(row, language);
     if (!word.word || !isReviewableWordText(word.word)) continue;
+    if (!isFriendlyForLevel(word, level, language)) continue;
     const key = `${language}:${word.word.toLowerCase().normalize("NFC")}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -237,7 +260,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const foundationLimit = Math.min(220, limit, targetCount);
+    const foundationLimit = Math.min(level === "Beginner" ? 160 : 220, limit, targetCount);
     const windowLimit = Math.max(0, Math.min(limit - foundationLimit, targetCount - foundationLimit));
     const maxWindowStart = Math.max(foundationLimit + 1, targetCount - windowLimit + 1);
     const windowStart = windowLimit > 0
@@ -250,11 +273,11 @@ export async function GET(req: Request) {
     const windowRows = windowLimit > 0
       ? await fetchRankedRows(supabase, language, windowStart, Math.min(targetCount, windowStart + windowLimit - 1))
       : [];
-    let words = uniqueRows([...foundationRows, ...windowRows], language);
+    let words = uniqueRows([...foundationRows, ...windowRows], language, level);
 
     if (words.length < Math.min(30, limit)) {
       const fallbackRows = await fetchFallbackRows(supabase, language, limit);
-      words = uniqueRows([...foundationRows, ...windowRows, ...fallbackRows], language).slice(0, limit);
+      words = uniqueRows([...foundationRows, ...windowRows, ...fallbackRows], language, level).slice(0, limit);
     }
 
     return NextResponse.json({

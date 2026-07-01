@@ -1,4 +1,5 @@
 import type { Scene } from "@/types";
+import { getTutorVoiceProfileIdsForLanguage } from "@/data/tutorVoiceProfiles";
 import { estimateCostUsd } from "./cost";
 import { getOrCreateTtsAsset, peekTtsAsset } from "./service";
 import { toVoiceLanguageCode } from "./voiceProfiles";
@@ -43,6 +44,9 @@ export function sceneToAudioSource(scene: Scene): SceneAudioSource {
 export interface PrewarmOptions {
   dryRun?: boolean;
   voiceGender?: VoiceGender; // fixed voice to prewarm (default female)
+  voiceGenders?: VoiceGender[];
+  allTutorProfiles?: boolean;
+  voiceProfileIds?: string[];
 }
 
 export interface PrewarmReport {
@@ -59,7 +63,8 @@ export interface PrewarmReport {
 function specToInput(
   source: SceneAudioSource,
   spec: SceneAudioTextSpec,
-  voiceGender: VoiceGender
+  voiceGender: VoiceGender,
+  voiceProfileId?: string
 ): GetOrCreateInput {
   return {
     text: spec.text,
@@ -67,9 +72,22 @@ function specToInput(
     languageCode: source.languageCode,
     assetType: spec.assetType,
     voiceGender,
+    voiceProfileId,
     sceneId: source.sceneId,
     sceneVersion: source.sceneVersion,
   };
+}
+
+function isTutorAudioAsset(assetType: TtsAssetType) {
+  return (
+    assetType === "tutor_reply" ||
+    assetType === "tutor_pass" ||
+    assetType === "tutor_minor_correction" ||
+    assetType === "tutor_retry" ||
+    assetType === "tutor_hint" ||
+    assetType === "tutor_complete" ||
+    assetType === "dynamic_tutor_reply"
+  );
 }
 
 export async function prewarmSources(
@@ -78,6 +96,7 @@ export async function prewarmSources(
 ): Promise<PrewarmReport> {
   const dryRun = options.dryRun ?? true;
   const voiceGender = options.voiceGender ?? "female";
+  const tutorVoiceGenders = options.voiceGenders?.length ? options.voiceGenders : [voiceGender];
 
   let totalTexts = 0;
   let alreadyCached = 0;
@@ -88,23 +107,35 @@ export async function prewarmSources(
 
   for (const source of sources) {
     for (const spec of source.texts) {
-      totalTexts += 1;
-      const input = specToInput(source, spec, voiceGender);
-      const peek = await peekTtsAsset(input);
-      if (peek.cached) {
-        alreadyCached += 1;
-        continue;
-      }
-      missing += 1;
-      estimatedChars += peek.billableChars; // only cache-misses are billed
+      const tutorProfileIds = isTutorAudioAsset(spec.assetType) && options.allTutorProfiles
+        ? options.voiceProfileIds?.length
+          ? options.voiceProfileIds
+          : getTutorVoiceProfileIdsForLanguage(source.languageCode)
+        : [];
+      const entries = tutorProfileIds.length
+        ? tutorProfileIds.map((voiceProfileId) => ({ gender: voiceGender, voiceProfileId }))
+        : (isTutorAudioAsset(spec.assetType) ? tutorVoiceGenders : [voiceGender])
+            .map((gender) => ({ gender, voiceProfileId: undefined }));
 
-      if (!dryRun) {
-        try {
-          const result = await getOrCreateTtsAsset(input);
-          if (result.asset.status === "ready") generated += 1;
-          else failed += 1;
-        } catch {
-          failed += 1;
+      for (const entry of entries) {
+        totalTexts += 1;
+        const input = specToInput(source, spec, entry.gender, entry.voiceProfileId);
+        const peek = await peekTtsAsset(input);
+        if (peek.cached) {
+          alreadyCached += 1;
+          continue;
+        }
+        missing += 1;
+        estimatedChars += peek.billableChars; // only cache-misses are billed
+
+        if (!dryRun) {
+          try {
+            const result = await getOrCreateTtsAsset(input);
+            if (result.asset.status === "ready") generated += 1;
+            else failed += 1;
+          } catch {
+            failed += 1;
+          }
         }
       }
     }

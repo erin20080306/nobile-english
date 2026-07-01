@@ -14,7 +14,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   return NextResponse.json({
     id: asset.id,
     status: asset.status,
-    signedUrl: buildSignedUrl(asset),
+    signedUrl: await buildSignedUrl(asset),
     durationMs: asset.durationMs,
     audioFormat: asset.audioFormat,
     assetType: asset.assetType,

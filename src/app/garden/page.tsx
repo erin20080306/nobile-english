@@ -26,9 +26,12 @@ import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguage
 import { gardenService, GARDEN_CROPS, GARDEN_SHOP_ITEMS } from "@/services/gardenService";
 import { learningService } from "@/services/learningService";
 import { soundService } from "@/services/soundService";
+import { trialAccessService, type AccessState } from "@/services/trialAccessService";
+import { trialUsageService } from "@/services/trialUsageService";
 import { useUser } from "@/hooks/useUser";
 import BottomNav from "@/components/BottomNav";
 import HorizontalScrollChips from "@/components/HorizontalScrollChips";
+import SubscriptionLaunchPrompt from "@/components/SubscriptionLaunchPrompt";
 import { ProgressBar } from "@/components/ui";
 
 type DeckCard = {
@@ -73,15 +76,19 @@ export default function GardenPage() {
   const [shopOpen, setShopOpen] = useState(false);
   const [leagueOpen, setLeagueOpen] = useState(true);
   const [previewItem, setPreviewItem] = useState<GardenShopItem | null>(null);
+  const [access, setAccess] = useState<AccessState | null>(null);
+  const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(false);
 
   useEffect(() => {
     const current = learningService.getCurrentLanguage();
     setLanguage(current);
     setGarden(gardenService.getState(current));
+    trialAccessService.getAccessState(user, { fresh: true }).then(setAccess).catch(() => setAccess(null));
   }, []);
 
   const currentLanguage = getLearningLanguage(language);
-  const canClaim = garden ? gardenService.canClaimDailyBonus(language) : false;
+  const trialLimited = trialUsageService.isLimited(access);
+  const canClaim = garden ? gardenService.canClaimDailyBonus(language) && !trialLimited : false;
   const advice = garden ? gardenService.getAdvice(garden) : "";
   const pairCount = useMemo(() => new Set(deck.map((card) => card.pairId)).size, [deck]);
   const reviewCardCount = gardenService.getReviewCardCount(language);
@@ -120,6 +127,10 @@ export default function GardenPage() {
   }
 
   function claimDaily() {
+    if (trialLimited) {
+      setShowSubscriptionPrompt(true);
+      return;
+    }
     soundService.play("review");
     setGarden(gardenService.claimDailyBonus(language));
   }
@@ -131,6 +142,10 @@ export default function GardenPage() {
 
   function buyOrEquip(item: GardenShopItem) {
     const owned = garden?.ownedItemIds.includes(item.id);
+    if (!owned && trialLimited) {
+      setShowSubscriptionPrompt(true);
+      return;
+    }
     soundService.play(owned ? "review" : "harvest");
     setGarden(owned ? gardenService.equipItem(language, item.id) : gardenService.buyItem(language, item.id));
   }
@@ -323,7 +338,7 @@ export default function GardenPage() {
       <div className="px-5 mt-4 grid grid-cols-2 gap-3">
         <button
           onClick={claimDaily}
-          disabled={!canClaim}
+          disabled={!canClaim && !trialLimited}
           className={`rounded-3xl px-4 py-3 text-left font-extrabold shadow-softer active:scale-95 transition ${
             canClaim ? "bg-lilacDeep text-white" : "bg-white text-inkSoft"
           }`}
@@ -686,6 +701,13 @@ export default function GardenPage() {
       )}
 
       <BottomNav />
+      {access && showSubscriptionPrompt && (
+        <SubscriptionLaunchPrompt
+          access={access}
+          onSubscribe={() => router.push("/subscription")}
+          onContinueTrial={access.reason === "trial" ? () => setShowSubscriptionPrompt(false) : undefined}
+        />
+      )}
     </div>
   );
 }

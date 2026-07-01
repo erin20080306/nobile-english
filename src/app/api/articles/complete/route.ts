@@ -263,7 +263,7 @@ async function recordLearningActivity(
     // 記錄到 learning_records
     const { data: article } = await supabase
       .from('reading_articles')
-      .select('title')
+      .select('title,title_zh_tw')
       .eq('id', articleId)
       .single();
 
@@ -271,6 +271,7 @@ async function recordLearningActivity(
       .from('learning_records')
       .insert({
         user_id: userId,
+        id: `${activityType}-${articleId}`,
         type: activityType,
         target_language: languageCode,
         title: article?.title || 'Daily Reading',

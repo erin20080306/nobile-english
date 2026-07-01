@@ -11,10 +11,13 @@ import { sceneReviewService } from "@/services/sceneReviewService";
 import { storageService, KEYS } from "@/services/storageService";
 import { vocabularyService } from "@/services/vocabularyService";
 import { dictionaryService } from "@/services/dictionaryService";
+import { trialAccessService, type AccessState } from "@/services/trialAccessService";
+import { trialUsageService, TRIAL_DIALOGUE_DAILY_LIMIT } from "@/services/trialUsageService";
 import { sceneCardStyle } from "@/data/sceneVisuals";
 import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
 import ConversationPractice from "@/components/ConversationPractice";
+import SubscriptionLaunchPrompt from "@/components/SubscriptionLaunchPrompt";
 import TutorSelector, { getSelectedTutor, TutorAvatar } from "@/components/TutorSelector";
 import HorizontalScrollChips from "@/components/HorizontalScrollChips";
 import { levelLabel } from "@/components/ui";
@@ -35,9 +38,12 @@ function DialogueInner() {
   const [scene, setScene] = useState<Scene | null>(null);
   const [isFreeMode, setIsFreeMode] = useState(false);
   const [language, setLanguage] = useState<LearningLanguageCode>("en");
+  const [access, setAccess] = useState<AccessState | null>(null);
+  const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(false);
 
   useEffect(() => {
     setLanguage(learningService.getCurrentLanguage());
+    trialAccessService.getAccessState(undefined, { fresh: true }).then(setAccess).catch(() => setAccess(null));
   }, []);
 
   function changeLanguage(code: LearningLanguageCode) {
@@ -49,25 +55,50 @@ function DialogueInner() {
   }
 
   function pickScene(nextScene: Scene) {
+    if (trialUsageService.isLimited(access)) {
+      const theme = sceneService.getTheme(nextScene.themeId);
+      const indexInTheme = sceneService.getScenesByTheme(nextScene.themeId).findIndex((item) => item.id === nextScene.id);
+      const sceneAllowed = trialUsageService.canUseScene(nextScene, theme, indexInTheme);
+      const dailyAllowed = trialUsageService.canUseDaily("dialoguePractice", TRIAL_DIALOGUE_DAILY_LIMIT);
+      if (!sceneAllowed || !dailyAllowed || !trialUsageService.useDaily("dialoguePractice", TRIAL_DIALOGUE_DAILY_LIMIT)) {
+        setShowSubscriptionPrompt(true);
+        return;
+      }
+    }
     setIsFreeMode(false);
     setScene({ ...nextScene, targetLanguage: nextScene.targetLanguage || language });
   }
 
   function startFreeMode() {
+    if (trialUsageService.isLimited(access)) {
+      setShowSubscriptionPrompt(true);
+      return;
+    }
     setIsFreeMode(true);
     setScene(buildFreeScene(language));
   }
 
   if (!scene) {
     return (
-      <ScenerPicker
-        onPick={pickScene}
-        preset={preset}
-        onFreeMode={startFreeMode}
-        router={router}
-        language={language}
-        onLanguageChange={changeLanguage}
-      />
+      <>
+        <ScenerPicker
+          onPick={pickScene}
+          preset={preset}
+          onFreeMode={startFreeMode}
+          router={router}
+          language={language}
+          onLanguageChange={changeLanguage}
+          access={access}
+          onLocked={() => setShowSubscriptionPrompt(true)}
+        />
+        {access && showSubscriptionPrompt && (
+          <SubscriptionLaunchPrompt
+            access={access}
+            onSubscribe={() => router.push("/subscription")}
+            onContinueTrial={access.reason === "trial" ? () => setShowSubscriptionPrompt(false) : undefined}
+          />
+        )}
+      </>
     );
   }
   if (isFreeMode) return <FreeChat targetLanguage={language} onExit={() => { setScene(null); setIsFreeMode(false); }} />;
@@ -81,6 +112,8 @@ function ScenerPicker({
   router,
   language,
   onLanguageChange,
+  access,
+  onLocked,
 }: {
   onPick: (s: Scene) => void;
   preset: string | null;
@@ -88,6 +121,8 @@ function ScenerPicker({
   router: ReturnType<typeof useRouter>;
   language: LearningLanguageCode;
   onLanguageChange: (code: LearningLanguageCode) => void;
+  access: AccessState | null;
+  onLocked: () => void;
 }) {
   const [showTutorModal, setShowTutorModal] = useState(false);
   const [currentTutor, setCurrentTutor] = useState<TutorProfile>(() => getSelectedTutor(language));
@@ -163,7 +198,13 @@ function ScenerPicker({
             <p className="font-bold">自由對話</p>
             <p className="text-xs opacity-90">可自由聊天，也可直接請 AI 建立練習主題</p>
           </button>
-          <button onClick={() => router.push("/custom-scene")} className="w-full card !p-4 text-left transition-colors bg-white">
+          <button
+            onClick={() => {
+              if (trialUsageService.isLimited(access)) onLocked();
+              else router.push("/custom-scene");
+            }}
+            className="w-full card !p-4 text-left transition-colors bg-white"
+          >
             <div className="flex items-center gap-2">
               <Wand2 size={18} className="text-lilacDeep" />
               <p className="font-bold text-ink">自訂場景練習</p>
@@ -177,22 +218,25 @@ function ScenerPicker({
             <div key={t.id} className="mb-4">
               <p className="font-bold text-ink mb-2">{t.emoji} {t.name}</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {scenes.map((s) => (
-                  <button
-                    key={s.id}
-                    onClick={() => onPick(s)}
-                    className="relative h-36 rounded-3xl p-4 text-left transition-colors overflow-hidden shadow-soft flex flex-col justify-between"
-                    style={sceneCardStyle(t.color, 0.16, t.id)}
-                  >
+                {scenes.map((s, indexInTheme) => {
+                  const locked = trialUsageService.isLimited(access) && !trialUsageService.canUseScene(s, t, indexInTheme);
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => onPick(s)}
+                      className={`relative h-36 rounded-3xl p-4 text-left transition-colors overflow-hidden shadow-soft flex flex-col justify-between ${locked ? "opacity-60" : ""}`}
+                      style={sceneCardStyle(t.color, 0.16, t.id)}
+                    >
                     <div className="relative z-10 min-w-0">
                       <p className="text-lg leading-tight font-extrabold text-ink break-words">{s.name}</p>
                       <p className="mt-1 text-xs font-semibold text-inkSoft truncate">{s.enName}</p>
                     </div>
                     <span className="relative z-10 self-start rounded-full bg-white/85 px-3 py-1.5 text-xs font-extrabold text-lilacDeep shadow-softer">
-                      {levelLabel(s.difficulty)}
+                      {locked ? "Premium" : levelLabel(s.difficulty)}
                     </span>
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           );

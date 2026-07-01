@@ -1,11 +1,15 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { CheckCircle2, Clock, BookText, MessageSquare } from "lucide-react";
 import { sceneService } from "@/services/sceneService";
+import { trialAccessService, type AccessState } from "@/services/trialAccessService";
+import { trialUsageService } from "@/services/trialUsageService";
 import { sceneCardStyle } from "@/data/sceneVisuals";
 import AppHeader from "@/components/AppHeader";
+import SubscriptionLaunchPrompt from "@/components/SubscriptionLaunchPrompt";
 import { LevelBadge } from "@/components/ui";
 
 export default function ThemeScenesPage() {
@@ -15,6 +19,21 @@ export default function ThemeScenesPage() {
   const theme = sceneService.getTheme(themeId);
   const scenes = sceneService.getScenesByTheme(themeId);
   const progress = sceneService.getProgress();
+  const [access, setAccess] = useState<AccessState | null>(null);
+  const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(false);
+
+  useEffect(() => {
+    trialAccessService.getAccessState(undefined, { fresh: true }).then(setAccess).catch(() => setAccess(null));
+  }, []);
+
+  function openScene(sceneId: string, indexInTheme: number) {
+    const scene = scenes[indexInTheme];
+    if (scene && trialUsageService.isLimited(access) && !trialUsageService.canUseScene(scene, theme, indexInTheme)) {
+      setShowSubscriptionPrompt(true);
+      return;
+    }
+    router.push(`/scenes/${themeId}/${sceneId}`);
+  }
 
   if (!theme) {
     return (
@@ -36,14 +55,15 @@ export default function ThemeScenesPage() {
       <div className="px-5 grid gap-3">
         {scenes.map((s, i) => {
           const done = progress[s.id]?.completed;
+          const locked = trialUsageService.isLimited(access) && !trialUsageService.canUseScene(s, theme, i);
           return (
             <motion.button
               key={s.id}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.03 }}
-              onClick={() => router.push(`/scenes/${themeId}/${s.id}`)}
-              className="card text-left transition-colors relative overflow-hidden"
+              onClick={() => openScene(s.id, i)}
+              className={`card text-left transition-colors relative overflow-hidden ${locked ? "opacity-60" : ""}`}
               style={sceneCardStyle(theme.color, 0.24, themeId)}
             >
               {done && (
@@ -63,11 +83,19 @@ export default function ThemeScenesPage() {
                 <span className="chip bg-cream text-inkSoft text-xs flex items-center gap-1"><BookText size={12} />{s.keyWords.length} 單字</span>
                 <span className="chip bg-cream text-inkSoft text-xs flex items-center gap-1"><MessageSquare size={12} />{s.dialogue.length} 對話</span>
                 {done && <span className="chip bg-mint text-mintDeep text-xs">分數 {progress[s.id]?.score}</span>}
+                {locked && <span className="chip bg-lilac text-lilacDeep text-xs">Premium</span>}
               </div>
             </motion.button>
           );
         })}
       </div>
+      {access && showSubscriptionPrompt && (
+        <SubscriptionLaunchPrompt
+          access={access}
+          onSubscribe={() => router.push("/subscription")}
+          onContinueTrial={access.reason === "trial" ? () => setShowSubscriptionPrompt(false) : undefined}
+        />
+      )}
     </motion.div>
   );
 }

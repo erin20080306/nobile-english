@@ -8,8 +8,11 @@ import type { CustomScene, EnglishLevel, LearningLanguageCode } from "@/types";
 import { sceneService } from "@/services/sceneService";
 import { learningService } from "@/services/learningService";
 import { speechService } from "@/services/speechService";
+import { trialAccessService, type AccessState } from "@/services/trialAccessService";
+import { trialUsageService } from "@/services/trialUsageService";
 import { getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
+import SubscriptionLaunchPrompt from "@/components/SubscriptionLaunchPrompt";
 import { LevelBadge, Toggle, levelLabel } from "@/components/ui";
 
 const levels: EnglishLevel[] = ["Beginner", "Elementary", "Intermediate", "Upper-Intermediate", "Advanced"];
@@ -35,10 +38,14 @@ export default function CustomScenePage() {
   });
   const [created, setCreated] = useState<CustomScene | null>(null);
   const [targetLanguage, setTargetLanguage] = useState<LearningLanguageCode>("en");
+  const [access, setAccess] = useState<AccessState | null>(null);
+  const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(false);
+  const [studiedPhrases, setStudiedPhrases] = useState<string[]>([]);
   const languageInfo = getLearningLanguage(targetLanguage);
 
   useEffect(() => {
     setTargetLanguage(learningService.getCurrentLanguage());
+    trialAccessService.getAccessState(undefined, { fresh: true }).then(setAccess).catch(() => setAccess(null));
   }, []);
 
   function set<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
@@ -46,17 +53,42 @@ export default function CustomScenePage() {
   }
 
   function generate() {
+    if (trialUsageService.isLimited(access)) {
+      setShowSubscriptionPrompt(true);
+      return;
+    }
     if (!form.situation.trim()) {
       alert("請至少描述想練習的情境");
       return;
     }
     const c = sceneService.createCustomScene({ ...form, targetLanguage });
     setCreated(c);
+    setStudiedPhrases([]);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   if (created) {
     const s = created.scene;
+    const studyPhrases = s.keyPatterns.slice(0, 3);
+    const requiredPhraseCount = Math.min(3, studyPhrases.length);
+    const canStart = requiredPhraseCount === 0 || studiedPhrases.length >= requiredPhraseCount;
+    const voiceOptions = voiceForLanguage(created.targetLanguage || targetLanguage, learningService.getSpeechRate(created.targetLanguage || targetLanguage));
+    const speak = (text: string) => {
+      speechService.speak(text, {
+        ...voiceOptions,
+        onError: (message) => alert(message),
+      });
+    };
+    const markStudied = (text: string) => {
+      setStudiedPhrases((items) => (items.includes(text) ? items : [...items, text]));
+    };
+    const startScene = () => {
+      if (!canStart) {
+        alert("請先聽完並跟讀前面的短句，再開始場景對話。");
+        return;
+      }
+      router.push(`/scenes/custom/${s.id}`);
+    };
     return (
       <div className="min-h-[100dvh] pb-10">
         <AppHeader title="自訂場景練習" subtitle="已為你產生階段式情境" back={true} />
@@ -93,17 +125,41 @@ export default function CustomScenePage() {
             <div className="flex flex-wrap gap-2">{s.keyWords.map((w) => <span key={w} className="chip bg-lilac text-lilacDeep">{w}</span>)}</div>
           </Section>
 
+          <Section title="先跟讀幾個短句">
+            <div className="space-y-2">
+              {studyPhrases.map((p, i) => {
+                const studied = studiedPhrases.includes(p.en);
+                return (
+                  <div key={p.en} className="rounded-3xl bg-cream p-3">
+                    <div className="flex items-start gap-2">
+                      <button onClick={() => speak(p.en)} className="mt-0.5 text-lilacDeep">
+                        <Volume2 size={16} />
+                      </button>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-extrabold text-peachDeep">PRACTICE {i + 1}</p>
+                        <p className="font-semibold text-ink">{p.en}</p>
+                        {created.showChinese && <p className="text-sm text-inkSoft">{p.zh}</p>}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => markStudied(p.en)}
+                      className={`mt-2 rounded-2xl px-3 py-2 text-xs font-extrabold ${
+                        studied ? "bg-mint text-mintDeep" : "bg-white text-lilacDeep"
+                      }`}
+                    >
+                      {studied ? "已跟讀" : "我已跟讀一次"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </Section>
+
           <Section title="重要句型（5）">
             <div className="space-y-2">
               {s.keyPatterns.map((p, i) => (
                 <div key={i} className="rounded-3xl bg-cream p-3 flex items-start gap-2">
-                    <button
-                      onClick={() => speechService.speak(p.en, {
-                        ...voiceForLanguage(created.targetLanguage || targetLanguage, learningService.getSpeechRate(created.targetLanguage || targetLanguage)),
-                        onError: (message) => alert(message),
-                      })}
-                      className="text-lilacDeep mt-0.5"
-                    >
+                    <button onClick={() => speak(p.en)} className="text-lilacDeep mt-0.5">
                       <Volume2 size={16} />
                     </button>
                   <div><p className="text-ink font-semibold">{p.en}</p>{created.showChinese && <p className="text-sm text-inkSoft">{p.zh}</p>}</div>
@@ -123,11 +179,18 @@ export default function CustomScenePage() {
             </div>
           </Section>
 
-          <button className="btn-primary w-full flex items-center justify-center gap-2" onClick={() => router.push(`/dialogue?scene=${s.id}`)}>
+          <button className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50" disabled={!canStart} onClick={startScene}>
             <Play size={18} /> 開始角色扮演
           </button>
           <button className="btn-secondary w-full" onClick={() => setCreated(null)}>再建立一個</button>
         </div>
+        {access && showSubscriptionPrompt && (
+          <SubscriptionLaunchPrompt
+            access={access}
+            onSubscribe={() => router.push("/subscription")}
+            onContinueTrial={access.reason === "trial" ? () => setShowSubscriptionPrompt(false) : undefined}
+          />
+        )}
       </div>
     );
   }
@@ -175,6 +238,13 @@ export default function CustomScenePage() {
           <Wand2 size={18} /> 產生練習卡
         </button>
       </div>
+      {access && showSubscriptionPrompt && (
+        <SubscriptionLaunchPrompt
+          access={access}
+          onSubscribe={() => router.push("/subscription")}
+          onContinueTrial={access.reason === "trial" ? () => setShowSubscriptionPrompt(false) : undefined}
+        />
+      )}
     </div>
   );
 }

@@ -8,8 +8,11 @@ import type { LearningLanguageCode } from "@/types";
 import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
 import { audioQueueService } from "@/services/audioQueueService";
 import { learningService } from "@/services/learningService";
+import { trialAccessService, type AccessState } from "@/services/trialAccessService";
+import { trialUsageService, TRIAL_READING_ARTICLE_LIMIT } from "@/services/trialUsageService";
 import { useUser } from "@/hooks/useUser";
 import WordSheet from "@/components/WordSheet";
+import SubscriptionLaunchPrompt from "@/components/SubscriptionLaunchPrompt";
 
 interface ReadingQuestion {
   id: string;
@@ -64,6 +67,8 @@ export default function DailyReadingPage() {
   const [selectedWord, setSelectedWord] = useState<{ word: string; sentence?: string } | null>(null);
   const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [access, setAccess] = useState<AccessState | null>(null);
+  const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(false);
 
   const blobUrlsRef = useRef<string[]>([]);
 
@@ -103,8 +108,22 @@ export default function DailyReadingPage() {
     setPlaying(false);
     audioQueueService.clearQueue();
     try {
+      const nextAccess = await trialAccessService.getAccessState(user, { fresh: true }).catch(() => null);
+      setAccess(nextAccess);
+      if (
+        trialUsageService.isLimited(nextAccess) &&
+        !trialUsageService.canUseLifetime("readingArticle", TRIAL_READING_ARTICLE_LIMIT)
+      ) {
+        setArticle(null);
+        setShowSubscriptionPrompt(true);
+        return;
+      }
       const res = await fetch(`/api/articles/today?language=${selectedLanguage}`);
-      setArticle(res.ok ? await res.json() : null);
+      const nextArticle = res.ok ? await res.json() : null;
+      setArticle(nextArticle);
+      if (nextArticle && trialUsageService.isLimited(nextAccess)) {
+        trialUsageService.useLifetime("readingArticle", TRIAL_READING_ARTICLE_LIMIT);
+      }
     } catch {
       setArticle(null);
     } finally {
@@ -118,6 +137,30 @@ export default function DailyReadingPage() {
 
   async function getSentenceAudioUrl(sentence: ReadingSentence): Promise<string | null> {
     if (isPlayableAudioUrl(sentence.audio_url)) return sentence.audio_url!;
+    const access = await trialAccessService.getAccessState(user).catch(() => null);
+    const cacheOnly = Boolean(access && !access.isSubscribed);
+
+    try {
+      const cached = await fetch("/api/tts/get-or-create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: sentence.sentence_text,
+          languageCode: selectedLanguage,
+          assetType: "reading_sentence",
+          voiceGender: "female",
+          audioFormat: "mp3",
+          cacheOnly,
+        }),
+      });
+      if (cached.ok) {
+        const data = await cached.json();
+        if (isPlayableAudioUrl(data.signedUrl)) return data.signedUrl;
+      }
+    } catch {}
+
+    if (cacheOnly) return null;
+
     try {
       const res = await fetch("/api/tts", {
         method: "POST",
@@ -300,6 +343,13 @@ export default function DailyReadingPage() {
             返回
           </button>
         </div>
+        {access && showSubscriptionPrompt && (
+          <SubscriptionLaunchPrompt
+            access={access}
+            onSubscribe={() => router.push("/subscription")}
+            onContinueTrial={access.reason === "trial" ? () => setShowSubscriptionPrompt(false) : undefined}
+          />
+        )}
       </div>
     );
   }

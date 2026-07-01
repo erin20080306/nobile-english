@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
-import { getOrCreateTtsAsset } from "@/server/tts/service";
+import { getCachedTtsAsset, getOrCreateTtsAsset } from "@/server/tts/service";
 import type { GetOrCreateInput, TtsAssetType } from "@/server/tts/types";
 
 export const runtime = "nodejs";
+
+type TtsRequestBody = Partial<GetOrCreateInput> & {
+  cacheOnly?: boolean;
+};
 
 const ASSET_TYPES = new Set<TtsAssetType>([
   "practice_sentence",
@@ -18,9 +22,9 @@ const ASSET_TYPES = new Set<TtsAssetType>([
 ]);
 
 export async function POST(req: Request) {
-  let body: Partial<GetOrCreateInput>;
+  let body: TtsRequestBody;
   try {
-    body = (await req.json()) as Partial<GetOrCreateInput>;
+    body = (await req.json()) as TtsRequestBody;
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
@@ -33,6 +37,38 @@ export async function POST(req: Request) {
   }
 
   try {
+    if (body.cacheOnly) {
+      const cached = await getCachedTtsAsset({
+        text,
+        textPart2: body.textPart2,
+        languageCode: body.languageCode,
+        assetType: body.assetType,
+        voiceGender: body.voiceGender,
+        voiceProfileId: body.voiceProfileId,
+        audioFormat: body.audioFormat,
+        audioVersionString: body.audioVersionString,
+        sceneId: body.sceneId,
+        sceneVersion: body.sceneVersion,
+      });
+
+      if (!cached) {
+        return NextResponse.json(
+          { error: "TTS cache miss", cached: false, cacheOnly: true },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json({
+        id: cached.asset.id,
+        status: cached.asset.status,
+        cached: true,
+        cacheOnly: true,
+        signedUrl: cached.signedUrl,
+        durationMs: cached.asset.durationMs,
+        audioFormat: cached.asset.audioFormat,
+      });
+    }
+
     const result = await getOrCreateTtsAsset({
       text,
       textPart2: body.textPart2,
@@ -53,8 +89,14 @@ export async function POST(req: Request) {
       durationMs: result.asset.durationMs,
       audioFormat: result.asset.audioFormat,
     });
-  } catch {
+  } catch (error) {
     // Never leak provider/key details to the client.
-    return NextResponse.json({ error: "TTS unavailable" }, { status: 503 });
+    return NextResponse.json(
+      {
+        error: "TTS unavailable",
+        message: error instanceof Error ? error.message : String(error),
+      },
+      { status: 503 }
+    );
   }
 }

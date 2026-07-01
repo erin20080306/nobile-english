@@ -3,15 +3,24 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut, User as UserIcon, Globe, Volume2, ShieldCheck, MessageSquareWarning, GraduationCap, Crown, Trash2, FileText, Mail, ArrowRight, Settings2 } from "lucide-react";
-import type { User, UserSettings, OnboardingProfile } from "@/types";
+import type { User, UserSettings, OnboardingProfile, EnglishLevel, CEFRLevel } from "@/types";
 import { useUser } from "@/hooks/useUser";
 import { learningService } from "@/services/learningService";
 import { authService } from "@/services/authService";
+import { trialAccessService, type AccessState } from "@/services/trialAccessService";
 import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import TutorSelector from "@/components/TutorSelector";
 import { Toggle, LevelBadge } from "@/components/ui";
+
+const LEVEL_OPTIONS: Array<{ level: EnglishLevel; cefr: CEFRLevel; label: string; description: string }> = [
+  { level: "Beginner", cefr: "A1", label: "A1 Beginner", description: "基礎單字、短句與生活問答" },
+  { level: "Elementary", cefr: "A2", label: "A2 Elementary", description: "常用句型、簡短對話與日常情境" },
+  { level: "Intermediate", cefr: "B1", label: "B1 Intermediate", description: "較完整回答、旅行與工作話題" },
+  { level: "Upper-Intermediate", cefr: "B2", label: "B2 Upper", description: "自然表達、觀點說明與較長文章" },
+  { level: "Advanced", cefr: "C1", label: "C1 Advanced", description: "進階閱讀、精準用字與深度討論" },
+];
 
 export default function SettingsPage() {
   const { user, ready } = useUser({ requireOnboarded: true });
@@ -19,12 +28,25 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [profile, setProfile] = useState<Partial<OnboardingProfile>>({});
   const [accountUser, setAccountUser] = useState<User | null>(null);
+  const [accessState, setAccessState] = useState<AccessState | null>(null);
 
   useEffect(() => {
     if (!user) return;
+    let active = true;
     setSettings(learningService.getSettings(user.id));
     setProfile(learningService.getProfile());
     setAccountUser(user);
+    trialAccessService
+      .getAccessState(user, { fresh: true })
+      .then((state) => {
+        if (active) setAccessState(state);
+      })
+      .catch(() => {
+        if (active) setAccessState(null);
+      });
+    return () => {
+      active = false;
+    };
   }, [user]);
 
   if (!ready || !user || !settings) return <div className="p-10 text-center text-inkSoft">載入中…</div>;
@@ -34,6 +56,7 @@ export default function SettingsPage() {
   const deviceInfo = authService.getDeviceInfo(shownUser);
   const currentLanguage = getLearningLanguage(settings.targetLanguage);
   const currentSpeechRate = settings.speechRateByLanguage?.[settings.targetLanguage] ?? 1;
+  const canChangeLevel = Boolean(accessState?.isSubscribed);
 
   function update(patch: Partial<UserSettings>) {
     const next = { ...settings!, ...patch };
@@ -74,6 +97,18 @@ export default function SettingsPage() {
     learningService.saveSettings(next);
   }
 
+  function updateLearningLevel(level: EnglishLevel) {
+    if (!canChangeLevel) return;
+    const selected = LEVEL_OPTIONS.find((option) => option.level === level);
+    if (!selected) return;
+    authService.updateLevel(selected.level, selected.cefr);
+    setAccountUser((current) => ({
+      ...(current || shownUser),
+      level: selected.level,
+      cefrLevel: selected.cefr,
+    }));
+  }
+
   function logout() {
     authService.logout();
     router.replace("/login");
@@ -109,6 +144,33 @@ export default function SettingsPage() {
           <Row label="每日目標" value={`${profile.dailyGoalMinutes || 15} 分鐘`} />
           <Row label="興趣" value={(profile.interests || []).join("、") || "—"} />
         </div>
+
+        {canChangeLevel && (
+          <div className="card">
+            <p className="font-bold text-ink flex items-center gap-2">
+              <GraduationCap size={18} className="text-lilacDeep" /> 學習級別
+            </p>
+            <p className="mt-1 text-xs text-inkSoft">訂閱者可依目前學習狀態手動調整級別，單字複習會依新級別出題。</p>
+            <div className="mt-3 grid grid-cols-1 gap-2">
+              {LEVEL_OPTIONS.map((option) => {
+                const active = shownUser.level === option.level;
+                return (
+                  <button
+                    key={option.level}
+                    type="button"
+                    onClick={() => updateLearningLevel(option.level)}
+                    className={`rounded-2xl px-3 py-3 text-left transition active:scale-[0.98] ${
+                      active ? "bg-lilacDeep text-white shadow-soft" : "bg-cream text-ink"
+                    }`}
+                  >
+                    <span className="block text-sm font-extrabold">{option.label}</span>
+                    <span className={`block text-xs ${active ? "text-white/75" : "text-inkSoft"}`}>{option.description}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="card">
           <p className="font-bold text-ink flex items-center gap-2"><Globe size={18} className="text-mintDeep" /> 切換學習語言</p>

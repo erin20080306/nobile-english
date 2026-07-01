@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 interface Body {
   sceneId?: string;
   dryRun?: boolean;
-  voiceGender?: VoiceGender;
+  voiceGender?: VoiceGender | "all";
 }
 
 export async function POST(req: Request) {
@@ -25,6 +25,11 @@ export async function POST(req: Request) {
 
   // Default to dry-run; pass dryRun:false explicitly to actually generate.
   const dryRun = body.dryRun !== false;
-  const report = await prewarmScenes([scene], { dryRun, voiceGender: body.voiceGender });
+  const report = await prewarmScenes([scene], {
+    dryRun,
+    voiceGender: body.voiceGender === "all" ? "female" : body.voiceGender,
+    voiceGenders: body.voiceGender === "all" ? ["female", "male"] : undefined,
+    allTutorProfiles: body.voiceGender === "all",
+  });
   return NextResponse.json(report);
 }
