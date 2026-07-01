@@ -42,7 +42,6 @@ export default function CustomScenePage() {
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(false);
   const [studiedPhrases, setStudiedPhrases] = useState<string[]>([]);
   const [generating, setGenerating] = useState(false);
-  const [micLang, setMicLang] = useState<"zh-TW" | "en-US">("zh-TW");
   const [listening, setListening] = useState(false);
   const stopListenRef = useRef<(() => void) | null>(null);
   const languageInfo = getLearningLanguage(targetLanguage);
@@ -64,7 +63,7 @@ export default function CustomScenePage() {
       return;
     }
     const stop = speechService.listen({
-      lang: micLang,
+      lang: "zh-TW",
       onResult: (text) => set("situation", text),
       onError: (message) => {
         alert(message);
@@ -246,34 +245,18 @@ export default function CustomScenePage() {
         <div>
           <div className="flex items-center justify-between">
             <span className="text-sm font-bold text-inkSoft">想練習的情境</span>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setMicLang("zh-TW")}
-                className={`chip text-xs ${micLang === "zh-TW" ? "bg-lilacDeep text-white" : "bg-white text-inkSoft shadow-softer"}`}
-              >
-                中文
-              </button>
-              <button
-                type="button"
-                onClick={() => setMicLang("en-US")}
-                className={`chip text-xs ${micLang === "en-US" ? "bg-lilacDeep text-white" : "bg-white text-inkSoft shadow-softer"}`}
-              >
-                EN
-              </button>
-              <button
-                type="button"
-                onClick={toggleMic}
-                className={`h-8 w-8 rounded-2xl flex items-center justify-center shadow-softer ${listening ? "bg-peachDeep text-white animate-pulse" : "bg-white text-lilacDeep"}`}
-              >
-                {listening ? <Square size={14} /> : <Mic size={14} />}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={toggleMic}
+              className={`h-8 w-8 rounded-2xl flex items-center justify-center shadow-softer ${listening ? "bg-peachDeep text-white animate-pulse" : "bg-white text-lilacDeep"}`}
+            >
+              {listening ? <Square size={14} /> : <Mic size={14} />}
+            </button>
           </div>
           <input
             className="mt-1 w-full bg-white rounded-3xl px-4 py-3 shadow-softer outline-none text-ink"
             value={form.situation}
-            placeholder="例如：到外商公司面試行政助理，或點一下麥克風直接說"
+            placeholder="例如：到外商公司面試行政助理，或點一下麥克風直接說（自動辨識中英文）"
             onChange={(e) => set("situation", e.target.value)}
           />
           {listening && <p className="mt-1 text-xs font-bold text-peachDeep">聆聽中... 說完後再按一次麥克風停止</p>}

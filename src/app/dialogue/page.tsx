@@ -370,7 +370,6 @@ function FreeChat({ targetLanguage, onExit }: { targetLanguage: LearningLanguage
   const pron = settings ? settings.pronunciationOn : true;
   const [createdScene, setCreatedScene] = useState<CustomScene | null>(null);
   const [creatingScene, setCreatingScene] = useState(false);
-  const [topicMicLang, setTopicMicLang] = useState<"zh-TW" | "en-US">("zh-TW");
   const [topicListening, setTopicListening] = useState(false);
   const topicStopListenRef = useRef<(() => void) | null>(null);
 
@@ -418,7 +417,7 @@ function FreeChat({ targetLanguage, onExit }: { targetLanguage: LearningLanguage
       return;
     }
     const stop = speechService.listen({
-      lang: topicMicLang,
+      lang: "zh-TW",
       onResult: (text) => {
         const topic = text.trim();
         if (!topic) return;
@@ -569,21 +568,7 @@ function FreeChat({ targetLanguage, onExit }: { targetLanguage: LearningLanguage
       />
       <div className="shrink-0 px-4 pt-2 pb-1 bg-cream/95">
         <div className="rounded-3xl bg-white shadow-softer px-3 py-2 flex items-center gap-2">
-          <span className="text-xs font-bold text-inkSoft flex-1">用說的直接建立自訂場景</span>
-          <button
-            type="button"
-            onClick={() => setTopicMicLang("zh-TW")}
-            className={`chip text-xs ${topicMicLang === "zh-TW" ? "bg-lilacDeep text-white" : "bg-cream text-inkSoft"}`}
-          >
-            中文
-          </button>
-          <button
-            type="button"
-            onClick={() => setTopicMicLang("en-US")}
-            className={`chip text-xs ${topicMicLang === "en-US" ? "bg-lilacDeep text-white" : "bg-cream text-inkSoft"}`}
-          >
-            EN
-          </button>
+          <span className="text-xs font-bold text-inkSoft flex-1">用說的直接建立自訂場景（自動辨識中英文）</span>
           <button
             type="button"
             onClick={toggleTopicMic}
