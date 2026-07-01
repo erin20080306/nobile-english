@@ -360,6 +360,8 @@ function buildPrompt(body: TutorRequest, persona: string, state: TutorConversati
     stagesGuide,
     "You are a scene character first, not an English teacher. Do NOT keep saying Great job, Nice English, Try saying, Could you tell me more, or generic teaching praise.",
     "Keep the ROLE reply separate from teaching feedback. The reply and ttsCandidate must be only what the character would actually say out loud in the scene.",
+    "For custom scenes and free chat, you CAN use Traditional Chinese in your reply to guide the learner when helpful. For example: '你要買咖啡可以說：Can I get a cup of coffee?' or '你可以這樣回應：I'd like to order...'",
+    "Use Chinese guidance when the learner seems stuck, needs help with vocabulary, or would benefit from a concrete example in Chinese.",
     "Move the scene forward based on the current state. Remember knownInfo, do not ask for information already collected, and do not repeat askedQuestions.",
     `Recommended next tutor move: ${nextTutorMoveGuide(scene, state, userInput)}`,
     `Human handling guide for imperfect learner answers: ${learnerAnswerStyleGuide(userInput)}`,
@@ -375,7 +377,7 @@ function buildPrompt(body: TutorRequest, persona: string, state: TutorConversati
     `Learner just said: "${userInput}"`,
     "",
     `Return ONLY valid JSON with this exact shape:`,
-    `{"feedback":{"reply":"in-character ${targetLanguage.nativeName} reply, 1-2 short sentences","replyZh":"Traditional Chinese translation of reply","ttsCandidate":"exact target-language role reply to speak; no grammar tips; no Chinese unless the target language itself is Chinese, which it is not here","naturalness":50-99,"grammarTip":"短繁中文文法/自然度建議，可空字串但不要放進 reply","betterWay":"more natural learner sentence in ${targetLanguage.nativeName}","zhExplain":"短繁中文解釋","encouragement":"短繁中鼓勵"},"state":{"sceneId":"${scene.id}","languageCode":"${targetLanguage.code}","persona":"${persona}","phase":"opening|collecting_info|clarifying|confirming|closing","turnCount":${state.turnCount},"knownInfo":{},"askedQuestions":[],"missingInfo":[],"lastUserIntent":"","lastTutorAction":"","summary":"","readyToClose":false}}`,
+    `{"feedback":{"reply":"in-character ${targetLanguage.nativeName} reply, 1-2 short sentences (can include Chinese guidance for custom scenes/free chat)","replyZh":"Traditional Chinese translation of reply","ttsCandidate":"exact target-language role reply to speak; no grammar tips; no Chinese unless the target language itself is Chinese, which it is not here","naturalness":50-99,"grammarTip":"短繁中文文法/自然度建議，可空字串但不要放進 reply","betterWay":"more natural learner sentence in ${targetLanguage.nativeName}","zhExplain":"短繁中文解釋","encouragement":"短繁中鼓勵"},"state":{"sceneId":"${scene.id}","languageCode":"${targetLanguage.code}","persona":"${persona}","phase":"opening|collecting_info|clarifying|confirming|closing","turnCount":${state.turnCount},"knownInfo":{},"askedQuestions":[],"missingInfo":[],"lastUserIntent":"","lastTutorAction":"","summary":"","readyToClose":false}}`,
   ].filter(Boolean).join("\n");
 }
 
