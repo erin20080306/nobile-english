@@ -236,41 +236,68 @@ async function prewarmArticleAudio(
   for (const sentence of sentences) {
     const { data: existingAudio } = await supabase
       .from("reading_article_audio_assets")
-      .select("id, status")
+      .select("id, status, audio_path")
       .eq("article_id", article.id)
       .eq("sentence_id", sentence.id)
       .eq("language_code", article.language_code)
       .maybeSingle();
 
-    if (existingAudio?.status === "ready") {
+    // Only treat as cached when the stored path is a stable storage key.
+    // Legacy rows that stored a signed https URL (expires in 30 min) must
+    // be re-prewarmed so they get a stable path.
+    const hasStablePath =
+      existingAudio?.status === "ready" &&
+      existingAudio.audio_path &&
+      !/^(https?:|stub:|blob:|data:)/.test(existingAudio.audio_path);
+    if (hasStablePath) {
       audioCached += 1;
       continue;
     }
 
     try {
-      const tts = await getOrCreateTtsAsset({
+      let tts = await getOrCreateTtsAsset({
         text: sentence.sentence_text,
         languageCode: article.language_code,
         assetType: "reading_sentence",
       });
-      const signedUrl = tts.signedUrl && !tts.signedUrl.startsWith("stub://") ? tts.signedUrl : null;
+
+      // For fresh synthesis the service returns audioBase64 immediately and
+      // persists to storage in the background (void persist()). A second call
+      // to getOrCreateTtsAsset within the same process will await the in-flight
+      // readyPromise (via the globalThis.__ttsInflight Map) and return the
+      // fully-persisted asset with a stable, non-expiring audioPath.
+      if (!tts.cached && !tts.signedUrl) {
+        tts = await getOrCreateTtsAsset({
+          text: sentence.sentence_text,
+          languageCode: article.language_code,
+          assetType: "reading_sentence",
+        });
+      }
+
+      // Store the stable storage path (e.g. "google-tts/wavenet/vp-ja-yui/abc.mp3")
+      // instead of a signed URL that would expire in 30 minutes. today/route.ts
+      // will generate fresh signed URLs at serve time.
+      const stableAudioPath =
+        tts.asset.audioPath && !tts.asset.audioPath.startsWith("stub://")
+          ? tts.asset.audioPath
+          : null;
 
       const audioData = {
         article_id: article.id,
         sentence_id: sentence.id,
         language_code: article.language_code,
-        tts_asset_id: null,
-        audio_path: signedUrl,
+        tts_asset_id: tts.asset.id || null,
+        audio_path: stableAudioPath,
         duration_ms: tts.asset.durationMs || sentence.estimated_duration_ms,
         audio_version: 1,
-        status: signedUrl ? "ready" : "failed",
+        status: stableAudioPath ? "ready" : "failed",
       };
 
       const { error } = await supabase
         .from("reading_article_audio_assets")
         .upsert(audioData, { onConflict: "article_id,sentence_id,language_code" });
 
-      if (error || !signedUrl) audioFailed += 1;
+      if (error || !stableAudioPath) audioFailed += 1;
       else audioCreated += 1;
     } catch {
       audioFailed += 1;

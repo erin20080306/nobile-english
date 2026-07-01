@@ -363,7 +363,7 @@ function buildPrompt(body: TutorRequest, persona: string, state: TutorConversati
     transcript ? `Recent transcript:\n${transcript}` : "",
     `Learner just said: "${userInput}"`,
     "",
-    "Return ONLY valid JSON with this exact shape:",
+    `Return ONLY valid JSON with this exact shape:`,
     `{"feedback":{"reply":"in-character ${targetLanguage.nativeName} reply, 1-2 short sentences","replyZh":"Traditional Chinese translation of reply","ttsCandidate":"exact target-language role reply to speak; no grammar tips; no Chinese unless the target language itself is Chinese, which it is not here","naturalness":50-99,"grammarTip":"短繁中文文法/自然度建議，可空字串但不要放進 reply","betterWay":"more natural learner sentence in ${targetLanguage.nativeName}","zhExplain":"短繁中文解釋","encouragement":"短繁中鼓勵"},"state":{"sceneId":"${scene.id}","languageCode":"${targetLanguage.code}","persona":"${persona}","phase":"opening|collecting_info|clarifying|confirming|closing","turnCount":${state.turnCount},"knownInfo":{},"askedQuestions":[],"missingInfo":[],"lastUserIntent":"","lastTutorAction":"","summary":"","readyToClose":false}}`,
   ].filter(Boolean).join("\n");
 }

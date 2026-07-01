@@ -445,11 +445,6 @@ export default function DailyReadingPage() {
     } catch {}
   }
 
-  function handleWordClick(_e: React.MouseEvent, sentence: string) {
-    const text = window.getSelection()?.toString().trim();
-    if (text) setSelectedWord({ word: text, sentence });
-  }
-
   function getQuizScore() {
     if (!article?.questions?.length) return 0;
     const correct = article.questions.filter(
@@ -597,7 +592,7 @@ export default function DailyReadingPage() {
                 {sentence.sentence_order}
               </span>
               <div className="flex-1">
-                <div className="text-base text-ink leading-relaxed" onMouseUp={(e) => handleWordClick(e, sentence.sentence_text)}>
+                <div className="text-base text-ink leading-relaxed">
                   <ClickableText
                     text={sentence.sentence_text}
                     language={selectedLanguage}
