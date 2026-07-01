@@ -6,7 +6,7 @@
  *   npx tsx scripts/prewarm-scene-audio.ts --all --dry-run
  *   npx tsx scripts/prewarm-scene-audio.ts --all --confirm
  *   npx tsx scripts/prewarm-scene-audio.ts --missing --confirm
- *   optional: --gender=female|male
+ *   optional: --gender=female|male|all
  *
  * Without --confirm this performs a DRY-RUN: it reports missing audio count,
  * estimated characters and estimated Google TTS cost, and generates nothing.
@@ -22,7 +22,7 @@ interface Args {
   all: boolean;
   missing: boolean;
   confirm: boolean;
-  gender: VoiceGender;
+  gender: VoiceGender | "all";
 }
 
 function parseArgs(argv: string[]): Args {
@@ -35,7 +35,7 @@ function parseArgs(argv: string[]): Args {
     else if (raw.startsWith("--scene=")) args.sceneId = raw.slice("--scene=".length);
     else if (raw.startsWith("--gender=")) {
       const g = raw.slice("--gender=".length);
-      if (g === "female" || g === "male" || g === "neutral") args.gender = g;
+      if (g === "female" || g === "male" || g === "neutral" || g === "all") args.gender = g;
     }
   }
   return args;
@@ -59,7 +59,12 @@ async function main() {
   const dryRun = !args.confirm;
   console.log(`\nPrewarm ${selected.length} scene(s) | mode: ${dryRun ? "DRY-RUN" : "CONFIRM"} | voice: ${args.gender}\n`);
 
-  const report = await prewarmScenes(selected, { dryRun, voiceGender: args.gender });
+  const report = await prewarmScenes(selected, {
+    dryRun,
+    voiceGender: args.gender === "all" ? "female" : args.gender,
+    voiceGenders: args.gender === "all" ? ["female", "male"] : undefined,
+    allTutorProfiles: args.gender === "all",
+  });
 
   console.log("  total texts      :", report.totalTexts);
   console.log("  already cached   :", report.alreadyCached);

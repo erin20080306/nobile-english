@@ -9,9 +9,23 @@
 
 import { audioQueueService } from "./audioQueueService";
 import { speechService } from "./speechService";
+import { trialAccessService } from "./trialAccessService";
 import { voiceForLanguage } from "@/data/learningLanguages";
 import { getTutorById } from "@/data/tutors";
+import { getTutorVoiceProfileId } from "@/data/tutorVoiceProfiles";
 import type { LearningLanguageCode, TutorFeedback } from "@/types";
+
+type TutorAudioAssetType =
+  | "practice_sentence"
+  | "tutor_reply"
+  | "tutor_pass"
+  | "tutor_minor_correction"
+  | "tutor_retry"
+  | "tutor_hint"
+  | "tutor_complete"
+  | "word_pronunciation"
+  | "dynamic_tutor_reply"
+  | "reading_sentence";
 
 interface TutorVoiceOptions {
   languageCode: string;
@@ -22,27 +36,11 @@ interface TutorVoiceOptions {
   audioVersionString?: string;
   sceneId?: string;
   sceneVersion?: string;
+  assetType?: TutorAudioAssetType;
+  cacheOnly?: boolean;
   onSpeakStart?: () => void;
   onSpeakEnd?: () => void;
 }
-
-/** Server-side Chirp profile ids corresponding to each visual tutor. */
-const TUTOR_TO_CHIRP_PROFILE: Record<string, string> = {
-  jake: "vp-en-charon",
-  william: "vp-en-charon",
-  emma: "vp-en-aoede",
-  amy: "vp-en-aoede",
-  sophie: "vp-en-aoede",
-  lily: "vp-en-aoede",
-  haruto: "vp-ja-charon",
-  yui: "vp-ja-aoede",
-  minjun: "vp-ko-charon",
-  seoyeon: "vp-ko-aoede",
-  marco: "vp-it-charon",
-  giulia: "vp-it-aoede",
-  carlos: "vp-es-charon",
-  sofia: "vp-es-aoede",
-};
 
 function toLearningLanguage(languageCode: string): LearningLanguageCode {
   return (["en", "ja", "ko", "it", "es"] as string[]).includes(languageCode)
@@ -64,7 +62,7 @@ class TutorVoiceService {
     const isSelectedTutor = Boolean(tutorId && resolved.id === tutorId);
     return {
       tutor: isSelectedTutor ? resolved : null,
-      chirpVoiceProfileId: isSelectedTutor ? TUTOR_TO_CHIRP_PROFILE[tutorId] : undefined,
+      chirpVoiceProfileId: isSelectedTutor ? getTutorVoiceProfileId(tutorId) : undefined,
     };
   }
 
@@ -109,16 +107,29 @@ class TutorVoiceService {
     audioQueueService.clearQueue();
     this.stop();
 
+    const access = await trialAccessService.getAccessState().catch(() => null);
+    const assetType = options.assetType || "dynamic_tutor_reply";
+    if (assetType === "dynamic_tutor_reply" && access?.tutorVoiceMode === "blocked") {
+      this.log("[AI_TTS] playback skipped", {
+        reason: "trial_expired_dynamic_voice_blocked",
+        tutorId: options.voiceProfileId,
+      });
+      options.onSpeakEnd?.();
+      return;
+    }
+    const cacheOnly = options.cacheOnly ?? Boolean(access && !access.isSubscribed);
+    const canUsePaidFallback = Boolean(access?.isSubscribed) && !cacheOnly;
+
     const { chirpVoiceProfileId } = this.resolveTutor(options);
     let audioUrl = await this.getTtsAudioUrl(ttsText, {
       ...options,
       voiceProfileId: chirpVoiceProfileId || options.voiceProfileId,
-    });
+    }, assetType, cacheOnly);
     let revokeBlobUrl = false;
 
     // A stub:// result is intentionally treated as unavailable. We still request
     // a real audio blob from the existing legacy endpoint and put it in AudioQueue.
-    if (!audioUrl) {
+    if (!audioUrl && canUsePaidFallback) {
       audioUrl = await this.getQueuedFallbackAudioUrl(ttsText, options);
       revokeBlobUrl = Boolean(audioUrl);
       this.log("[AI_TTS] fallback result", {
@@ -129,6 +140,11 @@ class TutorVoiceService {
     }
 
     if (!audioUrl) {
+      this.log("[AI_TTS] fallback provider used", {
+        provider: "system_speech",
+        reason: cacheOnly ? "cache_only_miss" : "cloud_audio_unavailable",
+        tutorId: options.voiceProfileId,
+      });
       this.speakSystemFallback(ttsText, options);
       return;
     }
@@ -143,7 +159,12 @@ class TutorVoiceService {
     });
   }
 
-  private async getTtsAudioUrl(text: string, options: TutorVoiceOptions): Promise<string | null> {
+  private async getTtsAudioUrl(
+    text: string,
+    options: TutorVoiceOptions,
+    assetType: TutorAudioAssetType,
+    cacheOnly: boolean
+  ): Promise<string | null> {
     try {
       const response = await fetch("/api/tts/get-or-create", {
         method: "POST",
@@ -151,13 +172,14 @@ class TutorVoiceService {
         body: JSON.stringify({
           text,
           languageCode: options.languageCode,
-          assetType: "dynamic_tutor_reply",
+          assetType,
           voiceGender: options.voiceGender,
           voiceProfileId: options.voiceProfileId,
           audioFormat: options.audioFormat,
           audioVersionString: options.audioVersionString,
           sceneId: options.sceneId,
           sceneVersion: options.sceneVersion,
+          cacheOnly,
         }),
       });
 
@@ -325,19 +347,38 @@ class TutorVoiceService {
 
     await audioQueueService.unlockAudio();
     audioQueueService.clearQueue();
+    const access = await trialAccessService.getAccessState().catch(() => null);
+    const assetType = options.assetType || "tutor_reply";
+    const cacheOnly = options.cacheOnly ?? Boolean(access && !access.isSubscribed);
+    const canUsePaidFallback = Boolean(access?.isSubscribed) && !cacheOnly;
+
+    if (assetType === "dynamic_tutor_reply" && access?.tutorVoiceMode === "blocked") {
+      this.log("[AI_TTS] playback skipped", {
+        reason: "trial_expired_dynamic_voice_blocked",
+        tutorId: options.voiceProfileId,
+      });
+      options.onSpeakEnd?.();
+      return;
+    }
+
     const { chirpVoiceProfileId } = this.resolveTutor(options);
     let audioUrl = await this.getTtsAudioUrl(clean, {
       ...options,
       voiceProfileId: chirpVoiceProfileId || options.voiceProfileId,
-    });
+    }, assetType, cacheOnly);
     let revokeBlobUrl = false;
 
-    if (!audioUrl) {
+    if (!audioUrl && canUsePaidFallback) {
       audioUrl = await this.getQueuedFallbackAudioUrl(clean, options);
       revokeBlobUrl = Boolean(audioUrl);
     }
 
     if (!audioUrl) {
+      this.log("[AI_TTS] fallback provider used", {
+        provider: "system_speech",
+        reason: cacheOnly ? "cache_only_miss" : "cloud_audio_unavailable",
+        tutorId: options.voiceProfileId,
+      });
       this.speakSystemFallback(clean, options);
       return;
     }

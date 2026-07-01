@@ -264,6 +264,7 @@ export default function ConversationPractice({
             languageCode: targetLanguage,
             voiceGender: selectedTutor.gender,
             voiceProfileId: selectedTutor.id,
+            assetType: "tutor_reply",
             onSpeakStart: () => setTutorVoiceActive(true),
             onSpeakEnd: () => setTutorVoiceActive(false),
           }
@@ -333,12 +334,18 @@ export default function ConversationPractice({
     }
   }
 
-  async function speak(text: string, animateTutor = true, messageIndex?: number) {
+  async function speak(
+    text: string,
+    animateTutor = true,
+    messageIndex?: number,
+    assetType: "tutor_reply" | "dynamic_tutor_reply" | "practice_sentence" = "tutor_reply"
+  ) {
     try {
       await tutorVoiceService.playManual(text, {
         languageCode: targetLanguage,
         voiceGender: selectedTutor.gender,
         voiceProfileId: selectedTutor.id,
+        assetType,
         onSpeakStart: () => {
           if (animateTutor) setTutorVoiceActive(true);
           if (messageIndex !== undefined) setPlayingMessageIndex(messageIndex);
@@ -427,6 +434,7 @@ export default function ConversationPractice({
         languageCode: targetLanguage,
         voiceGender: selectedTutor.gender,
         voiceProfileId: selectedTutor.id,
+        assetType: "dynamic_tutor_reply",
         onSpeakStart: () => setTutorVoiceActive(true),
         onSpeakEnd: () => setTutorVoiceActive(false),
       });
@@ -562,7 +570,7 @@ export default function ConversationPractice({
             </motion.div>
           )}
           <button
-            onClick={() => speak(selectedTutor.sampleLine)}
+            onClick={() => speak(selectedTutor.sampleLine, true, undefined, "tutor_reply")}
             className="absolute right-4 top-4 h-10 w-10 rounded-2xl bg-white/90 text-lilacDeep flex items-center justify-center shadow-softer active:scale-90 transition"
             title="試聽導師聲音"
           >
@@ -588,7 +596,16 @@ export default function ConversationPractice({
                 />
                 {showZh && m.zh && <p className={`text-sm mt-1 ${m.role === "user" ? "text-white/80" : "text-inkSoft"}`}>{m.zh}</p>}
                 <div className="mt-1 flex gap-3">
-                  <button onClick={() => speak(m.en, m.role === "tutor", i)} className={m.role === "user" ? "text-white/90" : "text-lilacDeep"} title="播放發音">
+                  <button
+                    onClick={() => speak(
+                      m.en,
+                      m.role === "tutor",
+                      i,
+                      m.role === "tutor" ? "dynamic_tutor_reply" : "practice_sentence"
+                    )}
+                    className={m.role === "user" ? "text-white/90" : "text-lilacDeep"}
+                    title="播放發音"
+                  >
                     {playingMessageIndex === i ? <SoundWaveIcon size={15} /> : <Volume2 size={15} />}
                   </button>
                   <button onClick={() => { dictionaryService.toggleSentence(m.en, m.zh, scene.name); flashToast("已收藏句子"); }} className={m.role === "user" ? "text-white/90" : "text-peachDeep"} title="收藏句子"><Star size={15} /></button>

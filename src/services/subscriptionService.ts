@@ -5,6 +5,7 @@ import type {
   CustomerInfo,
   PremiumEntitlement,
 } from "@/types/subscription";
+import { authService } from "./authService";
 
 const REVENUECAT_PUBLIC_API_KEY = process.env.NEXT_PUBLIC_REVENUECAT_PUBLIC_API_KEY || "";
 
@@ -72,8 +73,27 @@ export const subscriptionService = {
   },
 
   async getEntitlement(): Promise<PremiumEntitlement> {
-    // In native app, this will call RevenueCat
-    // For web, return inactive
+    const user = authService.getCurrentUser();
+    if (typeof fetch !== "undefined" && user?.id) {
+      try {
+        const response = await fetch(`/api/subscriptions/status?userId=${encodeURIComponent(user.id)}`, {
+          cache: "no-store",
+        });
+        if (response.ok) {
+          const data = await response.json();
+          return {
+            isActive: Boolean(data.isActive),
+            expiresAt: data.expiresAt || null,
+            platform: data.platform || "web",
+            productId: data.productId || "",
+            willRenew: data.status === "active",
+          };
+        }
+      } catch {
+        // Keep web/offline usable. Native RevenueCat can replace this method.
+      }
+    }
+
     return {
       isActive: false,
       expiresAt: null,

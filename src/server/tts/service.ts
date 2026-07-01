@@ -34,16 +34,19 @@ export interface PeekResult {
   languageCode: string;
 }
 
+function normalizeForAsset(input: GetOrCreateInput): string {
+  return input.assetType === "tutor_reply" || input.assetType === "dynamic_tutor_reply"
+    ? combineTutorText(input.text, input.textPart2)
+    : normalizeText(input.text);
+}
+
 // Check whether a text is already cached and how many characters it would bill,
 // WITHOUT calling the provider. Used by prewarm dry-run cost estimation.
 export async function peekTtsAsset(input: GetOrCreateInput): Promise<PeekResult> {
   const provider = getTtsProvider();
   const store = getTtsAssetStore();
 
-  const normalizedText =
-    input.assetType === "tutor_reply" || input.assetType === "dynamic_tutor_reply"
-      ? combineTutorText(input.text, input.textPart2)
-      : normalizeText(input.text);
+  const normalizedText = normalizeForAsset(input);
 
   const voice =
     (input.voiceProfileId ? getVoiceProfileById(input.voiceProfileId) : null) ||
@@ -80,16 +83,51 @@ export async function peekTtsAsset(input: GetOrCreateInput): Promise<PeekResult>
   };
 }
 
+export async function getCachedTtsAsset(
+  input: GetOrCreateInput
+): Promise<GetOrCreateResult | null> {
+  const provider = getTtsProvider();
+  const store = getTtsAssetStore();
+
+  const normalizedText = normalizeForAsset(input);
+  if (!normalizedText) throw new Error("empty text after normalization");
+
+  const voice =
+    (input.voiceProfileId ? getVoiceProfileById(input.voiceProfileId) : null) ||
+    resolveVoiceProfile(input.languageCode, input.voiceGender);
+  if (!voice) throw new Error(`no voice profile for language: ${input.languageCode}`);
+
+  const audioFormat = input.audioFormat || "m4a";
+  const audioVersionString = input.audioVersionString ?? "v2_loud";
+  const textHash = computeTextHash({
+    provider: provider.name,
+    providerModel: provider.model,
+    languageCode: voice.languageCode,
+    voiceProfileId: voice.id,
+    audioVersionString,
+    normalizedText,
+  });
+
+  const ready = await store.getReadyByKey({
+    provider: provider.name,
+    providerModel: provider.model,
+    languageCode: voice.languageCode,
+    voiceProfileId: voice.id,
+    textHash,
+    audioFormat,
+    audioVersionString,
+  });
+
+  return ready ? { asset: ready, cached: true, signedUrl: buildSignedUrl(ready) } : null;
+}
+
 export async function getOrCreateTtsAsset(
   input: GetOrCreateInput
 ): Promise<GetOrCreateResult> {
   const provider = getTtsProvider();
   const store = getTtsAssetStore();
 
-  const normalizedText =
-    input.assetType === "tutor_reply" || input.assetType === "dynamic_tutor_reply"
-      ? combineTutorText(input.text, input.textPart2)
-      : normalizeText(input.text);
+  const normalizedText = normalizeForAsset(input);
 
   if (!normalizedText) throw new Error("empty text after normalization");
 

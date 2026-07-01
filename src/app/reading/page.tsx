@@ -8,6 +8,7 @@ import type { LearningLanguageCode } from "@/types";
 import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
 import { audioQueueService } from "@/services/audioQueueService";
 import { learningService } from "@/services/learningService";
+import { trialAccessService } from "@/services/trialAccessService";
 import { useUser } from "@/hooks/useUser";
 import WordSheet from "@/components/WordSheet";
 
@@ -118,6 +119,30 @@ export default function DailyReadingPage() {
 
   async function getSentenceAudioUrl(sentence: ReadingSentence): Promise<string | null> {
     if (isPlayableAudioUrl(sentence.audio_url)) return sentence.audio_url!;
+    const access = await trialAccessService.getAccessState(user).catch(() => null);
+    const cacheOnly = Boolean(access && !access.isSubscribed);
+
+    try {
+      const cached = await fetch("/api/tts/get-or-create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: sentence.sentence_text,
+          languageCode: selectedLanguage,
+          assetType: "reading_sentence",
+          voiceGender: "female",
+          audioFormat: "m4a",
+          cacheOnly,
+        }),
+      });
+      if (cached.ok) {
+        const data = await cached.json();
+        if (isPlayableAudioUrl(data.signedUrl)) return data.signedUrl;
+      }
+    } catch {}
+
+    if (cacheOnly) return null;
+
     try {
       const res = await fetch("/api/tts", {
         method: "POST",

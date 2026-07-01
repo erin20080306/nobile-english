@@ -19,7 +19,9 @@ import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguage
 import CheerImage from "@/components/CheerImage";
 import BottomNav from "@/components/BottomNav";
 import HorizontalScrollChips from "@/components/HorizontalScrollChips";
+import SubscriptionLaunchPrompt from "@/components/SubscriptionLaunchPrompt";
 import { LevelBadge, ProgressBar, Toggle } from "@/components/ui";
+import { trialAccessService, type AccessState } from "@/services/trialAccessService";
 
 const dailySentences = [
   { en: "Every day is a fresh start.", zh: "每一天都是嶄新的開始。" },
@@ -58,6 +60,8 @@ export default function Dashboard() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [garden, setGarden] = useState<GardenState | null>(null);
   const [savedCount, setSavedCount] = useState(0);
+  const [accessState, setAccessState] = useState<AccessState | null>(null);
+  const [subscriptionPromptDismissed, setSubscriptionPromptDismissed] = useState(false);
   const sentence = dailySentences[new Date().getDate() % dailySentences.length];
 
   useEffect(() => {
@@ -67,6 +71,10 @@ export default function Dashboard() {
     setSettings(nextSettings);
     setGarden(gardenService.getState(nextSettings.targetLanguage));
     setSavedCount(vocabularyService.getSaved().length);
+    trialAccessService
+      .getAccessState(user, { fresh: true })
+      .then(setAccessState)
+      .catch(() => setAccessState(null));
   }, [user]);
 
   if (!ready || !user || !stats || !settings) {
@@ -301,6 +309,18 @@ export default function Dashboard() {
       </div>
 
       <BottomNav />
+
+      {accessState && !subscriptionPromptDismissed && (
+        <SubscriptionLaunchPrompt
+          access={accessState}
+          onSubscribe={() => router.push("/subscription")}
+          onContinueTrial={
+            accessState.reason === "trial"
+              ? () => setSubscriptionPromptDismissed(true)
+              : undefined
+          }
+        />
+      )}
     </div>
   );
 }
