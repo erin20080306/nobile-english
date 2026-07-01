@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Volume2, Star, Target, BookOpen, Mic } from "lucide-react";
@@ -13,11 +13,14 @@ import { speechService } from "@/services/speechService";
 import { storageService, KEYS } from "@/services/storageService";
 import { authService } from "@/services/authService";
 import { vocabularyService } from "@/services/vocabularyService";
+import { trialAccessService, type AccessState } from "@/services/trialAccessService";
+import { trialUsageService } from "@/services/trialUsageService";
 import { getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
 import ClickableText from "@/components/ClickableText";
 import WordSheet from "@/components/WordSheet";
 import ConversationPractice from "@/components/ConversationPractice";
+import SubscriptionLaunchPrompt from "@/components/SubscriptionLaunchPrompt";
 import { LevelBadge } from "@/components/ui";
 import type { DialogueResult, TutorFeedback, DialogueTranscriptLine } from "@/types";
 
@@ -59,6 +62,8 @@ export default function ScenePracticePage() {
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
   const [savedSentences, setSavedSentences] = useState<string[]>([]);
   const [phase, setPhase] = useState<"preview" | "conversation">("preview");
+  const [access, setAccess] = useState<AccessState | null>(null);
+  const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(false);
 
   const settings = useMemo(() => {
     const u = authService.getCurrentUser();
@@ -68,6 +73,17 @@ export default function ScenePracticePage() {
   const targetLanguage = scene?.targetLanguage || settings?.targetLanguage || learningService.getCurrentLanguage();
   const languageInfo = getLearningLanguage(targetLanguage);
   const activeScene = scene ? { ...scene, targetLanguage } : null;
+  const theme = scene ? sceneService.getTheme(scene.themeId) : undefined;
+  const indexInTheme = scene ? sceneService.getScenesByTheme(scene.themeId).findIndex((item) => item.id === scene.id) : -1;
+  const trialLocked = Boolean(
+    scene &&
+      trialUsageService.isLimited(access) &&
+      (scene.themeId === "custom" || !trialUsageService.canUseScene(scene, theme, indexInTheme))
+  );
+
+  useEffect(() => {
+    trialAccessService.getAccessState(undefined, { fresh: true }).then(setAccess).catch(() => setAccess(null));
+  }, []);
 
   if (!scene) {
     return (
@@ -162,6 +178,14 @@ export default function ScenePracticePage() {
       nextHref: "/scenes",
     });
     router.push("/results");
+  }
+
+  function startConversation() {
+    if (trialLocked) {
+      setShowSubscriptionPrompt(true);
+      return;
+    }
+    setPhase("conversation");
   }
 
   // ---- Conversation phase ----
@@ -317,7 +341,7 @@ export default function ScenePracticePage() {
 
       {/* Start voice conversation bar */}
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] p-4 bg-cream/90 backdrop-blur">
-        <button className="btn-primary w-full flex items-center justify-center gap-2" onClick={() => setPhase("conversation")}>
+        <button className="btn-primary w-full flex items-center justify-center gap-2" onClick={startConversation}>
           <Mic size={18} /> 開始語音對話練習
         </button>
       </div>
@@ -329,6 +353,13 @@ export default function ScenePracticePage() {
         showChinese={showZh}
         onClose={() => setActiveWord(null)}
       />
+      {access && showSubscriptionPrompt && (
+        <SubscriptionLaunchPrompt
+          access={access}
+          onSubscribe={() => router.push("/subscription")}
+          onContinueTrial={access.reason === "trial" ? () => setShowSubscriptionPrompt(false) : undefined}
+        />
+      )}
     </motion.div>
   );
 }

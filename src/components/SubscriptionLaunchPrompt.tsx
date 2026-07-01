@@ -49,12 +49,14 @@ export default function SubscriptionLaunchPrompt({
 
         <div className="space-y-4 p-5">
           <div className="rounded-[24px] bg-cream p-4">
-            <p className="text-sm font-extrabold text-ink">試用期保留低成本體驗</p>
+            <p className="text-sm font-extrabold text-ink">試用期可體驗核心功能</p>
             <ul className="mt-3 space-y-2 text-sm font-semibold text-ink">
               <Feature>文章、單字、導師試聽播放已快取音檔</Feature>
               <Feature>AI 導師文字回覆可正常體驗</Feature>
               <Feature>英文 6 位導師；日文、韓文、義大利文、西班牙文各男女 1 位</Feature>
-              <Feature muted>AI 導師即時角色語音只播快取，不新產生付費音檔</Feature>
+              <Feature>訂閱後解鎖自訂場景、完整場景與農場商店</Feature>
+              <Feature>試用限制：初級場景、每日 2 次對話、每日 1 次單字複習、1 篇閱讀文章</Feature>
+              <Feature muted>AI 導師即時角色語音訂閱後完整解鎖</Feature>
             </ul>
           </div>
 

@@ -3,6 +3,7 @@ import { authService } from "./authService";
 import { subscriptionService } from "./subscriptionService";
 
 export const TRIAL_DAYS = 7;
+export const ADMIN_EMAIL = "erin20080306@gmail.com";
 
 export type TutorVoiceAccessMode = "generate" | "cache-only" | "blocked";
 
@@ -25,6 +26,10 @@ export interface AccessState {
 const DAY_MS = 24 * 60 * 60 * 1000;
 let cachedState: { value: AccessState; at: number; userId: string } | null = null;
 const CACHE_MS = 60 * 1000;
+
+export function isAdminUser(user?: User | null) {
+  return user?.email?.toLowerCase() === ADMIN_EMAIL;
+}
 
 function safeDate(value?: string) {
   const date = value ? new Date(value) : new Date();
@@ -62,6 +67,18 @@ export const trialAccessService = {
     }
 
     const trial = getTrialInfo(user);
+    if (isAdminUser(user)) {
+      const state: AccessState = {
+        isSubscribed: true,
+        trial,
+        shouldShowSubscriptionPrompt: false,
+        tutorVoiceMode: "generate",
+        reason: "subscribed",
+      };
+      cachedState = { value: state, at: Date.now(), userId };
+      return state;
+    }
+
     const entitlement = await subscriptionService.getEntitlement().catch(() => null);
     const isSubscribed = Boolean(entitlement?.isActive);
 

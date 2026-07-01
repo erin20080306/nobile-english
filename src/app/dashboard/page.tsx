@@ -22,6 +22,7 @@ import HorizontalScrollChips from "@/components/HorizontalScrollChips";
 import SubscriptionLaunchPrompt from "@/components/SubscriptionLaunchPrompt";
 import { LevelBadge, ProgressBar, Toggle } from "@/components/ui";
 import { trialAccessService, type AccessState } from "@/services/trialAccessService";
+import { trialUsageService } from "@/services/trialUsageService";
 
 const dailySentences = [
   { en: "Every day is a fresh start.", zh: "每一天都是嶄新的開始。" },
@@ -62,6 +63,7 @@ export default function Dashboard() {
   const [savedCount, setSavedCount] = useState(0);
   const [accessState, setAccessState] = useState<AccessState | null>(null);
   const [subscriptionPromptDismissed, setSubscriptionPromptDismissed] = useState(false);
+  const [forcedSubscriptionPrompt, setForcedSubscriptionPrompt] = useState(false);
   const sentence = dailySentences[new Date().getDate() % dailySentences.length];
 
   useEffect(() => {
@@ -111,6 +113,14 @@ export default function Dashboard() {
     learningService.saveSettings(next);
     learningService.saveProfile({ language: getLearningLanguage(code).label });
     setGarden(gardenService.getState(code));
+  }
+
+  function openCustomScene() {
+    if (trialUsageService.isLimited(accessState)) {
+      setForcedSubscriptionPrompt(true);
+      return;
+    }
+    router.push("/custom-scene");
   }
 
   const levelStyle: Record<string, string> = {
@@ -243,7 +253,7 @@ export default function Dashboard() {
       {/* Quick actions */}
       <div className="px-5 mt-4 grid grid-cols-2 gap-3">
         <Action color="bg-lilac" icon={<MessageSquare className="text-lilacDeep" />} title="開始對話" onClick={() => router.push("/dialogue")} />
-        <Action color="bg-peach" icon={<Wand2 className="text-peachDeep" />} title="自創場景" onClick={() => router.push("/custom-scene")} />
+        <Action color="bg-peach" icon={<Wand2 className="text-peachDeep" />} title="自創場景" onClick={openCustomScene} />
         <Action color="bg-mint" icon={<Search className="text-mintDeep" />} title="同尾字" onClick={() => router.push("/rhyme")} />
         <Action color="bg-sky" icon={<BookOpen className="text-skyDeep" />} title="英英字典" onClick={() => router.push("/dictionary")} />
         <Action color="bg-lilac" icon={<GraduationCap className="text-lilacDeep" />} title="測驗中心" onClick={() => router.push("/exam")} />
@@ -310,13 +320,16 @@ export default function Dashboard() {
 
       <BottomNav />
 
-      {accessState && !subscriptionPromptDismissed && (
+      {accessState && (!subscriptionPromptDismissed || forcedSubscriptionPrompt) && (
         <SubscriptionLaunchPrompt
           access={accessState}
           onSubscribe={() => router.push("/subscription")}
           onContinueTrial={
             accessState.reason === "trial"
-              ? () => setSubscriptionPromptDismissed(true)
+              ? () => {
+                  setSubscriptionPromptDismissed(true);
+                  setForcedSubscriptionPrompt(false);
+                }
               : undefined
           }
         />

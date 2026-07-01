@@ -9,9 +9,12 @@ import { authService } from "@/services/authService";
 import { learningService } from "@/services/learningService";
 import { speechService } from "@/services/speechService";
 import { wordReviewService, type WordReviewScore, type WordReviewSession } from "@/services/wordReviewService";
+import { trialAccessService, type AccessState } from "@/services/trialAccessService";
+import { trialUsageService, TRIAL_WORD_REVIEW_DAILY_LIMIT } from "@/services/trialUsageService";
 import { getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
+import SubscriptionLaunchPrompt from "@/components/SubscriptionLaunchPrompt";
 
 const countOptions = [5, 10, 15, 20, 25, 30];
 const learnedOptions = [0, 25, 50, 75, 100];
@@ -237,6 +240,8 @@ export default function WordReviewPage() {
   const [score, setScore] = useState<WordReviewScore | null>(null);
   const [starting, setStarting] = useState(false);
   const [poolStatus, setPoolStatus] = useState("");
+  const [access, setAccess] = useState<AccessState | null>(null);
+  const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(false);
 
   useEffect(() => {
     const currentUser = authService.getCurrentUser();
@@ -246,6 +251,7 @@ export default function WordReviewPage() {
     setLanguage(last?.language || settings.targetLanguage || "en");
     setCount(last?.count || 10);
     setLearnedPercent(typeof last?.learnedPercent === "number" ? last.learnedPercent : 50);
+    trialAccessService.getAccessState(currentUser, { fresh: true }).then(setAccess).catch(() => setAccess(null));
   }, []);
 
   const level = user?.level || "Beginner";
@@ -264,6 +270,10 @@ export default function WordReviewPage() {
 
   async function startReview() {
     if (starting) return;
+    if (trialUsageService.isLimited(access) && !trialUsageService.useDaily("wordReview", TRIAL_WORD_REVIEW_DAILY_LIMIT)) {
+      setShowSubscriptionPrompt(true);
+      return;
+    }
     void unlockAnswerAudio();
     setStarting(true);
     setPoolStatus("正在讀取單字資料庫...");
@@ -572,6 +582,13 @@ export default function WordReviewPage() {
         {poolStatus && <p className="text-center text-xs font-bold text-inkSoft">{poolStatus}</p>}
       </div>
       <BottomNav />
+      {access && showSubscriptionPrompt && (
+        <SubscriptionLaunchPrompt
+          access={access}
+          onSubscribe={() => router.push("/subscription")}
+          onContinueTrial={access.reason === "trial" ? () => setShowSubscriptionPrompt(false) : undefined}
+        />
+      )}
     </div>
   );
 }

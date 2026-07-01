@@ -8,9 +8,11 @@ import type { LearningLanguageCode } from "@/types";
 import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
 import { audioQueueService } from "@/services/audioQueueService";
 import { learningService } from "@/services/learningService";
-import { trialAccessService } from "@/services/trialAccessService";
+import { trialAccessService, type AccessState } from "@/services/trialAccessService";
+import { trialUsageService, TRIAL_READING_ARTICLE_LIMIT } from "@/services/trialUsageService";
 import { useUser } from "@/hooks/useUser";
 import WordSheet from "@/components/WordSheet";
+import SubscriptionLaunchPrompt from "@/components/SubscriptionLaunchPrompt";
 
 interface ReadingQuestion {
   id: string;
@@ -65,6 +67,8 @@ export default function DailyReadingPage() {
   const [selectedWord, setSelectedWord] = useState<{ word: string; sentence?: string } | null>(null);
   const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [access, setAccess] = useState<AccessState | null>(null);
+  const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(false);
 
   const blobUrlsRef = useRef<string[]>([]);
 
@@ -104,8 +108,22 @@ export default function DailyReadingPage() {
     setPlaying(false);
     audioQueueService.clearQueue();
     try {
+      const nextAccess = await trialAccessService.getAccessState(user, { fresh: true }).catch(() => null);
+      setAccess(nextAccess);
+      if (
+        trialUsageService.isLimited(nextAccess) &&
+        !trialUsageService.canUseLifetime("readingArticle", TRIAL_READING_ARTICLE_LIMIT)
+      ) {
+        setArticle(null);
+        setShowSubscriptionPrompt(true);
+        return;
+      }
       const res = await fetch(`/api/articles/today?language=${selectedLanguage}`);
-      setArticle(res.ok ? await res.json() : null);
+      const nextArticle = res.ok ? await res.json() : null;
+      setArticle(nextArticle);
+      if (nextArticle && trialUsageService.isLimited(nextAccess)) {
+        trialUsageService.useLifetime("readingArticle", TRIAL_READING_ARTICLE_LIMIT);
+      }
     } catch {
       setArticle(null);
     } finally {
@@ -325,6 +343,13 @@ export default function DailyReadingPage() {
             返回
           </button>
         </div>
+        {access && showSubscriptionPrompt && (
+          <SubscriptionLaunchPrompt
+            access={access}
+            onSubscribe={() => router.push("/subscription")}
+            onContinueTrial={access.reason === "trial" ? () => setShowSubscriptionPrompt(false) : undefined}
+          />
+        )}
       </div>
     );
   }
