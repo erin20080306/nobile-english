@@ -47,8 +47,20 @@ const LANG_VOICE: Record<string, string> = {
   en: "nova", ja: "nova", ko: "nova", it: "nova", es: "nova",
 };
 
+type ReadingTtsAssetType = "reading_sentence" | "practice_sentence";
+
 function isPlayableAudioUrl(url?: string | null) {
   return Boolean(url && !url.startsWith("stub://"));
+}
+
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, timeoutMs = 12000) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
 function audioBase64ToObjectUrl(audioBase64: string, audioFormat = "mp3") {
@@ -149,20 +161,24 @@ export default function DailyReadingPage() {
     }
   }
 
-  async function requestSentenceTtsAsset(sentence: ReadingSentence, cacheOnly: boolean): Promise<string | null> {
+  async function requestSentenceTtsAsset(
+    sentence: ReadingSentence,
+    cacheOnly: boolean,
+    assetType: ReadingTtsAssetType
+  ): Promise<string | null> {
     try {
-      const cached = await fetch("/api/tts/get-or-create", {
+      const cached = await fetchWithTimeout("/api/tts/get-or-create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text: sentence.sentence_text,
           languageCode: selectedLanguage,
-          assetType: "reading_sentence",
+          assetType,
           voiceGender: "female",
           audioFormat: "mp3",
           cacheOnly,
         }),
-      });
+      }, 12000);
       if (cached.ok) {
         const data = await cached.json();
         if (typeof data.audioBase64 === "string" && data.audioBase64) {
@@ -172,7 +188,20 @@ export default function DailyReadingPage() {
         }
         if (isPlayableAudioUrl(data.signedUrl)) return data.signedUrl;
       }
-    } catch {}
+      console.warn("[READING_AUDIO] tts asset unavailable", {
+        status: cached.status,
+        cacheOnly,
+        assetType,
+        sentenceId: sentence.id,
+      });
+    } catch (error) {
+      console.warn("[READING_AUDIO] tts asset request failed", {
+        cacheOnly,
+        assetType,
+        sentenceId: sentence.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
     return null;
   }
 
@@ -180,30 +209,38 @@ export default function DailyReadingPage() {
     const accessState = await trialAccessService.getAccessState(user).catch(() => null);
     const cacheOnly = Boolean(accessState && !accessState.isSubscribed);
 
-    const cachedOrFresh = await requestSentenceTtsAsset(sentence, cacheOnly);
-    if (cachedOrFresh) return cachedOrFresh;
+    for (const assetType of ["reading_sentence", "practice_sentence"] as ReadingTtsAssetType[]) {
+      const cachedOrFresh = await requestSentenceTtsAsset(sentence, cacheOnly, assetType);
+      if (cachedOrFresh) return cachedOrFresh;
 
-    if (cacheOnly) {
-      const generated = await requestSentenceTtsAsset(sentence, false);
-      if (generated) return generated;
+      if (cacheOnly) {
+        const generated = await requestSentenceTtsAsset(sentence, false, assetType);
+        if (generated) return generated;
+      }
     }
 
     try {
-      const res = await fetch("/api/tts", {
+      const res = await fetchWithTimeout("/api/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           input: sentence.sentence_text,
           voice: LANG_VOICE[selectedLanguage] ?? "nova",
         }),
-      });
+      }, 12000);
       if (res.ok) {
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
         blobUrlsRef.current.push(url);
         return url;
       }
-    } catch {}
+      console.warn("[READING_AUDIO] legacy tts unavailable", { status: res.status, sentenceId: sentence.id });
+    } catch (error) {
+      console.warn("[READING_AUDIO] legacy tts failed", {
+        sentenceId: sentence.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
     return null;
   }
 
@@ -260,36 +297,59 @@ export default function DailyReadingPage() {
     return true;
   }
 
-  async function enqueueFrom(startIndex: number) {
+  function enqueueSentenceAudio(
+    sentence: ReadingSentence,
+    queueIndex: number,
+    url: string,
+    fallbackContinueToEnd: boolean
+  ) {
+    if (!article) return;
+    const idx = sentence.sentence_order - 1;
+    audioQueueService.enqueue({
+      id: `sentence-${sentence.id}-${Date.now()}-${queueIndex}`,
+      url,
+      text: sentence.sentence_text,
+      priority: 5,
+      onStart: () => { setCurrentSentenceIndex(idx); setPlaying(true); },
+      onEnd: () => {
+        if (idx === article.sentences.length - 1) {
+          setPlaying(false);
+          setCompleted(true);
+        }
+      },
+      onError: () => {
+        audioQueueService.clearQueue();
+        setPlaying(false);
+        playArticleWithSpeechFallback(idx, fallbackContinueToEnd);
+      },
+    });
+  }
+
+  async function enqueueFrom(startIndex: number, continueToEnd: boolean, sessionId: number) {
     if (!article) return 0;
-    const sentences = article.sentences.slice(startIndex);
+    const sentences = continueToEnd
+      ? article.sentences.slice(startIndex)
+      : article.sentences.slice(startIndex, startIndex + 1);
     if (sentences.length === 0) return 0;
 
-    const urls = await Promise.all(sentences.map((s) => getSentenceAudioUrl(s)));
-    let queued = 0;
+    const firstUrl = await getSentenceAudioUrl(sentences[0]);
+    if (speechFallbackSessionRef.current !== sessionId) return 0;
+    if (!firstUrl) return 0;
 
-    for (let i = 0; i < sentences.length; i++) {
-      const url = urls[i];
-      if (!url) continue;
-      const s = sentences[i];
-      const idx = s.sentence_order - 1;
-      audioQueueService.enqueue({
-        id: `sentence-${s.id}-${Date.now()}-${i}`,
-        url,
-        text: s.sentence_text,
-        priority: 5,
-        onStart: () => { setCurrentSentenceIndex(idx); setPlaying(true); },
-        onEnd: () => {
-          if (idx === article.sentences.length - 1) {
-            setPlaying(false);
-            setCompleted(true);
-          }
-        },
-        onError: () => setPlaying(false),
-      });
-      queued += 1;
+    enqueueSentenceAudio(sentences[0], 0, firstUrl, continueToEnd);
+
+    if (continueToEnd && sentences.length > 1) {
+      void (async () => {
+        for (let i = 1; i < sentences.length; i += 1) {
+          if (speechFallbackSessionRef.current !== sessionId) return;
+          const url = await getSentenceAudioUrl(sentences[i]);
+          if (speechFallbackSessionRef.current !== sessionId) return;
+          if (url) enqueueSentenceAudio(sentences[i], i, url, true);
+        }
+      })();
     }
-    return queued;
+
+    return 1;
   }
 
   async function playFullArticle() {
@@ -297,9 +357,11 @@ export default function DailyReadingPage() {
     setAudioLoading(true);
     setAudioError("");
     stopSpeechFallback();
+    const sessionId = speechFallbackSessionRef.current;
+    speechService.warmUp(voiceForLanguage(selectedLanguage, playbackSpeed));
     await audioQueueService.unlockAudio();
     audioQueueService.clearQueue();
-    const queued = await enqueueFrom(0);
+    const queued = await enqueueFrom(0, true, sessionId);
     setAudioLoading(false);
     setPlaying(queued > 0);
     if (queued === 0 && !playArticleWithSpeechFallback(0, true)) {
@@ -319,9 +381,11 @@ export default function DailyReadingPage() {
     setAudioLoading(true);
     setAudioError("");
     stopSpeechFallback();
+    const sessionId = speechFallbackSessionRef.current;
+    speechService.warmUp(voiceForLanguage(selectedLanguage, playbackSpeed));
     await audioQueueService.unlockAudio();
     audioQueueService.clearQueue();
-    const queued = await enqueueFrom(currentSentenceIndex);
+    const queued = await enqueueFrom(currentSentenceIndex, true, sessionId);
     setAudioLoading(false);
     setPlaying(queued > 0);
     if (queued === 0 && !playArticleWithSpeechFallback(currentSentenceIndex, true)) {
@@ -345,8 +409,10 @@ export default function DailyReadingPage() {
     setCurrentSentenceIndex(index);
     setAudioLoading(true);
     setAudioError("");
+    const sessionId = speechFallbackSessionRef.current;
+    speechService.warmUp(voiceForLanguage(selectedLanguage, playbackSpeed));
     await audioQueueService.unlockAudio();
-    const queued = await enqueueFrom(index);
+    const queued = await enqueueFrom(index, false, sessionId);
     setAudioLoading(false);
     setPlaying(queued > 0);
     if (queued === 0 && !playArticleWithSpeechFallback(index, false)) {

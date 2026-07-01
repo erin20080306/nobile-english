@@ -114,6 +114,91 @@ function sceneRoleGuide(scene: Scene) {
   return "Stay strictly inside the current scenario. If the learner goes off topic, acknowledge briefly and guide them back to the scenario in character.";
 }
 
+function uniqueTexts(items: string[], max = 12) {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of items) {
+    const text = item.trim();
+    if (!text || seen.has(text.toLowerCase())) continue;
+    seen.add(text.toLowerCase());
+    result.push(text);
+    if (result.length >= max) break;
+  }
+  return result;
+}
+
+function deriveAskedQuestionsFromHistory(history: string[]) {
+  return uniqueTexts(
+    history
+      .filter((line) => /^Tutor:/i.test(line))
+      .map((line) => line.replace(/^Tutor:\s*/i, "").trim())
+      .filter((line) => /[?？]$/.test(line) || /please|which|what|where|when|how|would|do you|ご|ますか|세요|나요|vuoi|quiere/i.test(line))
+      .slice(-8)
+  );
+}
+
+function nextTutorMoveGuide(scene: Scene, state: TutorConversationState, userInput: string) {
+  const key = `${scene.themeId} ${scene.name} ${scene.enName} ${scene.intro}`.toLowerCase();
+  const missing = new Set(state.missingInfo);
+  const known = state.knownInfo;
+  const latest = userInput.trim();
+
+  if (key.includes("cafe") || key.includes("coffee") || key.includes("咖啡")) {
+    if (known.order_item && missing.has("size")) return `Acknowledge "${known.order_item}" naturally, then ask only about size.`;
+    if (known.order_item && missing.has("temperature")) return `Acknowledge "${known.order_item}" and ask whether it should be hot or iced.`;
+    if (known.order_item && missing.has("dining_option")) return "Ask whether it is for here or to go; do not ask what they want again.";
+    if (known.order_item && missing.has("payment_method")) return "Confirm the order briefly, then ask how they would like to pay.";
+    if (!known.order_item) return `React to the learner's latest words "${latest}" and ask what drink or food they want.`;
+    return "Confirm the order in character and give a realistic next step such as name, total, or pickup.";
+  }
+
+  if (key.includes("restaurant") || key.includes("餐廳")) {
+    if (missing.has("party_size")) return "As the host/server, ask for the party size or reservation status.";
+    if (missing.has("seating_preference")) return "Offer a natural seating choice or guide them to a table.";
+    if (missing.has("order_item")) return "Move into ordering: offer the menu or ask what they would like to order.";
+    if (missing.has("drink")) return "Ask for a drink or side in a server-like way.";
+    if (missing.has("payment_method")) return "Confirm the meal/order and move toward the bill or payment.";
+    return "Close the restaurant exchange naturally without sounding like a teacher.";
+  }
+
+  if (key.includes("direction") || key.includes("travel") || key.includes("問路")) {
+    if (missing.has("destination")) return `Use the latest message "${latest}" to identify where they want to go; ask for the destination only if unclear.`;
+    if (missing.has("transport_preference")) return "Give one useful direction, then ask whether they prefer walking, transit, or taxi.";
+    return "Give specific next-step directions and one practical landmark.";
+  }
+
+  if (key.includes("shopping")) {
+    if (missing.has("product")) return "Ask what product they are looking for, or respond to the product they named.";
+    if (missing.has("size")) return "Ask about size/color/fit, not a generic follow-up.";
+    if (missing.has("payment_method")) return "Move toward checkout or payment.";
+    return "Respond like store staff and move one realistic step forward.";
+  }
+
+  if (key.includes("interview")) {
+    return "Respond as an interviewer: ask a specific follow-up based on the candidate's latest answer, not generic encouragement.";
+  }
+
+  return `React concretely to "${latest}", reuse knownInfo if useful, and ask one scene-specific next question only if needed.`;
+}
+
+function learnerAnswerStyleGuide(userInput: string) {
+  const text = userInput.trim();
+  const shortAnswer = Array.from(text).length <= 12;
+  const unsure = /\b(i don't know|not sure|maybe|sorry|help|what|how)\b|不知道|不會|抱歉|すみません|わかりません|잘 모르|미안|non so|scusa|no sé|perdón/i.test(text);
+  const hasLikelyGrammarNoise = /\b(i want go|i no|me want|can has|want coffee large|where is go)\b/i.test(text);
+
+  if (unsure) {
+    return "The learner sounds unsure. In the role reply, be patient and human: reassure them briefly, offer two concrete choices or a simple next step, and keep the scene moving.";
+  }
+  if (shortAnswer) {
+    return "The learner gave a short or incomplete answer. Treat it as useful partial information, acknowledge what you understood, then ask one concrete clarifying question. Do not say it is incomplete.";
+  }
+  if (hasLikelyGrammarNoise) {
+    return "The learner's meaning is understandable but the wording is unnatural. In the role reply, respond to the meaning like a real person; put any correction only in grammarTip/betterWay.";
+  }
+  return "If the learner's sentence is imperfect but understandable, respond to the intended meaning first. Be warm, specific, and in character.";
+}
+
 function hashText(text: string) {
   return createHash("sha256").update(text).digest("hex");
 }
@@ -124,7 +209,7 @@ function buildTutorReplyCacheKey(body: TutorRequest, persona: string, state: Tut
   const normalizedInput = body.userInput.trim().replace(/\s+/g, " ").toLowerCase();
   return hashText(
     JSON.stringify({
-      version: 4,
+      version: 6,
       sceneId: body.scene.id,
       languageCode,
       persona,
@@ -265,6 +350,11 @@ function buildPrompt(body: TutorRequest, persona: string, state: TutorConversati
     "You are a scene character first, not an English teacher. Do NOT keep saying Great job, Nice English, Try saying, Could you tell me more, or generic teaching praise.",
     "Keep the ROLE reply separate from teaching feedback. The reply and ttsCandidate must be only what the character would actually say out loud in the scene.",
     "Move the scene forward based on the current state. Remember knownInfo, do not ask for information already collected, and do not repeat askedQuestions.",
+    `Recommended next tutor move: ${nextTutorMoveGuide(scene, state, userInput)}`,
+    `Human handling guide for imperfect learner answers: ${learnerAnswerStyleGuide(userInput)}`,
+    "Your reply must react to a concrete detail from the learner's latest message or knownInfo whenever one exists.",
+    "If the learner answer is incomplete, do NOT lecture. Use a natural character line like: acknowledge, gently confirm, offer options, then ask one concrete next question.",
+    "Do not ask a vague 'tell me more' question when a concrete scene step is available.",
     "Ask at most ONE natural follow-up question unless you are confirming or closing.",
     "There is no forced 7-turn ending. Continue naturally until the learner ends or the state is readyToClose.",
     `Example script lines are style hints only; never copy them verbatim: ${tutorLines}`,
@@ -408,10 +498,19 @@ export async function POST(req: Request) {
     : [];
 
   const persona = getScenePersona(body.scene, body.persona);
+  const previousState = normalizeTutorState(
+    body.scene,
+    persona,
+    body.state || createInitialTutorState(body.scene, persona)
+  );
+  previousState.askedQuestions = uniqueTexts([
+    ...previousState.askedQuestions,
+    ...deriveAskedQuestionsFromHistory(body.history),
+  ]);
   const localState = advanceTutorStateFromUser(
     body.scene,
     persona,
-    body.state || createInitialTutorState(body.scene, persona),
+    previousState,
     body.userInput,
     body.turn
   );

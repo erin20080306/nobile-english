@@ -7,7 +7,7 @@ import type {
 
 const DEFAULT_MISSING_INFO: Record<string, string[]> = {
   cafe: ["order_item", "size", "temperature", "dining_option", "payment_method"],
-  restaurant: ["party_size", "reservation_time", "order_item", "drink", "payment_method"],
+  restaurant: ["party_size", "seating_preference", "order_item", "drink", "payment_method"],
   travel: ["destination", "transport_preference"],
   airport: ["passport_or_booking", "luggage", "seat_preference", "gate_or_boarding_time"],
   shopping: ["product", "size", "price_or_discount", "payment_method"],
@@ -71,10 +71,18 @@ function includesAny(text: string, needles: string[]) {
   return needles.some((needle) => text.includes(needle));
 }
 
+function isBriefConfirmation(text: string) {
+  return /^(yes|yeah|yep|ok|okay|no|nope|はい|いいえ|네|아니요|si|sí|no|sì|certo|va bene)[.!。\s]*$/i.test(text.trim());
+}
+
 function extractEnglishItem(text: string): string | null {
   const match =
     text.match(/\b(?:i'?d like|i want|i wanna|can i have|could i get|i'?ll have|give me|order)\s+(?:a|an|the|some)?\s*([^?.!,]+)/i)?.[1] ||
-    text.match(/\b(latte|coffee|tea|cappuccino|americano|mocha|espresso|sandwich|cake|pasta|steak|salmon|ticket|shirt|room|table)\b[^?.!,]*/i)?.[0];
+    text.match(/\b(latte|coffee|tea|cappuccino|americano|mocha|espresso|sandwich|cake|pasta|steak|salmon|pizza|salad|soup|burger|ticket|shirt|room|table)\b[^?.!,]*/i)?.[0] ||
+    text.match(/(ラテ|コーヒー|紅茶|カプチーノ|アメリカーノ|エスプレッソ|ケーキ|サンドイッチ|パスタ|ピザ|サラダ|ステーキ)/)?.[0] ||
+    text.match(/(라테|커피|차|카푸치노|아메리카노|에스프레소|케이크|샌드위치|파스타|피자|샐러드|스테이크)/)?.[0] ||
+    text.match(/\b(caff[eè]|latte|cappuccino|americano|espresso|t[eè]|torta|panino|pasta|pizza|insalata|bistecca)\b[^?.!,]*/i)?.[0] ||
+    text.match(/\b(café|cafe|latte|capuchino|americano|espresso|té|pastel|sándwich|sandwich|pasta|pizza|ensalada|bistec)\b[^?.!,]*/i)?.[0];
   return match ? match.trim() : null;
 }
 
@@ -87,27 +95,35 @@ function extractSlots(scene: Scene, userInput: string): Record<string, string> {
 
   if (key === "cafe" || key === "restaurant") {
     if (item) setIfMissing(slots, "order_item", item);
-    if (includesAny(lower, ["small", "medium", "large", "grande", "venti", "中杯", "大杯", "小杯"])) {
-      const size = lower.match(/\b(small|medium|large|grande|venti)\b/)?.[1] || "mentioned";
+    if (includesAny(lower, ["small", "medium", "large", "tall", "grande", "venti", "piccolo", "media", "grande", "pequeño", "mediano", "小杯", "中杯", "大杯", "小さい", "普通", "大きい", "작은", "보통", "큰"])) {
+      const size =
+        lower.match(/\b(small|medium|large|tall|grande|venti|piccolo|media|pequeño|mediano)\b/)?.[1] ||
+        (includesAny(lower, ["小杯", "小さい", "작은"]) ? "small" : includesAny(lower, ["大杯", "大きい", "큰"]) ? "large" : "medium");
       setIfMissing(slots, "size", size);
     }
-    if (includesAny(lower, ["hot", "iced", "ice", "warm", "冷", "冰", "熱", "caldo", "freddo", "frío"])) {
-      const temperature = includesAny(lower, ["iced", "ice", "cold", "freddo", "frío", "冰", "冷"]) ? "iced/cold" : "hot";
+    if (includesAny(lower, ["hot", "iced", "ice", "warm", "cold", "冷", "冰", "熱", "ホット", "アイス", "차가운", "따뜻한", "caldo", "freddo", "frío", "caliente"])) {
+      const temperature = includesAny(lower, ["iced", "ice", "cold", "freddo", "frío", "冰", "冷", "アイス", "차가운"]) ? "iced/cold" : "hot";
       setIfMissing(slots, "temperature", temperature);
     }
-    if (includesAny(lower, ["sugar", "sweet", "half", "less ice", "no ice", "半糖", "少冰", "無糖"])) {
+    if (includesAny(lower, ["sugar", "sweet", "half", "less ice", "no ice", "半糖", "少冰", "無糖", "砂糖", "甘さ", "설탕", "달게", "zucchero", "azúcar"])) {
       setIfMissing(slots, "sweetness_or_ice", raw);
     }
-    if (includesAny(lower, ["to go", "takeout", "take away", "for here", "dine in", "內用", "外帶"])) {
-      setIfMissing(slots, "dining_option", includesAny(lower, ["to go", "takeout", "take away", "外帶"]) ? "to go" : "for here");
+    if (includesAny(lower, ["to go", "takeout", "take away", "for here", "dine in", "內用", "外帶", "店内", "持ち帰り", "매장", "포장", "qui", "portare via", "aquí", "llevar"])) {
+      setIfMissing(slots, "dining_option", includesAny(lower, ["to go", "takeout", "take away", "外帶", "持ち帰り", "포장", "portare via", "llevar"]) ? "to go" : "for here");
     }
-    if (includesAny(lower, ["card", "cash", "apple pay", "credit", "現金", "刷卡"])) {
+    if (includesAny(lower, ["card", "cash", "apple pay", "credit", "debit", "現金", "刷卡", "カード", "現金", "카드", "현금", "carta", "contanti", "tarjeta", "efectivo"])) {
       setIfMissing(slots, "payment_method", includesAny(lower, ["cash", "現金"]) ? "cash" : "card");
     }
     const partySize = raw.match(/\b(?:for|table for)\s+(\d+|one|two|three|four|five|six)\b/i)?.[1];
     if (partySize) setIfMissing(slots, "party_size", partySize);
     const time = raw.match(/\b(?:at|around)\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b/i)?.[1];
     if (time) setIfMissing(slots, "reservation_time", time);
+    if (includesAny(lower, ["window", "outside", "inside", "bar", "terrace", "窗邊", "戶外", "外面", "店内", "窓側", "밖", "안쪽", "fuori", "dentro", "terraza", "afuera"])) {
+      setIfMissing(slots, "seating_preference", raw);
+    }
+    if (!slots.order_item && raw && !isBriefConfirmation(lower) && Object.keys(slots).length === 0) {
+      setIfMissing(slots, "order_item", raw);
+    }
   }
 
   if (key === "travel") {
