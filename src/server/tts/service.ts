@@ -2,7 +2,7 @@ import { assetCacheKey, computeTextHash } from "./hash";
 import { combineTutorText, normalizeText } from "./normalizeText";
 import { getTtsProvider } from "./provider";
 import { getTtsAssetStore } from "./store";
-import { createSignedAudioUrl } from "./storage";
+import { createSignedAudioUrl, storeGeneratedAudio } from "./storage";
 import type {
   GetOrCreateInput,
   GetOrCreateResult,
@@ -187,11 +187,14 @@ export async function getOrCreateTtsAsset(
     return { asset: finalAsset, cached: true, signedUrl: await buildSignedUrl(finalAsset) };
   }
 
-  // 3) We won the race: synthesize, post-process, persist.
+  // 3) We won the race: synthesize, persist, and also capture the raw bytes so we
+  //    can return the audio INLINE (base64). Playing inline lets the client skip
+  //    the extra signed-URL download round-trip, cutting perceived latency.
   const key = assetCacheKey(keyParams);
+  let audioBase64: string | null = null;
   const job = (async () => {
     try {
-      const output = await provider.synthesize({
+      const synth = await provider.synthesize({
         text: normalizedText,
         languageCode: voice.languageCode,
         voiceName: voice.voiceName,
@@ -201,6 +204,19 @@ export async function getOrCreateTtsAsset(
         audioFormat,
         textHash,
       });
+      let output = synth;
+      if (synth.audioBytes && synth.audioBytes.byteLength) {
+        audioBase64 = synth.audioBytes.toString("base64");
+        const audioPath = await storeGeneratedAudio({
+          bytes: synth.audioBytes,
+          provider: provider.name,
+          providerModel: provider.model,
+          voiceProfileId,
+          textHash,
+          audioFormat,
+        });
+        output = { audioPath, durationMs: synth.durationMs, audioFormat: synth.audioFormat };
+      }
       return await store.markReady(asset.id, output);
     } catch (err) {
       await store.markFailed(asset.id);
@@ -212,5 +228,10 @@ export async function getOrCreateTtsAsset(
   inflight().set(key, job);
 
   const finalAsset = await job;
-  return { asset: finalAsset, cached: false, signedUrl: await buildSignedUrl(finalAsset) };
+  return {
+    asset: finalAsset,
+    cached: false,
+    signedUrl: audioBase64 ? null : await buildSignedUrl(finalAsset),
+    audioBase64,
+  };
 }

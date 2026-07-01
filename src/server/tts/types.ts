@@ -101,6 +101,10 @@ export interface GetOrCreateResult {
   cached: boolean;
   // Short-lived URL the client uses to play the audio (null while generating/failed).
   signedUrl: string | null;
+  // For a fresh (cache-miss) synthesis we return the audio inline so the client can
+  // play immediately without a second download round-trip. The Supabase cache upload
+  // then happens in the background, off the critical path.
+  audioBase64?: string | null;
 }
 
 // Output of a TTS provider after synthesis + post-processing.
@@ -108,6 +112,9 @@ export interface SynthesisOutput {
   audioPath: string;
   durationMs: number;
   audioFormat: AudioFormat;
+  // Raw synthesized bytes. When present, the service returns them inline and uploads
+  // to Supabase Storage in the background instead of blocking on the upload.
+  audioBytes?: Buffer;
 }
 
 export interface SynthesisRequest {

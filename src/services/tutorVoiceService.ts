@@ -195,7 +195,11 @@ class TutorVoiceService {
       }
 
       const data = await response.json();
-      const url: string | null = data.signedUrl || null;
+      // Prefer inline audio (fresh synthesis) so we skip a second download; fall
+      // back to the signed URL for cache hits.
+      const url: string | null = data.audioBase64
+        ? `data:audio/mpeg;base64,${data.audioBase64}`
+        : data.signedUrl || null;
       this.log(data.cached ? "[AI_TTS] cache hit" : "[AI_TTS] cache miss", {
         id: data.id,
         status: data.status,

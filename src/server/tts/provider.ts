@@ -1,5 +1,4 @@
 import crypto from "crypto";
-import { storeGeneratedAudio } from "./storage";
 import type { AudioFormat, SynthesisOutput, SynthesisRequest, TtsAssetType } from "./types";
 
 type TtsQuality = "standard" | "neural";
@@ -238,17 +237,12 @@ class GoogleTtsProvider implements TtsProvider {
 
     const bytes = Buffer.from(data.audioContent, "base64");
     if (!bytes.byteLength) throw new Error("Google TTS returned empty audio");
-    const audioPath = await storeGeneratedAudio({
-      bytes,
-      provider: this.name,
-      providerModel: this.model,
-      voiceProfileId: req.voiceProfileId,
-      textHash: req.textHash,
-      audioFormat: outputFormat,
-    });
 
+    // Return raw bytes; the service returns them inline and uploads to Supabase
+    // in the background so playback is not blocked by the storage round-trip.
     return {
-      audioPath,
+      audioPath: "",
+      audioBytes: bytes,
       durationMs: estimateDurationMs(req.text),
       audioFormat: outputFormat,
     };
@@ -352,17 +346,11 @@ class PollyTtsProvider implements TtsProvider {
 
     const bytes = Buffer.from(await response.arrayBuffer());
     if (!bytes.byteLength) throw new Error("Amazon Polly returned empty audio");
-    const audioPath = await storeGeneratedAudio({
-      bytes,
-      provider: this.name,
-      providerModel: this.model,
-      voiceProfileId: req.voiceProfileId,
-      textHash: req.textHash,
-      audioFormat: outputFormat,
-    });
 
+    // Return raw bytes; the service uploads to Supabase in the background.
     return {
-      audioPath,
+      audioPath: "",
+      audioBytes: bytes,
       durationMs: estimateDurationMs(req.text),
       audioFormat: outputFormat,
     };

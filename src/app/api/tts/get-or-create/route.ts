@@ -86,6 +86,7 @@ export async function POST(req: Request) {
       status: result.asset.status,
       cached: result.cached,
       signedUrl: result.signedUrl,
+      audioBase64: result.audioBase64 ?? null,
       durationMs: result.asset.durationMs,
       audioFormat: result.asset.audioFormat,
     });
