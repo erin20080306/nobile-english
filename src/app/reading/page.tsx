@@ -42,6 +42,10 @@ const LANG_VOICE: Record<string, string> = {
   en: "nova", ja: "nova", ko: "nova", it: "nova", es: "nova",
 };
 
+function isPlayableAudioUrl(url?: string | null) {
+  return Boolean(url && !url.startsWith("stub://"));
+}
+
 export default function DailyReadingPage() {
   const router = useRouter();
   const { user, ready } = useUser({ requireOnboarded: true });
@@ -113,7 +117,7 @@ export default function DailyReadingPage() {
   }
 
   async function getSentenceAudioUrl(sentence: ReadingSentence): Promise<string | null> {
-    if (sentence.audio_url) return sentence.audio_url;
+    if (isPlayableAudioUrl(sentence.audio_url)) return sentence.audio_url!;
     try {
       const res = await fetch("/api/tts", {
         method: "POST",

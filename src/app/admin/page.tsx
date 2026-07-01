@@ -28,6 +28,15 @@ interface SystemStatus {
   openai: "ok" | "error" | "checking";
 }
 
+interface TtsCheckError {
+  error?: string;
+  message?: string;
+  providerStatus?: number;
+  providerMessage?: string;
+  model?: string;
+  fallbackModel?: string | null;
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const { user, ready } = useUser({ requireOnboarded: true });
@@ -82,8 +91,19 @@ export default function AdminPage() {
         body: JSON.stringify({ input: "test", voice: "nova" }),
       });
       setSystemStatus((s) => ({ ...s, openai: res.ok ? "ok" : "error" }));
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as TtsCheckError;
+        const detail = [
+          data.error,
+          data.providerStatus ? `OpenAI ${data.providerStatus}` : "",
+          data.providerMessage,
+          data.message,
+        ].filter(Boolean).join(" · ");
+        addLog(`OpenAI TTS 檢查失敗：${detail || res.status}`, "error");
+      }
     } catch {
       setSystemStatus((s) => ({ ...s, openai: "error" }));
+      addLog("OpenAI TTS 檢查失敗：無法連線到 /api/tts", "error");
     }
   }
 

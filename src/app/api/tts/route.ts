@@ -65,6 +65,17 @@ async function requestSpeech({
   });
 }
 
+async function readProviderMessage(response: Response) {
+  const text = await response.text().catch(() => "");
+  if (!text) return "";
+  try {
+    const json = JSON.parse(text) as { error?: { message?: string }; message?: string };
+    return json.error?.message || json.message || text.slice(0, 500);
+  } catch {
+    return text.slice(0, 500);
+  }
+}
+
 export async function POST(req: Request) {
   let body: TtsRequest;
   try {
@@ -77,7 +88,7 @@ export async function POST(req: Request) {
   if (!input) return NextResponse.json({ error: "Missing input" }, { status: 400 });
 
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: "TTS key unavailable" }, { status: 503 });
+  if (!apiKey) return NextResponse.json({ error: "Missing OPENAI_API_KEY" }, { status: 503 });
 
   const requestedVoice = body.voice || "nova";
   const voice = VOICES.has(requestedVoice) ? requestedVoice : "nova";
@@ -91,6 +102,13 @@ export async function POST(req: Request) {
       instructions: body.instructions,
       speed: body.speed,
     });
+    let providerStatus = response.status;
+    let providerMessage = response.ok ? "" : await readProviderMessage(response);
+    const firstAttempt = {
+      model: MODEL,
+      status: providerStatus,
+      message: providerMessage,
+    };
 
     if (!response.ok && MODEL !== "tts-1") {
       response = await requestSpeech({
@@ -100,20 +118,39 @@ export async function POST(req: Request) {
         input,
         speed: body.speed,
       });
+      providerStatus = response.status;
+      providerMessage = response.ok ? "" : await readProviderMessage(response);
     }
 
     if (!response.ok) {
-      return NextResponse.json({ error: "TTS request failed" }, { status: 502 });
+      return NextResponse.json(
+        {
+          error: "OpenAI TTS request failed",
+          model: MODEL,
+          fallbackModel: MODEL !== "tts-1" ? "tts-1" : null,
+          voice,
+          providerStatus,
+          providerMessage,
+          firstAttempt,
+        },
+        { status: 502 }
+      );
     }
 
     const audio = await response.arrayBuffer();
+    if (!audio.byteLength) {
+      return NextResponse.json({ error: "OpenAI TTS returned empty audio blob" }, { status: 502 });
+    }
     return new Response(audio, {
       headers: {
         "Content-Type": "audio/mpeg",
         "Cache-Control": "no-store",
       },
     });
-  } catch {
-    return NextResponse.json({ error: "TTS service unavailable" }, { status: 502 });
+  } catch (error) {
+    return NextResponse.json(
+      { error: "TTS service unavailable", message: error instanceof Error ? error.message : String(error) },
+      { status: 502 }
+    );
   }
 }

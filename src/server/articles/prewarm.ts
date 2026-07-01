@@ -253,23 +253,24 @@ async function prewarmArticleAudio(
         languageCode: article.language_code,
         assetType: "reading_sentence",
       });
+      const signedUrl = tts.signedUrl && !tts.signedUrl.startsWith("stub://") ? tts.signedUrl : null;
 
       const audioData = {
         article_id: article.id,
         sentence_id: sentence.id,
         language_code: article.language_code,
         tts_asset_id: null,
-        audio_path: tts.signedUrl,
+        audio_path: signedUrl,
         duration_ms: tts.asset.durationMs || sentence.estimated_duration_ms,
         audio_version: 1,
-        status: tts.signedUrl ? "ready" : "failed",
+        status: signedUrl ? "ready" : "failed",
       };
 
       const { error } = await supabase
         .from("reading_article_audio_assets")
         .upsert(audioData, { onConflict: "article_id,sentence_id,language_code" });
 
-      if (error || !tts.signedUrl) audioFailed += 1;
+      if (error || !signedUrl) audioFailed += 1;
       else audioCreated += 1;
     } catch {
       audioFailed += 1;
