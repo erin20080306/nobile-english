@@ -1,11 +1,12 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Home, Play, RotateCcw, Wand2 } from "lucide-react";
+import { Home, Loader2, Mic, Play, RotateCcw, Square, Wand2 } from "lucide-react";
 import type { CustomScene, EnglishLevel, Scene, TutorFeedback, DialogueResult, DialogueTranscriptLine, LearningLanguageCode } from "@/types";
 import { sceneService } from "@/services/sceneService";
 import { learningService } from "@/services/learningService";
+import { speechService } from "@/services/speechService";
 import { authService } from "@/services/authService";
 import { sceneReviewService } from "@/services/sceneReviewService";
 import { storageService, KEYS } from "@/services/storageService";
@@ -368,9 +369,32 @@ function FreeChat({ targetLanguage, onExit }: { targetLanguage: LearningLanguage
   const showZh = settings ? settings.showChineseGlobal && settings.dialogueChinese : true;
   const pron = settings ? settings.pronunciationOn : true;
   const [createdScene, setCreatedScene] = useState<CustomScene | null>(null);
+  const [creatingScene, setCreatingScene] = useState(false);
+  const [topicMicLang, setTopicMicLang] = useState<"zh-TW" | "en-US">("zh-TW");
+  const [topicListening, setTopicListening] = useState(false);
+  const topicStopListenRef = useRef<(() => void) | null>(null);
 
   const languageInfo = getLearningLanguage(targetLanguage);
   const freeScene = buildFreeScene(targetLanguage);
+
+  function buildSceneFromSituation(situation: string, hintText: string) {
+    const level: EnglishLevel = "Elementary";
+    setCreatingScene(true);
+    sceneService
+      .createCustomScene({
+        situation,
+        role: "customer",
+        place: /餐廳|點餐|restaurant|order/i.test(hintText) ? "restaurant" : "real-life setting",
+        difficulty: level,
+        topic: situation,
+        pattern: "",
+        showChinese: showZh,
+        rounds: 6,
+        targetLanguage,
+      })
+      .then((custom) => setCreatedScene(custom))
+      .finally(() => setCreatingScene(false));
+  }
 
   function createScenarioFromText(latest: string) {
     const explicitCreate = /建立|產生|自訂|新增|做一個|create|make|generate/i.test(latest) &&
@@ -382,21 +406,45 @@ function FreeChat({ targetLanguage, onExit }: { targetLanguage: LearningLanguage
       .replace(/可以|幫我|請|建立|產生|一個|的|場景|情境|主題|練習|嗎|？|\?|create|make|scenario|scene|topic/gi, " ")
       .replace(/\s+/g, " ")
       .trim();
-    const situation = topic || latest;
-    const level: EnglishLevel = "Elementary";
-    const custom = sceneService.createCustomScene({
-      situation,
-      role: "customer",
-      place: /餐廳|點餐|restaurant|order/i.test(latest) ? "restaurant" : "real-life setting",
-      difficulty: level,
-      topic: situation,
-      pattern: "",
-      showChinese: showZh,
-      rounds: 6,
-      targetLanguage,
-    });
-    setCreatedScene(custom);
+    buildSceneFromSituation(topic || latest, latest);
     return true;
+  }
+
+  function toggleTopicMic() {
+    if (topicListening) {
+      topicStopListenRef.current?.();
+      topicStopListenRef.current = null;
+      setTopicListening(false);
+      return;
+    }
+    const stop = speechService.listen({
+      lang: topicMicLang,
+      onResult: (text) => {
+        const topic = text.trim();
+        if (!topic) return;
+        topicStopListenRef.current?.();
+        topicStopListenRef.current = null;
+        setTopicListening(false);
+        buildSceneFromSituation(topic, topic);
+      },
+      onError: (message) => {
+        flashTopicError(message);
+        topicStopListenRef.current = null;
+        setTopicListening(false);
+      },
+      onEnd: () => {
+        topicStopListenRef.current = null;
+        setTopicListening(false);
+      },
+    });
+    if (stop) {
+      topicStopListenRef.current = stop;
+      setTopicListening(true);
+    }
+  }
+
+  function flashTopicError(message: string) {
+    window.alert(message);
   }
 
   function handleFinish(result: DialogueResult, userTurns: string[], feedbacks: TutorFeedback[]) {
@@ -435,6 +483,16 @@ function FreeChat({ targetLanguage, onExit }: { targetLanguage: LearningLanguage
       nextHref: "/dialogue",
     });
     router.push("/results");
+  }
+
+  if (creatingScene) {
+    return (
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center gap-3 px-8 text-center">
+        <Loader2 size={32} className="animate-spin text-lilacDeep" />
+        <p className="font-extrabold text-ink">AI 正在為你設計場景...</p>
+        <p className="text-sm text-inkSoft">正在建立階段練習、關鍵句型與選擇題，請稍候。</p>
+      </div>
+    );
   }
 
   if (createdScene) {
@@ -488,7 +546,7 @@ function FreeChat({ targetLanguage, onExit }: { targetLanguage: LearningLanguage
 
           <button
             className="btn-primary w-full flex items-center justify-center gap-2"
-            onClick={() => router.push(`/dialogue?scene=${scene.id}`)}
+            onClick={() => router.push(`/scenes/custom/${scene.id}`)}
           >
             <Play size={18} /> 開始自訂場景練習
           </button>
@@ -509,6 +567,34 @@ function FreeChat({ targetLanguage, onExit }: { targetLanguage: LearningLanguage
           </button>
         }
       />
+      <div className="shrink-0 px-4 pt-2 pb-1 bg-cream/95">
+        <div className="rounded-3xl bg-white shadow-softer px-3 py-2 flex items-center gap-2">
+          <span className="text-xs font-bold text-inkSoft flex-1">用說的直接建立自訂場景</span>
+          <button
+            type="button"
+            onClick={() => setTopicMicLang("zh-TW")}
+            className={`chip text-xs ${topicMicLang === "zh-TW" ? "bg-lilacDeep text-white" : "bg-cream text-inkSoft"}`}
+          >
+            中文
+          </button>
+          <button
+            type="button"
+            onClick={() => setTopicMicLang("en-US")}
+            className={`chip text-xs ${topicMicLang === "en-US" ? "bg-lilacDeep text-white" : "bg-cream text-inkSoft"}`}
+          >
+            EN
+          </button>
+          <button
+            type="button"
+            onClick={toggleTopicMic}
+            disabled={creatingScene}
+            className={`h-8 w-8 rounded-2xl flex items-center justify-center shrink-0 disabled:opacity-50 ${topicListening ? "bg-peachDeep text-white animate-pulse" : "bg-mint text-mintDeep"}`}
+          >
+            {topicListening ? <Square size={14} /> : <Mic size={14} />}
+          </button>
+        </div>
+        {topicListening && <p className="mt-1 text-xs font-bold text-peachDeep px-1">聆聽中... 說出想練習的主題</p>}
+      </div>
       <ConversationPractice
         scene={freeScene}
         showZh={showZh}

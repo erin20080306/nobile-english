@@ -1,10 +1,62 @@
-import type { Scene, SceneTheme, CustomScene, CustomSceneStage, EnglishLevel, LearningLanguageCode } from "@/types";
+import type { Scene, SceneTheme, CustomScene, CustomSceneStage, EnglishLevel, LearningLanguageCode, QuizItem } from "@/types";
 import { scenes, themes } from "@/data/scenes";
 import { vocabulary } from "@/data/vocabulary";
 import { getLearningLanguage } from "@/data/learningLanguages";
 import { storageService, KEYS } from "./storageService";
 
 type ProgressMap = Record<string, { completed: boolean; score: number }>;
+
+export interface ScenarioPlan {
+  name: string;
+  enName: string;
+  intro: string;
+  keyWords: string[];
+  patterns: { en: string; zh: string }[];
+  stages: CustomSceneStage[];
+  quiz: QuizItem[];
+}
+
+interface CustomSceneInput {
+  situation: string;
+  role: string;
+  place: string;
+  difficulty: EnglishLevel;
+  topic: string;
+  pattern: string;
+  showChinese: boolean;
+  rounds: number;
+  targetLanguage?: LearningLanguageCode;
+}
+
+// Ask the Gemini-backed API to design scenario content tailored to the exact
+// topic the learner typed/spoke. Falls back to the local rule-based planner
+// (inferScenarioPlan) if the request fails or the response is unusable, so
+// custom scene creation always succeeds even without Gemini configured.
+async function fetchScenarioPlan(input: CustomSceneInput, targetLanguage: LearningLanguageCode): Promise<ScenarioPlan> {
+  try {
+    const response = await fetch("/api/scenes/generate-custom", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        situation: input.situation,
+        role: input.role,
+        place: input.place,
+        difficulty: input.difficulty,
+        topic: input.topic,
+        pattern: input.pattern,
+        targetLanguage,
+      }),
+    });
+    if (!response.ok) throw new Error("generate-custom request failed");
+    const data = (await response.json()) as { plan?: ScenarioPlan };
+    if (!data.plan || !Array.isArray(data.plan.stages) || data.plan.stages.length === 0) {
+      throw new Error("generate-custom missing plan");
+    }
+    return data.plan;
+  } catch {
+    return inferScenarioPlan(input.situation, input.place, input.role, targetLanguage);
+  }
+}
 
 export const sceneService = {
   getThemes(): SceneTheme[] {
@@ -45,26 +97,17 @@ export const sceneService = {
   getCustomScenes(): CustomScene[] {
     return storageService.get<CustomScene[]>(KEYS.customScenes, []);
   },
-  createCustomScene(input: {
-    situation: string;
-    role: string;
-    place: string;
-    difficulty: EnglishLevel;
-    topic: string;
-    pattern: string;
-    showChinese: boolean;
-    rounds: number;
-    targetLanguage?: LearningLanguageCode;
-  }): CustomScene {
+  async createCustomScene(input: CustomSceneInput): Promise<CustomScene> {
     const id = "custom-" + Math.random().toString(36).slice(2, 8);
     const targetLanguage = input.targetLanguage || "en";
     const language = getLearningLanguage(targetLanguage);
-    const smart = inferScenarioPlan(input.situation, input.place, input.role, targetLanguage);
+    const smart = await fetchScenarioPlan(input, targetLanguage);
     const name = smart.name || input.situation || `${input.place} ${input.role} 練習`;
     // Pick 10 key words contextually from vocabulary.
     const keyWords = smart.keyWords.length ? smart.keyWords : pickWords(input.topic + " " + input.situation, 10);
     const patterns = smart.patterns.length ? smart.patterns : buildPatterns(input);
     const dialogue = buildCustomDialogue(input, name, smart.stages);
+    const quiz = smart.quiz.length ? smart.quiz : buildFallbackQuiz(patterns);
     const scene: Scene = {
       id,
       themeId: "custom",
@@ -82,14 +125,7 @@ export const sceneService = {
       keyWords,
       keyPatterns: patterns,
       dialogue,
-      quiz: [
-        {
-          question: `在此情境中，最適合的開場是？`,
-          options: ["Whatever.", patterns[0]?.en || "Hello, nice to meet you.", "No.", "Go away."],
-          answerIndex: 1,
-          explanation: "用禮貌且切題的句型開場最自然。",
-        },
-      ],
+      quiz,
     };
     const custom: CustomScene = {
       id,
@@ -113,14 +149,26 @@ export const sceneService = {
   },
 };
 
-function inferScenarioPlan(situation: string, place = "", role = "", targetLanguage: LearningLanguageCode = "en"): {
-  name: string;
-  enName: string;
-  intro: string;
-  keyWords: string[];
-  patterns: { en: string; zh: string }[];
-  stages: CustomSceneStage[];
-} {
+function buildFallbackQuiz(patterns: { en: string; zh: string }[]): QuizItem[] {
+  const primary = patterns[0]?.en || "Hello, nice to meet you.";
+  const secondary = patterns[1]?.en || primary;
+  return [
+    {
+      question: "在此情境中，最適合的開場是？",
+      options: ["Whatever.", primary, "No.", "Go away."],
+      answerIndex: 1,
+      explanation: "用禮貌且切題的句型開場最自然。",
+    },
+    {
+      question: "情境中想清楚表達需求時，較適合的說法是？",
+      options: [secondary, "Just give it to me.", "Whatever, I don't care.", "No thanks, bye."],
+      answerIndex: 0,
+      explanation: "清楚且禮貌地表達需求，對方才能順利協助你。",
+    },
+  ];
+}
+
+export function inferScenarioPlan(situation: string, place = "", role = "", targetLanguage: LearningLanguageCode = "en"): ScenarioPlan {
   const text = `${situation} ${place} ${role}`.toLowerCase();
   const hasRestaurant = /餐廳|吃飯|點餐|訂位|reservation|restaurant|order food|dining|menu/.test(text);
   if (hasRestaurant) {
@@ -182,20 +230,26 @@ function inferScenarioPlan(situation: string, place = "", role = "", targetLangu
         { en: "Could we have the bill, please?", zh: "可以給我們帳單嗎？" },
       ],
       stages,
+      quiz: buildFallbackQuiz([
+        { en: "Do you have a table for two?", zh: "有兩人座位嗎？" },
+        { en: "What do you recommend?", zh: "你推薦什麼？" },
+      ]),
     };
   }
 
+  const defaultPatterns = localizedDefaultPatterns(targetLanguage);
   return {
     name: situation,
     enName: targetLanguage === "en" ? "Custom Scenario" : `${getLearningLanguage(targetLanguage).label} Custom Scenario`,
     intro: targetLanguage === "en" ? "" : `使用${getLearningLanguage(targetLanguage).zhName}練習你指定的情境。`,
     keyWords: [],
-    patterns: localizedDefaultPatterns(targetLanguage),
+    patterns: defaultPatterns,
     stages: localizedDefaultStages(situation, targetLanguage),
+    quiz: buildFallbackQuiz(defaultPatterns),
   };
 }
 
-function localizedRestaurantPlan(targetLanguage: LearningLanguageCode) {
+function localizedRestaurantPlan(targetLanguage: LearningLanguageCode): ScenarioPlan {
   if (targetLanguage === "ja") {
     const stages: CustomSceneStage[] = [
       { title: "接待與預約", enTitle: "受付と予約", tutorPrompt: "いらっしゃいませ。ご予約はありますか？", learnerGoal: "說明是否有預約，或詢問座位。", sampleUser: "予約はありません。二人用の席はありますか？" },
@@ -218,6 +272,10 @@ function localizedRestaurantPlan(targetLanguage: LearningLanguageCode) {
         { en: "お会計をお願いします。", zh: "請幫我結帳。" },
       ],
       stages,
+      quiz: buildFallbackQuiz([
+        { en: "二人用の席はありますか？", zh: "有兩人座位嗎？" },
+        { en: "おすすめは何ですか？", zh: "你推薦什麼？" },
+      ]),
     };
   }
   if (targetLanguage === "ko") {
@@ -242,6 +300,10 @@ function localizedRestaurantPlan(targetLanguage: LearningLanguageCode) {
         { en: "계산 부탁드려요.", zh: "請幫我結帳。" },
       ],
       stages,
+      quiz: buildFallbackQuiz([
+        { en: "두 명 자리 있나요?", zh: "有兩人座位嗎？" },
+        { en: "뭐가 좋아요?", zh: "你推薦什麼？" },
+      ]),
     };
   }
   if (targetLanguage === "it") {
@@ -266,6 +328,10 @@ function localizedRestaurantPlan(targetLanguage: LearningLanguageCode) {
         { en: "Possiamo avere il conto, per favore?", zh: "可以給我們帳單嗎？" },
       ],
       stages,
+      quiz: buildFallbackQuiz([
+        { en: "Avete un tavolo per due?", zh: "有兩人座位嗎？" },
+        { en: "Che cosa mi consiglia?", zh: "你推薦什麼？" },
+      ]),
     };
   }
   if (targetLanguage === "es") {
@@ -290,6 +356,10 @@ function localizedRestaurantPlan(targetLanguage: LearningLanguageCode) {
         { en: "¿Nos trae la cuenta, por favor?", zh: "可以給我們帳單嗎？" },
       ],
       stages,
+      quiz: buildFallbackQuiz([
+        { en: "¿Tienen una mesa para dos?", zh: "有兩人座位嗎？" },
+        { en: "¿Qué me recomienda?", zh: "你推薦什麼？" },
+      ]),
     };
   }
   return inferScenarioPlan("餐廳點餐", "restaurant", "customer", "en");

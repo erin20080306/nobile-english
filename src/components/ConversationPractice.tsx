@@ -204,6 +204,7 @@ export default function ConversationPractice({
   finishLabel = "結束對話並看成果",
   onUserTurn,
   onFinish,
+  customStages,
 }: {
   scene: Scene;
   showZh: boolean;
@@ -211,6 +212,7 @@ export default function ConversationPractice({
   finishLabel?: string;
   onUserTurn?: (text: string) => boolean | void;
   onFinish: (result: DialogueResult, userTurns: string[], feedbacks: TutorFeedback[]) => void;
+  customStages?: Array<{ title: string; enTitle: string; tutorPrompt: string; learnerGoal: string; sampleUser: string }>;
 }) {
   const targetLanguage = scene.targetLanguage || learningService.getCurrentLanguage();
   const languageInfo = getLearningLanguage(targetLanguage);
@@ -417,7 +419,8 @@ export default function ConversationPractice({
       nextTurn,
       history,
       persona,
-      tutorStateRef.current
+      tutorStateRef.current,
+      customStages
     );
     if (!tutorResponse.ok) {
       setBusy(false);
@@ -474,7 +477,7 @@ export default function ConversationPractice({
     voiceSubmitHandledRef.current = false;
     setVoiceDraft("");
     const stop = speechService.listen({
-      lang: selectedTutor.lang,
+      lang: "zh-TW",
       onResult: (text) => {
         const transcript = text.trim();
         if (!transcript) return;
@@ -696,9 +699,9 @@ export default function ConversationPractice({
                 <Mic size={18} />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-extrabold text-ink">錄音中 · 請說{languageInfo.zhName}</p>
+                <p className="text-sm font-extrabold text-ink">錄音中 · 請說中文或英文</p>
                 <p className="truncate text-xs font-semibold text-inkSoft">
-                  {voiceDraft || `辨識語言：${selectedTutor.lang}`}
+                  {voiceDraft || "自動辨識中英文"}
                 </p>
               </div>
               <button

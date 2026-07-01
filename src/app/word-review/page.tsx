@@ -20,7 +20,7 @@ const countOptions = [5, 10, 15, 20, 25, 30];
 const learnedOptions = [0, 25, 50, 75, 100];
 
 type AnswerSoundKey = "correct" | "wrong";
-type AnswerTone = { frequency: number; duration: number };
+type AnswerTone = { frequency: number; duration: number; decayRate?: number; accent?: number };
 
 let answerAudioContext: AudioContext | null = null;
 const answerSoundUrls: Partial<Record<AnswerSoundKey, string>> = {};
@@ -50,16 +50,17 @@ function writeAscii(view: DataView, offset: number, text: string) {
 function answerTonePlan(correct: boolean): AnswerTone[] {
   return correct
     ? [
-        // Jackpot / coin-win style: quick ascending arpeggio, a bouncy
-        // trill back down and up, then a bright sustained ring.
-        { frequency: 1046.5, duration: 0.09 }, // C6
-        { frequency: 1318.5, duration: 0.09 }, // E6
-        { frequency: 1568.0, duration: 0.09 }, // G6
-        { frequency: 2093.0, duration: 0.09 }, // C7
-        { frequency: 1568.0, duration: 0.07 }, // G6 bounce
-        { frequency: 2093.0, duration: 0.07 }, // C7 bounce
-        { frequency: 2637.0, duration: 0.09 }, // E7
-        { frequency: 3136.0, duration: 0.32 }, // G7 final ring
+        // "登登登登" idol-entrance fanfare: four punchy same-pitch stabs
+        // (fast attack, fast decay) building anticipation, then a quick
+        // ascending flourish into a bright sustained victory ring.
+        { frequency: 587.33, duration: 0.1, decayRate: 15 }, // D5 登
+        { frequency: 587.33, duration: 0.1, decayRate: 15 }, // D5 登
+        { frequency: 587.33, duration: 0.1, decayRate: 15 }, // D5 登
+        { frequency: 587.33, duration: 0.16, decayRate: 11, accent: 1.1 }, // D5 登 (anchor)
+        { frequency: 1046.5, duration: 0.08, decayRate: 9 }, // C6 climb
+        { frequency: 1318.5, duration: 0.08, decayRate: 9 }, // E6
+        { frequency: 1568.0, duration: 0.08, decayRate: 9 }, // G6
+        { frequency: 2093.0, duration: 0.46, decayRate: 3.2, accent: 1.15 }, // C7 big reveal ring
       ]
     : [
         { frequency: 349.23, duration: 0.16 },
@@ -74,11 +75,23 @@ function toneStateAt(tones: AnswerTone[], time: number) {
     const noteStart = elapsed;
     elapsed += tone.duration;
     if (time <= elapsed) {
-      return { frequency: tone.frequency, noteElapsed: time - noteStart, noteDuration: tone.duration };
+      return {
+        frequency: tone.frequency,
+        noteElapsed: time - noteStart,
+        noteDuration: tone.duration,
+        decayRate: tone.decayRate,
+        accent: tone.accent ?? 1,
+      };
     }
   }
   const last = tones[tones.length - 1];
-  return { frequency: last?.frequency || 440, noteElapsed: last?.duration || 0, noteDuration: last?.duration || 1 };
+  return {
+    frequency: last?.frequency || 440,
+    noteElapsed: last?.duration || 0,
+    noteDuration: last?.duration || 1,
+    decayRate: last?.decayRate,
+    accent: last?.accent ?? 1,
+  };
 }
 
 function makeAnswerSoundUrl(correct: boolean) {
@@ -110,19 +123,18 @@ function makeAnswerSoundUrl(correct: boolean) {
 
   for (let index = 0; index < sampleCount; index += 1) {
     const time = index / sampleRate;
-    const { frequency, noteElapsed, noteDuration } = toneStateAt(tones, time);
+    const { frequency, noteElapsed, noteDuration, decayRate, accent } = toneStateAt(tones, time);
     // Fast attack + exponential decay per note gives each ding its own bell/coin
     // percussive shape, instead of one glissando envelope across the whole clip.
     const attack = Math.min(1, noteElapsed / 0.006);
-    const decayRate = correct ? 6 : 5.5;
-    const decay = Math.exp(-noteElapsed * decayRate);
+    const decay = Math.exp(-noteElapsed * (decayRate ?? (correct ? 6 : 5.5)));
     // Ease the very end of the last note so it doesn't cut off abruptly.
     const tailFade = Math.min(1, (noteDuration - noteElapsed) / 0.03 + 0.4);
     const envelope = attack * decay * Math.min(1, tailFade);
     const harmonic = correct ? 0.3 : 0.18;
     const shimmer = correct ? 1 + 0.12 * Math.sin(2 * Math.PI * 18 * time) : 1;
     const wave = Math.sin(2 * Math.PI * frequency * time) + harmonic * Math.sin(2 * Math.PI * frequency * 2 * time);
-    const sample = wave * (correct ? 0.32 : 0.24) * envelope * shimmer;
+    const sample = wave * (correct ? 0.32 : 0.24) * envelope * shimmer * accent;
     view.setInt16(44 + index * 2, Math.max(-1, Math.min(1, sample)) * 0x7fff, true);
   }
 
@@ -209,25 +221,30 @@ async function playWebAudioAnswerSound(correct: boolean) {
 
     const tones = answerTonePlan(correct);
     const start = context.currentTime + 0.015;
-    const gain = context.createGain();
-    gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.exponentialRampToValueAtTime(correct ? 0.3 : 0.26, start + 0.025);
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + tones.reduce((sum, tone) => sum + tone.duration, 0));
-    gain.connect(context.destination);
+    const basePeak = correct ? 0.3 : 0.26;
 
     let offset = 0;
     for (const tone of tones) {
+      const noteStart = start + offset;
+      const peak = basePeak * (tone.accent ?? 1);
+      const gain = context.createGain();
+      gain.gain.setValueAtTime(0.0001, noteStart);
+      gain.gain.exponentialRampToValueAtTime(peak, noteStart + 0.006);
+      gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + tone.duration);
+      gain.connect(context.destination);
+
       const oscillator = context.createOscillator();
       oscillator.type = correct ? "sine" : "triangle";
-      oscillator.frequency.setValueAtTime(tone.frequency, start + offset);
+      oscillator.frequency.setValueAtTime(tone.frequency, noteStart);
       oscillator.connect(gain);
-      oscillator.onended = () => oscillator.disconnect();
-      oscillator.start(start + offset);
-      oscillator.stop(start + offset + tone.duration);
+      oscillator.onended = () => {
+        oscillator.disconnect();
+        gain.disconnect();
+      };
+      oscillator.start(noteStart);
+      oscillator.stop(noteStart + tone.duration + 0.02);
       offset += tone.duration;
     }
-
-    window.setTimeout(() => gain.disconnect(), Math.ceil((offset + 0.1) * 1000));
     return true;
   } catch {
     return false;

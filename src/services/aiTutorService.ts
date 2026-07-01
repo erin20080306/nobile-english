@@ -70,14 +70,15 @@ export const aiTutorService = {
     turn: number,
     history: string[] = [],
     persona?: string,
-    state?: TutorConversationState | null
+    state?: TutorConversationState | null,
+    customStages?: Array<{ title: string; enTitle: string; tutorPrompt: string; learnerGoal: string; sampleUser: string }>
   ): Promise<TutorApiResponse> {
     if (USE_REMOTE && typeof window !== "undefined") {
       try {
         const res = await fetch("/api/tutor", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ scene, userInput, turn, history, persona, state }),
+          body: JSON.stringify({ scene, userInput, turn, history, persona, state, customStages }),
         });
         const data = (await res.json().catch(() => null)) as TutorApiResponse | null;
         if (data?.ok) return normalizeTutorSuccess(data);
@@ -104,9 +105,10 @@ export const aiTutorService = {
     turn: number,
     history: string[] = [],
     persona?: string,
-    state?: TutorConversationState | null
+    state?: TutorConversationState | null,
+    customStages?: Array<{ title: string; enTitle: string; tutorPrompt: string; learnerGoal: string; sampleUser: string }>
   ): Promise<TutorFeedback> {
-    const response = await this.requestFeedback(scene, userInput, turn, history, persona, state);
+    const response = await this.requestFeedback(scene, userInput, turn, history, persona, state, customStages);
     if (response.ok) return response.feedback;
     throw new Error(response.message);
   },

@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Wand2, Play, Volume2 } from "lucide-react";
+import { Wand2, Play, Volume2, Mic, Square, Loader2 } from "lucide-react";
 import type { CustomScene, EnglishLevel, LearningLanguageCode } from "@/types";
 import { sceneService } from "@/services/sceneService";
 import { learningService } from "@/services/learningService";
@@ -41,6 +41,10 @@ export default function CustomScenePage() {
   const [access, setAccess] = useState<AccessState | null>(null);
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(false);
   const [studiedPhrases, setStudiedPhrases] = useState<string[]>([]);
+  const [generating, setGenerating] = useState(false);
+  const [micLang, setMicLang] = useState<"zh-TW" | "en-US">("zh-TW");
+  const [listening, setListening] = useState(false);
+  const stopListenRef = useRef<(() => void) | null>(null);
   const languageInfo = getLearningLanguage(targetLanguage);
 
   useEffect(() => {
@@ -52,7 +56,33 @@ export default function CustomScenePage() {
     setForm((f) => ({ ...f, [k]: v }));
   }
 
-  function generate() {
+  function toggleMic() {
+    if (listening) {
+      stopListenRef.current?.();
+      stopListenRef.current = null;
+      setListening(false);
+      return;
+    }
+    const stop = speechService.listen({
+      lang: micLang,
+      onResult: (text) => set("situation", text),
+      onError: (message) => {
+        alert(message);
+        stopListenRef.current = null;
+        setListening(false);
+      },
+      onEnd: () => {
+        stopListenRef.current = null;
+        setListening(false);
+      },
+    });
+    if (stop) {
+      stopListenRef.current = stop;
+      setListening(true);
+    }
+  }
+
+  async function generate() {
     if (trialUsageService.isLimited(access)) {
       setShowSubscriptionPrompt(true);
       return;
@@ -61,10 +91,15 @@ export default function CustomScenePage() {
       alert("請至少描述想練習的情境");
       return;
     }
-    const c = sceneService.createCustomScene({ ...form, targetLanguage });
-    setCreated(c);
-    setStudiedPhrases([]);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setGenerating(true);
+    try {
+      const c = await sceneService.createCustomScene({ ...form, targetLanguage });
+      setCreated(c);
+      setStudiedPhrases([]);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } finally {
+      setGenerating(false);
+    }
   }
 
   if (created) {
@@ -208,7 +243,41 @@ export default function CustomScenePage() {
           </div>
         </div>
 
-        <Input label="想練習的情境" value={form.situation} onChange={(v) => set("situation", v)} placeholder="例如：到外商公司面試行政助理" />
+        <div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-bold text-inkSoft">想練習的情境</span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setMicLang("zh-TW")}
+                className={`chip text-xs ${micLang === "zh-TW" ? "bg-lilacDeep text-white" : "bg-white text-inkSoft shadow-softer"}`}
+              >
+                中文
+              </button>
+              <button
+                type="button"
+                onClick={() => setMicLang("en-US")}
+                className={`chip text-xs ${micLang === "en-US" ? "bg-lilacDeep text-white" : "bg-white text-inkSoft shadow-softer"}`}
+              >
+                EN
+              </button>
+              <button
+                type="button"
+                onClick={toggleMic}
+                className={`h-8 w-8 rounded-2xl flex items-center justify-center shadow-softer ${listening ? "bg-peachDeep text-white animate-pulse" : "bg-white text-lilacDeep"}`}
+              >
+                {listening ? <Square size={14} /> : <Mic size={14} />}
+              </button>
+            </div>
+          </div>
+          <input
+            className="mt-1 w-full bg-white rounded-3xl px-4 py-3 shadow-softer outline-none text-ink"
+            value={form.situation}
+            placeholder="例如：到外商公司面試行政助理，或點一下麥克風直接說"
+            onChange={(e) => set("situation", e.target.value)}
+          />
+          {listening && <p className="mt-1 text-xs font-bold text-peachDeep">聆聽中... 說完後再按一次麥克風停止</p>}
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <Input label="角色" value={form.role} onChange={(v) => set("role", v)} placeholder="面試者" />
           <Input label="地點" value={form.place} onChange={(v) => set("place", v)} placeholder="會議室" />
@@ -234,8 +303,9 @@ export default function CustomScenePage() {
           <Toggle label="顯示中文" checked={form.showChinese} onChange={(v) => set("showChinese", v)} />
         </div>
 
-        <button className="btn-primary w-full flex items-center justify-center gap-2" onClick={generate}>
-          <Wand2 size={18} /> 產生練習卡
+        <button className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-60" onClick={() => { void generate(); }} disabled={generating}>
+          {generating ? <Loader2 size={18} className="animate-spin" /> : <Wand2 size={18} />}
+          {generating ? "AI 正在設計場景..." : "產生練習卡"}
         </button>
       </div>
       {access && showSubscriptionPrompt && (

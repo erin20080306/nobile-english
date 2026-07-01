@@ -48,6 +48,7 @@ interface TutorRequest {
   history?: string[];
   persona?: string;
   state?: Partial<TutorConversationState> | null;
+  customStages?: Array<{ title: string; enTitle: string; tutorPrompt: string; learnerGoal: string; sampleUser: string }>;
 }
 
 interface GeminiTutorPayload extends Partial<TutorFeedback> {
@@ -330,7 +331,7 @@ function mockSuccess(body: TutorRequest, persona: string, state: TutorConversati
 }
 
 function buildPrompt(body: TutorRequest, persona: string, state: TutorConversationState) {
-  const { scene, userInput, history = [] } = body;
+  const { scene, userInput, history = [], customStages } = body;
   const targetLanguage = getLearningLanguage(scene.targetLanguage || "en");
   const transcript = history.slice(-12).join("\n");
   const patterns = scene.keyPatterns.slice(0, 4).map((p) => p.en).join(" | ");
@@ -340,6 +341,15 @@ function buildPrompt(body: TutorRequest, persona: string, state: TutorConversati
     .map((d) => d.en)
     .join(" / ");
 
+  // Build custom stages guide if available
+  let stagesGuide = "";
+  if (customStages && customStages.length > 0) {
+    const stageDescriptions = customStages.map((s, i) => 
+      `Stage ${i + 1}: ${s.title} (${s.enTitle}) - Tutor says: "${s.tutorPrompt}" - Learner goal: ${s.learnerGoal} - Sample learner response: "${s.sampleUser}"`
+    ).join("\n");
+    stagesGuide = `\nThis is a CUSTOM SCENE with staged role-play. Follow these stages in order:\n${stageDescriptions}\nProgress through these stages naturally. Move to the next stage when the learner has addressed the current stage's goal.`;
+  }
+
   return [
     `You are ${persona}, playing the NON-LEARNER role in scene: "${scene.name}" (${scene.enName}).`,
     `Target learning language: ${targetLanguage.label} / ${targetLanguage.nativeName}.`,
@@ -347,6 +357,7 @@ function buildPrompt(body: TutorRequest, persona: string, state: TutorConversati
       ? "Use natural English for reply, ttsCandidate, and betterWay."
       : `Use natural ${targetLanguage.nativeName} for reply, ttsCandidate, and betterWay. Do not answer in English unless the learner explicitly asks for English.`,
     sceneRoleGuide(scene),
+    stagesGuide,
     "You are a scene character first, not an English teacher. Do NOT keep saying Great job, Nice English, Try saying, Could you tell me more, or generic teaching praise.",
     "Keep the ROLE reply separate from teaching feedback. The reply and ttsCandidate must be only what the character would actually say out loud in the scene.",
     "Move the scene forward based on the current state. Remember knownInfo, do not ask for information already collected, and do not repeat askedQuestions.",
