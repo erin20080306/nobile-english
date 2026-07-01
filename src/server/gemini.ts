@@ -4,8 +4,8 @@
  * Used for AI tutor dynamic replies and daily reading article generation,
  * replacing the previous OpenAI dependency. Reads the API key from several
  * common env var names so it works regardless of how the key was named in the
- * deployment dashboard, falling back to the existing GOOGLE_TTS_API_KEY when a
- * single Google project key is enabled for both TTS and Gemini.
+ * deployment dashboard. Gemini keys and TTS keys are intentionally kept
+ * separate so a Google TTS key is never treated as permission to call Gemini.
  */
 
 const GENERATIVE_LANGUAGE_BASE =
@@ -17,13 +17,12 @@ export function getGeminiApiKey(): string | null {
     process.env.GOOGLE_GEMINI_API_KEY ||
     process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
     process.env.GOOGLE_AI_API_KEY ||
-    process.env.GOOGLE_TTS_API_KEY ||
     null
   );
 }
 
 export function getGeminiModel(): string {
-  return process.env.GEMINI_MODEL || "gemini-2.0-flash";
+  return process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
 }
 
 export function hasGeminiConfig(): boolean {

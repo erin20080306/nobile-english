@@ -24,7 +24,10 @@ export default function ClickableText({
         return (
           <button
             key={i}
-            onClick={() => onWord(tok.lookup!)}
+            onClick={(event) => {
+              event.stopPropagation();
+              onWord(tok.lookup!);
+            }}
             className="underline decoration-dotted decoration-lilacDeep/50 underline-offset-4 hover:text-lilacDeep active:text-lilacDeep transition"
           >
             {tok.text}

@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { BookOpen, Play, Pause, SkipBack, SkipForward, Volume2, Bookmark, CheckCircle, ArrowLeft } from "lucide-react";
 import type { LearningLanguageCode } from "@/types";
-import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
+import { LEARNING_LANGUAGES, getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
 import { audioQueueService } from "@/services/audioQueueService";
 import { learningService } from "@/services/learningService";
+import { speechService } from "@/services/speechService";
 import { trialAccessService, type AccessState } from "@/services/trialAccessService";
 import { trialUsageService, TRIAL_READING_ARTICLE_LIMIT } from "@/services/trialUsageService";
 import { useUser } from "@/hooks/useUser";
@@ -80,6 +81,7 @@ export default function DailyReadingPage() {
   const [audioError, setAudioError] = useState("");
 
   const blobUrlsRef = useRef<string[]>([]);
+  const speechFallbackSessionRef = useRef(0);
 
   const languageInfo = getLearningLanguage(selectedLanguage);
 
@@ -107,14 +109,17 @@ export default function DailyReadingPage() {
 
   useEffect(() => {
     return () => {
+      stopSpeechFallback();
       audioQueueService.clearQueue();
       blobUrlsRef.current.forEach((u) => { try { URL.revokeObjectURL(u); } catch {} });
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function loadTodayArticle() {
     setLoading(true);
     setPlaying(false);
+    stopSpeechFallback();
     audioQueueService.clearQueue();
     try {
       const nextAccess = await trialAccessService.getAccessState(user, { fresh: true }).catch(() => null);
@@ -144,10 +149,7 @@ export default function DailyReadingPage() {
     }
   }
 
-  async function getSentenceAudioUrl(sentence: ReadingSentence): Promise<string | null> {
-    const access = await trialAccessService.getAccessState(user).catch(() => null);
-    const cacheOnly = Boolean(access && !access.isSubscribed);
-
+  async function requestSentenceTtsAsset(sentence: ReadingSentence, cacheOnly: boolean): Promise<string | null> {
     try {
       const cached = await fetch("/api/tts/get-or-create", {
         method: "POST",
@@ -171,9 +173,20 @@ export default function DailyReadingPage() {
         if (isPlayableAudioUrl(data.signedUrl)) return data.signedUrl;
       }
     } catch {}
+    return null;
+  }
 
-    if (isPlayableAudioUrl(sentence.audio_url)) return sentence.audio_url!;
-    if (cacheOnly) return null;
+  async function getSentenceAudioUrl(sentence: ReadingSentence): Promise<string | null> {
+    const accessState = await trialAccessService.getAccessState(user).catch(() => null);
+    const cacheOnly = Boolean(accessState && !accessState.isSubscribed);
+
+    const cachedOrFresh = await requestSentenceTtsAsset(sentence, cacheOnly);
+    if (cachedOrFresh) return cachedOrFresh;
+
+    if (cacheOnly) {
+      const generated = await requestSentenceTtsAsset(sentence, false);
+      if (generated) return generated;
+    }
 
     try {
       const res = await fetch("/api/tts", {
@@ -192,6 +205,59 @@ export default function DailyReadingPage() {
       }
     } catch {}
     return null;
+  }
+
+  function stopSpeechFallback() {
+    speechFallbackSessionRef.current += 1;
+    speechService.stop();
+  }
+
+  function playArticleWithSpeechFallback(startIndex: number, continueToEnd: boolean) {
+    if (!article) return false;
+    const sessionId = speechFallbackSessionRef.current + 1;
+    speechFallbackSessionRef.current = sessionId;
+    const baseVoice = voiceForLanguage(selectedLanguage, playbackSpeed);
+
+    const playAt = (index: number) => {
+      if (speechFallbackSessionRef.current !== sessionId || !article) return;
+      const sentence = article.sentences[index];
+      if (!sentence) {
+        setPlaying(false);
+        setCompleted(true);
+        return;
+      }
+      setCurrentSentenceIndex(index);
+      const result = speechService.speak(sentence.sentence_text, {
+        ...baseVoice,
+        rate: playbackSpeed,
+        ttsVoice: undefined,
+        ttsInstructions: undefined,
+        onStart: () => {
+          if (speechFallbackSessionRef.current === sessionId) setPlaying(true);
+        },
+        onEnd: () => {
+          if (speechFallbackSessionRef.current !== sessionId) return;
+          if (continueToEnd && index < article.sentences.length - 1) {
+            playAt(index + 1);
+            return;
+          }
+          setPlaying(false);
+          if (index >= article.sentences.length - 1) setCompleted(true);
+        },
+        onError: (message) => {
+          if (speechFallbackSessionRef.current !== sessionId) return;
+          setPlaying(false);
+          setAudioError(message || "文章音檔暫時無法播放，請稍後再試。");
+        },
+      });
+      if (!result.ok) {
+        setPlaying(false);
+        setAudioError(result.message || "文章音檔暫時無法播放，請稍後再試。");
+      }
+    };
+
+    playAt(startIndex);
+    return true;
   }
 
   async function enqueueFrom(startIndex: number) {
@@ -230,15 +296,19 @@ export default function DailyReadingPage() {
     if (!article) return;
     setAudioLoading(true);
     setAudioError("");
+    stopSpeechFallback();
     await audioQueueService.unlockAudio();
     audioQueueService.clearQueue();
     const queued = await enqueueFrom(0);
     setAudioLoading(false);
     setPlaying(queued > 0);
-    if (queued === 0) setAudioError("目前沒有可播放的文章音檔，請確認 TTS_PROVIDER 與 Google/Polly key 已設定。");
+    if (queued === 0 && !playArticleWithSpeechFallback(0, true)) {
+      setAudioError("目前沒有可播放的文章音檔，請確認 TTS_PROVIDER 與 Google/Polly key 已設定。");
+    }
   }
 
   function pausePlayback() {
+    stopSpeechFallback();
     audioQueueService.stopCurrent();
     audioQueueService.clearQueue();
     setPlaying(false);
@@ -248,15 +318,19 @@ export default function DailyReadingPage() {
     if (!article) return;
     setAudioLoading(true);
     setAudioError("");
+    stopSpeechFallback();
     await audioQueueService.unlockAudio();
     audioQueueService.clearQueue();
     const queued = await enqueueFrom(currentSentenceIndex);
     setAudioLoading(false);
     setPlaying(queued > 0);
-    if (queued === 0) setAudioError("目前沒有可播放的文章音檔，請確認 TTS_PROVIDER 與 Google/Polly key 已設定。");
+    if (queued === 0 && !playArticleWithSpeechFallback(currentSentenceIndex, true)) {
+      setAudioError("目前沒有可播放的文章音檔，請確認 TTS_PROVIDER 與 Google/Polly key 已設定。");
+    }
   }
 
   function stopPlayback() {
+    stopSpeechFallback();
     audioQueueService.stopCurrent();
     audioQueueService.clearQueue();
     setPlaying(false);
@@ -265,6 +339,7 @@ export default function DailyReadingPage() {
 
   async function playSpecificSentence(index: number) {
     if (!article) return;
+    stopSpeechFallback();
     audioQueueService.stopCurrent();
     audioQueueService.clearQueue();
     setCurrentSentenceIndex(index);
@@ -274,7 +349,9 @@ export default function DailyReadingPage() {
     const queued = await enqueueFrom(index);
     setAudioLoading(false);
     setPlaying(queued > 0);
-    if (queued === 0) setAudioError("目前沒有可播放的文章音檔，請確認 TTS_PROVIDER 與 Google/Polly key 已設定。");
+    if (queued === 0 && !playArticleWithSpeechFallback(index, false)) {
+      setAudioError("目前沒有可播放的文章音檔，請確認 TTS_PROVIDER 與 Google/Polly key 已設定。");
+    }
   }
 
   function playPreviousSentence() {
@@ -454,13 +531,13 @@ export default function DailyReadingPage() {
                 {sentence.sentence_order}
               </span>
               <div className="flex-1">
-                <p className="text-base text-ink leading-relaxed" onMouseUp={(e) => handleWordClick(e, sentence.sentence_text)}>
+                <div className="text-base text-ink leading-relaxed" onMouseUp={(e) => handleWordClick(e, sentence.sentence_text)}>
                   <ClickableText
                     text={sentence.sentence_text}
                     language={selectedLanguage}
                     onWord={(word) => setSelectedWord({ word, sentence: sentence.sentence_text })}
                   />
-                </p>
+                </div>
                 {showChinese && (
                   <p className="text-sm text-inkSoft mt-1">{sentence.sentence_zh_tw}</p>
                 )}

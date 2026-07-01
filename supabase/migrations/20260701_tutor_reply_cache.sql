@@ -11,17 +11,28 @@ create table if not exists tutor_reply_cache (
   turn integer not null,
   user_input text not null,
   history_hash text not null,
+  state_hash text not null default '',
+  source text not null default 'gemini',
   model text not null,
   feedback jsonb not null,
+  state jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table tutor_reply_cache
+  add column if not exists state_hash text not null default '',
+  add column if not exists source text not null default 'gemini',
+  add column if not exists state jsonb not null default '{}'::jsonb;
 
 create index if not exists tutor_reply_cache_scene_idx
   on tutor_reply_cache (scene_id, language_code, turn);
 
 create index if not exists tutor_reply_cache_updated_idx
   on tutor_reply_cache (updated_at desc);
+
+create index if not exists tutor_reply_cache_state_idx
+  on tutor_reply_cache (state_hash, source);
 
 drop trigger if exists tutor_reply_cache_set_updated_at on tutor_reply_cache;
 create trigger tutor_reply_cache_set_updated_at

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Send, Volume2, Star, Mic, MicOff, VolumeX } from "lucide-react";
-import type { Scene, TutorFeedback, DialogueResult } from "@/types";
+import type { Scene, TutorApiFailure, TutorConversationState, TutorFeedback, DialogueResult } from "@/types";
 import { aiTutorService } from "@/services/aiTutorService";
 import { dictionaryService } from "@/services/dictionaryService";
 import { learningService } from "@/services/learningService";
@@ -23,7 +23,6 @@ interface Msg {
 }
 
 const MIN_PRACTICE_TURNS = 5;
-const MAX_PRACTICE_TURNS = 7;
 const TUTOR_PLAYBACK_READY_DELAY_MS = 300;
 const TUTOR_FALLBACK_PHOTO = "/assets/tutors/tutor-fallback.svg";
 
@@ -222,7 +221,6 @@ export default function ConversationPractice({
 
   const [msgs, setMsgs] = useState<Msg[]>([{ role: "tutor", en: firstTutor.en, zh: firstTutor.zh }]);
   const [input, setInput] = useState("");
-  const [turn, setTurn] = useState(0);
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
   const [voiceDraft, setVoiceDraft] = useState("");
@@ -248,6 +246,7 @@ export default function ConversationPractice({
   const historyRef = useRef<string[]>([`Tutor: ${firstTutor.en}`]);
   const userTurnsRef = useRef<string[]>([]);
   const feedbacksRef = useRef<TutorFeedback[]>([]);
+  const tutorStateRef = useRef<TutorConversationState | null>(null);
   const finishedRef = useRef(false);
 
   useEffect(() => {
@@ -298,6 +297,13 @@ export default function ConversationPractice({
   function flashToast(t: string) {
     setToast(t);
     setTimeout(() => setToast(""), 2500);
+  }
+
+  function tutorFailureToast(error: TutorApiFailure) {
+    if (error.errorCode === "MISSING_GEMINI_KEY") return "AI 導師尚未連接，請稍後再試。";
+    if (error.errorCode === "GEMINI_INVALID_RESPONSE") return "AI 導師回覆格式異常，請再試一次。";
+    if (error.errorCode === "INVALID_TUTOR_REQUEST") return "這次對話資料不完整，請重新送出。";
+    return "AI 導師暫時無法回覆，請稍後再試。";
   }
 
   function setTutorVoiceActive(active: boolean) {
@@ -393,6 +399,7 @@ export default function ConversationPractice({
     historyRef.current.push(`You: ${trimmed}`);
     const history = [...historyRef.current];
     userTurnsRef.current = [...userTurnsRef.current, trimmed];
+    const nextTurn = userTurnsRef.current.length;
 
     if (onUserTurn?.(trimmed)) {
       setBusy(false);
@@ -402,32 +409,36 @@ export default function ConversationPractice({
     // Unlock audio on first user interaction
     await audioQueueService.unlockAudio();
 
-    // Get AI tutor feedback first
-    const fb = await aiTutorService.feedback(activeScene, trimmed, turn + 1, history, persona);
+    // Get AI tutor feedback first. The API owns mock/production policy; do not
+    // synthesize a fake tutor reply in the browser when it fails.
+    const tutorResponse = await aiTutorService.requestFeedback(
+      activeScene,
+      trimmed,
+      nextTurn,
+      history,
+      persona,
+      tutorStateRef.current
+    );
+    if (!tutorResponse.ok) {
+      setBusy(false);
+      flashToast(tutorFailureToast(tutorResponse));
+      return;
+    }
+
+    const fb = tutorResponse.feedback;
+    tutorStateRef.current = tutorResponse.state;
     feedbacksRef.current = [...feedbacksRef.current, fb];
     // Record the tutor's reply so the next turn's prompt won't repeat it.
     if (fb.reply) historyRef.current.push(`Tutor: ${fb.reply}`);
-    const reachedMax = userTurnsRef.current.length >= MAX_PRACTICE_TURNS;
 
     setMsgs((m) => {
       const copy = [...m];
       const lastUser = [...copy].reverse().find((x) => x.role === "user" && !x.feedback);
       if (lastUser) lastUser.feedback = fb;
-      if (!reachedMax) copy.push({ role: "tutor", en: fb.reply, zh: fb.replyZh });
+      if (fb.reply) copy.push({ role: "tutor", en: fb.reply, zh: fb.replyZh });
       return [...copy];
     });
-    setTurn((t) => t + 1);
     setBusy(false);
-
-    if (reachedMax) {
-      finishedRef.current = true;
-      tutorVoiceService.stop();
-      audioQueueService.clearQueue();
-      stopListenRef.current?.();
-      flashToast("已完成 7 句，正在產生成績");
-      window.setTimeout(() => finishWith(userTurnsRef.current, feedbacksRef.current, true), 550);
-      return;
-    }
 
     // Play tutor reply (guaranteed, highest priority)
     if (autoSpeak) {
@@ -653,7 +664,7 @@ export default function ConversationPractice({
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] p-3 bg-cream/95 backdrop-blur space-y-2">
         <div className="flex items-center justify-between gap-2 px-1 flex-wrap">
           <span className="text-xs font-bold text-inkSoft">
-            已練習 {Math.min(userTurnCount, MAX_PRACTICE_TURNS)}/{MAX_PRACTICE_TURNS} 句
+            已練習 {userTurnCount} 句 · 至少 {MIN_PRACTICE_TURNS} 句可看成果
           </span>
           <button onClick={() => { setAutoSpeak((v) => !v); tutorVoiceService.setAutoPlay(!autoSpeak); }} className="flex items-center gap-1 text-xs font-bold text-inkSoft">
             {autoSpeak ? <Volume2 size={14} className="text-lilacDeep" /> : <VolumeX size={14} />}

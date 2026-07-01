@@ -1,9 +1,18 @@
-import type { Scene, TutorFeedback, DialogueResult, DialogueSuggestion, DialogueReview } from "@/types";
-import { mockAiTutorService } from "./mockAiTutorService";
+import type {
+  Scene,
+  TutorApiFailure,
+  TutorApiResponse,
+  TutorApiSuccess,
+  TutorConversationState,
+  TutorFeedback,
+  DialogueResult,
+  DialogueSuggestion,
+  DialogueReview,
+} from "@/types";
 
 // Facade over the AI tutor. The browser calls our Next.js API route; the route
-// uses OpenAI when OPENAI_API_KEY exists, otherwise it falls back to local logic.
-// The API key stays server-side and is never exposed to the client bundle.
+// owns Gemini/mock policy and keeps API keys server-side. The client never
+// creates a fake success response if the tutor API is unavailable.
 
 const USE_REMOTE = true;
 
@@ -24,6 +33,27 @@ function normalizeTutorFeedback(feedback: Partial<TutorFeedback>): TutorFeedback
   };
 }
 
+function unavailableTutorResponse(
+  errorCode: TutorApiFailure["errorCode"],
+  message: string,
+  retryable = true
+): TutorApiFailure {
+  return {
+    ok: false,
+    source: "unavailable",
+    errorCode,
+    message,
+    retryable,
+  };
+}
+
+function normalizeTutorSuccess(data: TutorApiSuccess): TutorApiSuccess {
+  return {
+    ...data,
+    feedback: normalizeTutorFeedback(data.feedback),
+  };
+}
+
 export const aiTutorService = {
   isRemoteEnabled() {
     return USE_REMOTE;
@@ -34,23 +64,51 @@ export const aiTutorService = {
     return { en: feedback.reply, zh: feedback.replyZh };
   },
 
-  async feedback(scene: Scene, userInput: string, turn: number, history: string[] = [], persona?: string): Promise<TutorFeedback> {
+  async requestFeedback(
+    scene: Scene,
+    userInput: string,
+    turn: number,
+    history: string[] = [],
+    persona?: string,
+    state?: TutorConversationState | null
+  ): Promise<TutorApiResponse> {
     if (USE_REMOTE && typeof window !== "undefined") {
       try {
         const res = await fetch("/api/tutor", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ scene, userInput, turn, history, persona }),
+          body: JSON.stringify({ scene, userInput, turn, history, persona, state }),
         });
-        if (res.ok) {
-          const data = (await res.json()) as { feedback?: Partial<TutorFeedback> };
-          if (data.feedback) return normalizeTutorFeedback(data.feedback);
-        }
-      } catch {
-        // Local fallback below keeps the practice usable offline.
+        const data = (await res.json().catch(() => null)) as TutorApiResponse | null;
+        if (data?.ok) return normalizeTutorSuccess(data);
+        if (data?.ok === false) return data;
+        return unavailableTutorResponse(
+          res.status === 400 ? "INVALID_TUTOR_REQUEST" : "GEMINI_REQUEST_FAILED",
+          `Tutor API returned ${res.status || "an invalid response"}.`,
+          res.status >= 500
+        );
+      } catch (error) {
+        return unavailableTutorResponse(
+          "GEMINI_REQUEST_FAILED",
+          error instanceof Error ? error.message : "Tutor API request failed.",
+          true
+        );
       }
     }
-    return normalizeTutorFeedback(mockAiTutorService.feedback(scene, userInput, turn, history));
+    return unavailableTutorResponse("GEMINI_REQUEST_FAILED", "Tutor API is not available in this environment.", true);
+  },
+
+  async feedback(
+    scene: Scene,
+    userInput: string,
+    turn: number,
+    history: string[] = [],
+    persona?: string,
+    state?: TutorConversationState | null
+  ): Promise<TutorFeedback> {
+    const response = await this.requestFeedback(scene, userInput, turn, history, persona, state);
+    if (response.ok) return response.feedback;
+    throw new Error(response.message);
   },
 
   // Summarize a finished dialogue into a score breakdown.

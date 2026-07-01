@@ -351,6 +351,52 @@ export interface TutorFeedback {
   encouragement: string;
 }
 
+export type TutorSource = "gemini" | "gemini_cache" | "mock";
+
+export type TutorConversationPhase =
+  | "opening"
+  | "collecting_info"
+  | "clarifying"
+  | "confirming"
+  | "closing";
+
+export interface TutorConversationState {
+  sceneId: string;
+  languageCode: LearningLanguageCode;
+  persona: string;
+  phase: TutorConversationPhase;
+  turnCount: number;
+  knownInfo: Record<string, string>;
+  askedQuestions: string[];
+  missingInfo: string[];
+  lastUserIntent?: string;
+  lastTutorAction?: string;
+  summary?: string;
+  readyToClose?: boolean;
+}
+
+export type TutorApiSuccess = {
+  ok: true;
+  source: TutorSource;
+  model?: string;
+  feedback: TutorFeedback;
+  state: TutorConversationState;
+};
+
+export type TutorApiFailure = {
+  ok: false;
+  source: "unavailable";
+  errorCode:
+    | "MISSING_GEMINI_KEY"
+    | "GEMINI_REQUEST_FAILED"
+    | "GEMINI_INVALID_RESPONSE"
+    | "INVALID_TUTOR_REQUEST";
+  message: string;
+  retryable: boolean;
+};
+
+export type TutorApiResponse = TutorApiSuccess | TutorApiFailure;
+
 export interface DialogueSuggestion {
   area: string;
   tip: string;
@@ -636,4 +682,3 @@ export interface CachedReadingArticleProgress {
   is_synced: boolean;
   updated_at: string;
 }
-
