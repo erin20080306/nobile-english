@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Volume2, Mic, MicOff, Check, X, RotateCcw } from "lucide-react";
+import { Volume2, Mic, MicOff, Check, X, RotateCcw, Keyboard } from "lucide-react";
 import { speechService } from "@/services/speechService";
 import { getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
 
@@ -22,9 +22,11 @@ export default function ShadowingPractice({
   const [userTranscript, setUserTranscript] = useState("");
   const [score, setScore] = useState<number | null>(null);
   const [feedback, setFeedback] = useState("");
+  const [useManualInput, setUseManualInput] = useState(false);
   
   const stopListenRef = useRef<(() => void) | null>(null);
   const languageInfo = getLearningLanguage(targetLanguage as any);
+  const speechSupported = speechService.isRecognitionSupported();
 
   function calculateSimilarity(original: string, spoken: string): number {
     const normalize = (text: string) => 
@@ -118,6 +120,14 @@ export default function ShadowingPractice({
     onComplete?.(similarity);
   }
 
+  function submitManualInput() {
+    if (!userTranscript.trim()) {
+      alert("請輸入你的回答");
+      return;
+    }
+    evaluatePronunciation();
+  }
+
   function reset() {
     setPhase("idle");
     setUserTranscript("");
@@ -144,12 +154,44 @@ export default function ShadowingPractice({
       </div>
 
       {phase === "idle" && (
-        <button
-          onClick={startRecording}
-          className="w-full btn-primary flex items-center justify-center gap-2"
-        >
-          <Mic size={18} /> 開始跟讀練習
-        </button>
+        <div className="space-y-2">
+          {speechSupported && !useManualInput && (
+            <button
+              onClick={startRecording}
+              className="w-full btn-primary flex items-center justify-center gap-2"
+            >
+              <Mic size={18} /> 開始跟讀練習
+            </button>
+          )}
+          {speechSupported && (
+            <button
+              onClick={() => setUseManualInput(!useManualInput)}
+              className="w-full btn-secondary flex items-center justify-center gap-2"
+            >
+              <Keyboard size={18} /> {useManualInput ? "改用語音輸入" : "改用文字輸入"}
+            </button>
+          )}
+          {!speechSupported && (
+            <p className="text-sm text-inkSoft text-center">您的瀏覽器不支援語音輸入，請使用文字輸入</p>
+          )}
+          {useManualInput || !speechSupported && (
+            <div className="space-y-2">
+              <textarea
+                value={userTranscript}
+                onChange={(e) => setUserTranscript(e.target.value)}
+                placeholder="輸入你聽到的句子..."
+                className="w-full rounded-2xl px-3 py-2 text-ink bg-white border-2 border-lilac/20 focus:border-lilac outline-none resize-none"
+                rows={2}
+              />
+              <button
+                onClick={submitManualInput}
+                className="w-full btn-primary flex items-center justify-center gap-2"
+              >
+                <Check size={18} /> 提交答案
+              </button>
+            </div>
+          )}
+        </div>
       )}
 
       {phase === "recording" && (
