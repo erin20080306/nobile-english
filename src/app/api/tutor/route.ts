@@ -82,7 +82,7 @@ function getScenePersona(scene: Scene, requestedPersona?: string) {
 }
 
 function isMockTutorAllowed(): boolean {
-  return true; // Always allow mock tutor as fallback
+  return process.env.NODE_ENV !== "production" || process.env.ENABLE_MOCK_TUTOR === "true";
 }
 
 function sceneRoleGuide(scene: Scene) {
