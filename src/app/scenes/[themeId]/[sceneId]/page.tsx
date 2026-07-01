@@ -244,6 +244,26 @@ export default function ScenePracticePage() {
           </div>
         </div>
 
+        {/* Custom Stages */}
+        {customStages && customStages.length > 0 && (
+          <div className="card">
+            <p className="font-bold text-ink flex items-center gap-2"><BookOpen size={18} className="text-lilacDeep" /> 階段性練習</p>
+            <p className="text-sm text-inkSoft mt-1">AI 導師會按照以下階段逐步引導對話</p>
+            <div className="mt-3 space-y-2">
+              {customStages.map((stage, index) => (
+                <div key={index} className="rounded-2xl bg-cream p-3">
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-peachDeep px-2 py-0.5 text-[10px] font-extrabold text-white">STEP {index + 1}</span>
+                    <p className="font-bold text-ink text-sm">{stage.title}</p>
+                  </div>
+                  <p className="mt-1 text-xs font-semibold text-lilacDeep">{stage.enTitle}</p>
+                  <p className="mt-1 text-xs text-inkSoft">{stage.learnerGoal}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Key words */}
         <div className="card">
           <p className="font-bold text-ink flex items-center gap-2"><BookOpen size={18} className="text-lilacDeep" /> 關鍵單字</p>

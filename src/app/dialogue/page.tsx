@@ -396,11 +396,13 @@ function FreeChat({ targetLanguage, onExit }: { targetLanguage: LearningLanguage
   }
 
   function createScenarioFromText(latest: string) {
+    // Trigger custom scene creation when user says "場景" (scene)
+    const hasSceneKeyword = /場景|scenario|scene/i.test(latest);
     const explicitCreate = /建立|產生|自訂|新增|做一個|create|make|generate/i.test(latest) &&
-      /主題|場景|情境|練習|scenario|scene|topic|practice/i.test(latest);
+      /主題|情境|練習|topic|practice/i.test(latest);
     const practiceRequest = /我想(練習|練)|幫我(練習|練)/.test(latest) &&
       /餐廳|點餐|面試|機場|飯店|購物|問路|電話|restaurant|order|interview|airport|hotel|shopping|direction/i.test(latest);
-    if (!explicitCreate && !practiceRequest) return false;
+    if (!hasSceneKeyword && !explicitCreate && !practiceRequest) return false;
     const topic = latest
       .replace(/可以|幫我|請|建立|產生|一個|的|場景|情境|主題|練習|嗎|？|\?|create|make|scenario|scene|topic/gi, " ")
       .replace(/\s+/g, " ")
