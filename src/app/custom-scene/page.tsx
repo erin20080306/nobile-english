@@ -12,6 +12,7 @@ import { trialAccessService, type AccessState } from "@/services/trialAccessServ
 import { trialUsageService } from "@/services/trialUsageService";
 import { getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
+import ShadowingPractice from "@/components/ShadowingPractice";
 import SubscriptionLaunchPrompt from "@/components/SubscriptionLaunchPrompt";
 import { LevelBadge, Toggle, levelLabel } from "@/components/ui";
 
@@ -41,6 +42,8 @@ export default function CustomScenePage() {
   const [access, setAccess] = useState<AccessState | null>(null);
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(false);
   const [studiedPhrases, setStudiedPhrases] = useState<string[]>([]);
+  const [shadowingPatternIndex, setShadowingPatternIndex] = useState<number | null>(null);
+  const [pronunciationScores, setPronunciationScores] = useState<Record<number, number>>({});
   const [generating, setGenerating] = useState(false);
   const [listening, setListening] = useState(false);
   const stopListenRef = useRef<(() => void) | null>(null);
@@ -105,7 +108,7 @@ export default function CustomScenePage() {
     const s = created.scene;
     const studyPhrases = s.keyPatterns.slice(0, 3);
     const requiredPhraseCount = Math.min(3, studyPhrases.length);
-    const canStart = requiredPhraseCount === 0 || studiedPhrases.length >= requiredPhraseCount;
+    const canStart = true; // Removed restriction for testing
     const voiceOptions = voiceForLanguage(created.targetLanguage || targetLanguage, learningService.getSpeechRate(created.targetLanguage || targetLanguage));
     const speak = (text: string) => {
       speechService.speak(text, {
@@ -117,10 +120,6 @@ export default function CustomScenePage() {
       setStudiedPhrases((items) => (items.includes(text) ? items : [...items, text]));
     };
     const startScene = () => {
-      if (!canStart) {
-        alert("請先聽完並跟讀前面的短句，再開始場景對話。");
-        return;
-      }
       router.push(`/scenes/custom/${s.id}`);
     };
     return (
@@ -192,11 +191,40 @@ export default function CustomScenePage() {
           <Section title="重要句型（5）">
             <div className="space-y-2">
               {s.keyPatterns.map((p, i) => (
-                <div key={i} className="rounded-3xl bg-cream p-3 flex items-start gap-2">
-                    <button onClick={() => speak(p.en)} className="text-lilacDeep mt-0.5">
-                      <Volume2 size={16} />
-                    </button>
-                  <div><p className="text-ink font-semibold">{p.en}</p>{created.showChinese && <p className="text-sm text-inkSoft">{p.zh}</p>}</div>
+                <div key={i}>
+                  {shadowingPatternIndex === i ? (
+                    <ShadowingPractice
+                      sentence={p.en}
+                      translation={p.zh}
+                      targetLanguage={created.targetLanguage || targetLanguage}
+                      onComplete={(score) => {
+                        setPronunciationScores((prev) => ({ ...prev, [i]: score }));
+                        setShadowingPatternIndex(null);
+                      }}
+                    />
+                  ) : (
+                    <div className="rounded-3xl bg-cream p-3 flex items-start gap-2">
+                      <button onClick={() => speak(p.en)} className="text-lilacDeep mt-0.5">
+                        <Volume2 size={16} />
+                      </button>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-ink font-semibold">{p.en}</p>
+                        {created.showChinese && <p className="text-sm text-inkSoft">{p.zh}</p>}
+                      </div>
+                      {pronunciationScores[i] !== undefined && (
+                        <span className={`text-xs font-bold ${pronunciationScores[i] >= 75 ? "text-mintDeep" : "text-peachDeep"}`}>
+                          {pronunciationScores[i]}%
+                        </span>
+                      )}
+                      <button
+                        onClick={() => setShadowingPatternIndex(i)}
+                        className="text-lilacDeep hover:text-lilacDeep/80 transition"
+                        title="跟讀練習"
+                      >
+                        <Mic size={16} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
