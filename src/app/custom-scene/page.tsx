@@ -44,6 +44,7 @@ export default function CustomScenePage() {
   const [studiedPhrases, setStudiedPhrases] = useState<string[]>([]);
   const [shadowingPatternIndex, setShadowingPatternIndex] = useState<number | null>(null);
   const [pronunciationScores, setPronunciationScores] = useState<Record<number, number>>({});
+  const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
   const [generating, setGenerating] = useState(false);
   const [listening, setListening] = useState(false);
   const stopListenRef = useRef<(() => void) | null>(null);
@@ -247,15 +248,34 @@ export default function CustomScenePage() {
                 <div key={qi}>
                   <p className="font-semibold text-ink">{qi + 1}. {q.question}</p>
                   <div className="mt-2 space-y-2">
-                    {q.options.map((opt, oi) => (
-                      <button
-                        key={oi}
-                        className="w-full text-left rounded-2xl px-3 py-2 font-semibold bg-cream text-ink"
-                      >
-                        {opt}
-                      </button>
-                    ))}
+                    {q.options.map((opt, oi) => {
+                      const picked = quizAnswers[qi];
+                      const isPicked = picked === oi;
+                      const isCorrect = oi === q.answerIndex;
+                      const show = picked !== undefined;
+                      return (
+                        <button
+                          key={oi}
+                          disabled={show}
+                          onClick={() => setQuizAnswers((a) => ({ ...a, [qi]: oi }))}
+                          className={`w-full text-left rounded-2xl px-3 py-2 font-semibold transition ${
+                            show
+                              ? isCorrect
+                                ? "bg-mint text-mintDeep"
+                                : isPicked
+                                ? "bg-peach text-peachDeep"
+                                : "bg-cream text-inkSoft"
+                              : "bg-cream text-ink"
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      );
+                    })}
                   </div>
+                  {quizAnswers[qi] !== undefined && (
+                    <p className="text-sm text-inkSoft mt-1">💡 {q.explanation}</p>
+                  )}
                 </div>
               ))}
             </div>
