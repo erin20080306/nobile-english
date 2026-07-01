@@ -243,7 +243,9 @@ export default function ConversationPractice({
   const activeMicrophoneStreamRef = useRef<MediaStream | null>(null);
   const voiceDraftRef = useRef("");
   const voiceSubmitHandledRef = useRef(false);
-  const historyRef = useRef<string[]>([]);
+  // Full alternating transcript sent to the tutor API so the model can see what
+  // it already asked and avoid repeating questions. Seeded with the opening line.
+  const historyRef = useRef<string[]>([`Tutor: ${firstTutor.en}`]);
   const userTurnsRef = useRef<string[]>([]);
   const feedbacksRef = useRef<TutorFeedback[]>([]);
   const finishedRef = useRef(false);
@@ -388,8 +390,8 @@ export default function ConversationPractice({
     }
 
     setMsgs((m) => [...m, { role: "user", en: trimmed, zh: "" }]);
+    historyRef.current.push(`You: ${trimmed}`);
     const history = [...historyRef.current];
-    historyRef.current.push(trimmed);
     userTurnsRef.current = [...userTurnsRef.current, trimmed];
 
     if (onUserTurn?.(trimmed)) {
@@ -403,6 +405,8 @@ export default function ConversationPractice({
     // Get AI tutor feedback first
     const fb = await aiTutorService.feedback(activeScene, trimmed, turn + 1, history, persona);
     feedbacksRef.current = [...feedbacksRef.current, fb];
+    // Record the tutor's reply so the next turn's prompt won't repeat it.
+    if (fb.reply) historyRef.current.push(`Tutor: ${fb.reply}`);
     const reachedMax = userTurnsRef.current.length >= MAX_PRACTICE_TURNS;
 
     setMsgs((m) => {

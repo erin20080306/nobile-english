@@ -101,7 +101,10 @@ function normalizeTutorFeedback(feedback: Partial<TutorFeedback>): TutorFeedback
 
 function buildPrompt({ scene, userInput, turn, history = [] }: TutorRequest, persona: string) {
   const targetLanguage = getLearningLanguage(scene.targetLanguage || "en");
-  const recent = history.slice(-4).join(" | ");
+  // The client sends the full alternating transcript (both "Tutor:" and "You:"
+  // lines). Show the recent window so the model can see what it already asked
+  // and never repeat the same question.
+  const transcript = history.slice(-8).join("\n");
   const patterns = scene.keyPatterns.slice(0, 3).map((p) => p.en).join(" | ");
   const tutorLines = scene.dialogue
     .filter((d) => d.speaker === "tutor")
@@ -117,11 +120,12 @@ function buildPrompt({ scene, userInput, turn, history = [] }: TutorRequest, per
       : `Use natural ${targetLanguage.nativeName} for reply and betterWay. Do not answer in English unless the learner explicitly asks for an English translation.`,
     sceneRoleGuide(scene),
     `IMPORTANT: You are the ${persona} (staff/host/interviewer). The learner is the customer/guest/applicant. NEVER say lines that belong to the learner's role.`,
-    `Your job: respond naturally as ${persona} to what the learner said, then continue the exact scene forward.`,
+    `Your job: respond naturally as ${persona} to what the learner said, then MOVE THE SCENE FORWARD to the next step.`,
+    `CRITICAL: Do NOT repeat a question or sentence you already said earlier in the conversation. Each turn must advance to a new step (e.g. cafe flow: greeting -> order -> size/hot-iced -> name -> payment -> pickup time). Vary your wording so it never feels scripted.`,
     `You may chat naturally, but never change your role. If the learner's sentence is off-topic, bridge it back to the scene in character.`,
-    `Example tutor lines in this scene: ${tutorLines}`,
+    `The example tutor lines below are only style hints; do NOT copy them verbatim: ${tutorLines}`,
     `Key patterns learner should use: ${patterns}`,
-    recent ? `Recent learner answers: ${recent}` : "",
+    transcript ? `Conversation so far (do not repeat any tutor line already here):\n${transcript}` : "",
     `Turn ${turn}/7. Learner just said: "${userInput}"`,
     ``,
     `Return ONLY valid JSON (no extra text):`,
