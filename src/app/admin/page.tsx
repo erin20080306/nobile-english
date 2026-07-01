@@ -119,7 +119,11 @@ export default function AdminPage() {
     setLoadingAction("generate");
     addLog("開始生成今日文章...", "info");
     try {
-      const res = await fetch("/api/articles/generate", { method: "POST" });
+      const res = await fetch("/api/articles/daily-create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prewarm: false, includeAudio: false }),
+      });
       const data = await res.json();
       if (res.ok) {
         addLog(`✅ 文章生成完成：${JSON.stringify(data).slice(0, 80)}`, "ok");
