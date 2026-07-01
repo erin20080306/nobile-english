@@ -376,15 +376,6 @@ class TutorVoiceService {
     }
 
     if (!audioUrl) {
-      if (isTutorRoleAsset(assetType)) {
-        this.log("[AI_TTS] playback failed", {
-          reason: cacheOnly ? "cache_only_miss_no_tutor_voice" : "cloud_audio_unavailable_no_tutor_voice",
-          tutorId: options.voiceProfileId,
-          assetType,
-        });
-        options.onSpeakEnd?.();
-        return;
-      }
       this.log("[AI_TTS] fallback provider used", {
         provider: "system_speech",
         reason: cacheOnly ? "cache_only_miss" : "cloud_audio_unavailable",
