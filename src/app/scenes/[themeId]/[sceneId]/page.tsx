@@ -66,7 +66,8 @@ export default function ScenePracticePage() {
   const [savedSentences, setSavedSentences] = useState<string[]>([]);
   const [shadowingPatternIndex, setShadowingPatternIndex] = useState<number | null>(null);
   const [pronunciationScores, setPronunciationScores] = useState<Record<number, number>>({});
-  const [phase, setPhase] = useState<"preview" | "conversation">("preview");
+  const [currentStageIndex, setCurrentStageIndex] = useState(0);
+  const [phase, setPhase] = useState<"preview" | "staged" | "conversation">("preview");
   const [access, setAccess] = useState<AccessState | null>(null);
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(false);
 
@@ -185,6 +186,19 @@ export default function ScenePracticePage() {
     router.push("/results");
   }
 
+  function startStagedPractice() {
+    setCurrentStageIndex(0);
+    setPhase("staged");
+  }
+
+  function handleStageComplete() {
+    if (customStages && currentStageIndex < customStages.length - 1) {
+      setCurrentStageIndex(currentStageIndex + 1);
+    } else {
+      setPhase("conversation");
+    }
+  }
+
   function startConversation() {
     if (trialLocked) {
       setShowSubscriptionPrompt(true);
@@ -214,6 +228,59 @@ export default function ScenePracticePage() {
           onFinish={handleFinish}
           customStages={customStages}
         />
+      </div>
+    );
+  }
+
+  // ---- Staged practice phase ----
+  if (phase === "staged" && customStages && customStages.length > 0) {
+    const currentStage = customStages[currentStageIndex];
+    const isLastStage = currentStageIndex === customStages.length - 1;
+    return (
+      <div className="min-h-[100dvh] flex flex-col">
+        <AppHeader
+          title={activeScene!.name}
+          subtitle={`階段 ${currentStageIndex + 1} / ${customStages.length}`}
+          right={
+            <button onClick={() => setPhase("preview")} className="chip bg-white text-inkSoft shadow-softer flex items-center gap-1">
+              <BookOpen size={14} /> 看材料
+            </button>
+          }
+        />
+        <div className="flex-1 px-5 py-4 space-y-4">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="card bg-gradient-to-br from-peach to-lilac"
+          >
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-peachDeep px-3 py-1 text-sm font-extrabold text-white">STEP {currentStageIndex + 1}</span>
+              <p className="font-extrabold text-ink">{currentStage.title}</p>
+            </div>
+            <p className="mt-2 text-sm font-semibold text-lilacDeep">{currentStage.enTitle}</p>
+            <p className="mt-2 text-ink">{currentStage.learnerGoal}</p>
+          </motion.div>
+
+          <div className="card">
+            <p className="font-bold text-ink mb-2">參考回答</p>
+            <div className="rounded-2xl bg-cream p-3">
+              <p className="text-ink font-semibold">{currentStage.sampleUser}</p>
+            </div>
+          </div>
+
+          <div className="card">
+            <p className="font-bold text-ink mb-2">練習提示</p>
+            <p className="text-sm text-inkSoft">AI 導師會說：「{currentStage.tutorPrompt}」</p>
+            <p className="text-sm text-inkSoft mt-1">請練習如何回應這個問題。</p>
+          </div>
+
+          <button
+            onClick={handleStageComplete}
+            className="btn-primary w-full"
+          >
+            {isLastStage ? "完成階段練習，開始對話" : "完成此階段，進入下一階段"}
+          </button>
+        </div>
       </div>
     );
   }
@@ -395,9 +462,20 @@ export default function ScenePracticePage() {
 
       {/* Start voice conversation bar */}
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] p-4 bg-cream/90 backdrop-blur">
-        <button className="btn-primary w-full flex items-center justify-center gap-2" onClick={startConversation}>
-          <Mic size={18} /> 開始語音對話練習
-        </button>
+        {customStages && customStages.length > 0 ? (
+          <div className="space-y-2">
+            <button className="btn-primary w-full flex items-center justify-center gap-2" onClick={startStagedPractice}>
+              <Target size={18} /> 開始階段性練習
+            </button>
+            <button className="btn-secondary w-full flex items-center justify-center gap-2" onClick={startConversation}>
+              <Mic size={18} /> 直接開始對話
+            </button>
+          </div>
+        ) : (
+          <button className="btn-primary w-full flex items-center justify-center gap-2" onClick={startConversation}>
+            <Mic size={18} /> 開始語音對話練習
+          </button>
+        )}
       </div>
 
       <WordSheet
