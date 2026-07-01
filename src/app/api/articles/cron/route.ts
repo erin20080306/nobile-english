@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pickDailyReadingPlan } from "@/server/articles/dailyTopics";
+import { fetchDailyNewsHeadline } from "@/server/articles/newsSource";
 import { ARTICLE_LANGUAGES, requireCronOrAdmin, taipeiDate } from "@/server/articles/shared";
 
 export const dynamic = "force-dynamic";
@@ -28,13 +29,17 @@ async function runDailyArticleCron(request: NextRequest) {
   }
 
   const { topic, difficultyLevel } = pickDailyReadingPlan(publishDate);
+  const news = await fetchDailyNewsHeadline(publishDate);
+
   const generate = await postJson(`${baseUrl}/api/articles/generate`, cronSecret, {
     publishDate,
-    topicKey: topic.key,
-    topicTitleZhTw: topic.titleZhTw,
-    topicCategory: topic.category,
+    topicKey: news ? `news_${publishDate}` : topic.key,
+    topicTitleZhTw: news ? news.title : topic.titleZhTw,
+    topicCategory: news ? news.category : topic.category,
     difficultyLevel,
     languages: ARTICLE_LANGUAGES,
+    newsSummary: news ? `${news.title}. ${news.description}`.trim() : undefined,
+    newsSourceUrl: news?.url,
   });
 
   if (!generate.ok) {

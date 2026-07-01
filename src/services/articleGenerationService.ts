@@ -19,6 +19,10 @@ interface ArticleGenerationOptions {
   maxSentences?: number;
   minQuestions?: number;
   maxQuestions?: number;
+  // When present, the article is a simplified retelling of this real news
+  // item instead of a generic evergreen scenario.
+  newsSummary?: string;
+  newsSourceUrl?: string;
 }
 
 class ArticleGenerationService {
@@ -56,6 +60,8 @@ class ArticleGenerationService {
       maxSentences,
       minQuestions,
       maxQuestions,
+      newsSummary: options.newsSummary,
+      newsSourceUrl: options.newsSourceUrl,
     });
 
     if (hasGeminiConfig()) {
@@ -85,6 +91,8 @@ class ArticleGenerationService {
     maxSentences: number;
     minQuestions: number;
     maxQuestions: number;
+    newsSummary?: string;
+    newsSourceUrl?: string;
   }): string {
     const languageNames: Record<LearningLanguageCode, string> = {
       en: "English",
@@ -95,13 +103,39 @@ class ArticleGenerationService {
     };
 
     const languageName = languageNames[options.languageCode];
+    const isNewsBased = Boolean(options.newsSummary && options.newsSummary.trim());
+
+    const topicSection = isNewsBased
+      ? `**Real news source material (rewrite this, do not invent extra facts):**
+${options.newsSummary}
+${options.newsSourceUrl ? `Source: ${options.newsSourceUrl}` : ""}`
+      : `**Topic:**
+- Key: ${options.topicKey}
+- Title (Chinese): ${options.topicTitleZhTw}
+- Category: ${options.topicCategory}`;
+
+    const contentGuidelines = isNewsBased
+      ? `- Use natural, correct ${languageName} appropriate for ${options.difficultyLevel} learners
+- Do NOT directly translate Chinese sentence patterns
+- Rewrite the news source material above in simple, level-appropriate language. Simplify vocabulary and sentence structure, but do NOT add facts, numbers, quotes, or claims that are not in the source material
+- Do NOT include speculation, opinion, medical advice, financial advice, or political stance beyond what is stated in the source
+- Do NOT exceed the character limit
+- Sentence length should be suitable for sentence-by-sentence reading
+- Use natural sentences that can be used for vocabulary cards and phrase cards
+- This is real current-events content, simplified for language learners`
+      : `- Use natural, correct ${languageName} appropriate for ${options.difficultyLevel} learners
+- Do NOT directly translate Chinese sentence patterns
+- Do NOT generate real news claims or factual statements
+- Do NOT cite unverified facts
+- Do NOT include brand promotion, medical advice, financial advice, political stance, or dangerous content
+- Do NOT exceed the character limit
+- Sentence length should be suitable for sentence-by-sentence reading
+- Use natural sentences that can be used for vocabulary cards and phrase cards
+- Content should be evergreen learning material, not time-sensitive news`;
 
     return `You are an expert language learning content creator. Generate a learning article for ${languageName} learners.
 
-**Topic:**
-- Key: ${options.topicKey}
-- Title (Chinese): ${options.topicTitleZhTw}
-- Category: ${options.topicCategory}
+${topicSection}
 
 **Requirements:**
 1. Difficulty Level: ${options.difficultyLevel} (CEFR)
@@ -111,15 +145,7 @@ class ArticleGenerationService {
 5. English articles should feel like a complete short article, about 180-260 words when the character limit allows it
 
 **Content Guidelines:**
-- Use natural, correct ${languageName} appropriate for ${options.difficultyLevel} learners
-- Do NOT directly translate Chinese sentence patterns
-- Do NOT generate real news claims or factual statements
-- Do NOT cite unverified facts
-- Do NOT include brand promotion, medical advice, financial advice, political stance, or dangerous content
-- Do NOT exceed the character limit
-- Sentence length should be suitable for sentence-by-sentence reading
-- Use natural sentences that can be used for vocabulary cards and phrase cards
-- Content should be evergreen learning material, not time-sensitive news
+${contentGuidelines}
 
 **Output Format (JSON):**
 \`\`\`json

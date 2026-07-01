@@ -41,6 +41,8 @@ export async function POST(request: NextRequest) {
       topicCategory,
       difficultyLevel,
       languages = ['en', 'ja', 'ko', 'it', 'es'] as LearningLanguageCode[],
+      newsSummary,
+      newsSourceUrl,
     } = body;
 
     if (!publishDate || !topicKey || !topicTitleZhTw || !topicCategory || !difficultyLevel) {
@@ -83,7 +85,9 @@ export async function POST(request: NextRequest) {
         topicTitleZhTw,
         topicCategory,
         languageCode,
-        difficultyLevel
+        difficultyLevel,
+        newsSummary,
+        newsSourceUrl
       );
 
       if (articleResult.success) {
@@ -123,7 +127,9 @@ async function generateArticleForLanguage(
   topicTitleZhTw: string,
   topicCategory: string,
   languageCode: LearningLanguageCode,
-  difficultyLevel: CEFRLevel
+  difficultyLevel: CEFRLevel,
+  newsSummary?: string,
+  newsSourceUrl?: string
 ): Promise<{
   success: boolean;
   article?: any;
@@ -138,6 +144,8 @@ async function generateArticleForLanguage(
       topicCategory,
       languageCode,
       difficultyLevel,
+      newsSummary,
+      newsSourceUrl,
     });
 
     // 2. 建立文章記錄
