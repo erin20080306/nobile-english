@@ -47,6 +47,24 @@ const LEVELS: EnglishLevel[] = ["Beginner", "Elementary", "Intermediate", "Upper
 const DEFAULT_POOL_LIMIT = 900;
 const MAX_POOL_LIMIT = 1500;
 
+// CEFR difficulty gate so beginners never see C1/C2 words like "unconstrained".
+const CEFR_RANK: Record<string, number> = { A1: 1, A2: 2, B1: 3, B2: 4, C1: 5, C2: 6 };
+const LEVEL_MAX_CEFR: Record<EnglishLevel, number> = {
+  Beginner: 2,
+  Elementary: 3,
+  Intermediate: 4,
+  "Upper-Intermediate": 5,
+  Advanced: 6,
+};
+
+function isCefrAllowed(cefrLevel: string | null, level: EnglishLevel) {
+  const cefr = String(cefrLevel || "").toUpperCase();
+  const rank = CEFR_RANK[cefr];
+  // Unknown/blank CEFR is allowed; frequency_rank still keeps the pool sensible.
+  if (!rank) return true;
+  return rank <= LEVEL_MAX_CEFR[level];
+}
+
 type DictionaryRow = {
   lemma: string | null;
   display_word: string | null;
@@ -174,6 +192,9 @@ function isFriendlyForLevel(word: Word, level: EnglishLevel, language: LearningL
   const maxExampleWords = level === "Beginner" ? 9 : 14;
   if (!surface || Array.from(surface).length > maxSurface) return false;
   if (language === "en" && /\s/.test(surface)) return false;
+  // Beginners/Elementary must have a Chinese meaning, otherwise the prompt falls
+  // back to an English definition (e.g. "plural of pie") that they cannot read.
+  if (!containsCjk(word.zh)) return false;
   if (wordCount(word.enDef || word.zh) > maxDefWords && !containsCjk(word.zh)) return false;
   if (word.example && wordCount(word.example) > maxExampleWords) return false;
   return true;
@@ -229,6 +250,7 @@ function uniqueRows(rows: DictionaryRow[], language: LearningLanguageCode, level
   const words: Word[] = [];
 
   for (const row of rows) {
+    if (!isCefrAllowed(row.cefr_level, level)) continue;
     const word = rowToWord(row, language);
     if (!word.word || !isReviewableWordText(word.word)) continue;
     if (!isFriendlyForLevel(word, level, language)) continue;

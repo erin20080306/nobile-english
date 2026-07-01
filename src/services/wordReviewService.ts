@@ -219,6 +219,9 @@ function isFriendlyForLevel(word: Word, level: EnglishLevel, language: LearningL
   const maxExampleWords = level === "Beginner" ? 9 : 14;
   if (!surface || Array.from(surface).length > maxSurface) return false;
   if (language === "en" && /\s/.test(surface)) return false;
+  // Beginners/Elementary must have a Chinese meaning, otherwise the prompt falls
+  // back to an English definition (e.g. "plural of pie") that they cannot read.
+  if (!containsCjk(word.zh)) return false;
   if (wordCount(word.enDef || word.zh) > maxDefWords && !containsCjk(word.zh)) return false;
   if (word.example && wordCount(word.example) > maxExampleWords) return false;
   return true;
