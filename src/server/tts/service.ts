@@ -187,26 +187,44 @@ export async function getOrCreateTtsAsset(
     return { asset: finalAsset, cached: true, signedUrl: await buildSignedUrl(finalAsset) };
   }
 
-  // 3) We won the race: synthesize, persist, and also capture the raw bytes so we
-  //    can return the audio INLINE (base64). Playing inline lets the client skip
-  //    the extra signed-URL download round-trip, cutting perceived latency.
+  // 3) We won the race. Synthesize now (unavoidable), then return the audio INLINE
+  //    (base64) immediately. The Supabase cache upload runs detached so the response
+  //    is not blocked by cross-region storage latency. If the upload is interrupted,
+  //    the row stays non-ready and the next identical request simply re-synthesizes.
   const key = assetCacheKey(keyParams);
-  let audioBase64: string | null = null;
-  const job = (async () => {
+  let synth;
+  try {
+    synth = await provider.synthesize({
+      text: normalizedText,
+      languageCode: voice.languageCode,
+      voiceName: voice.voiceName,
+      voiceProfileId,
+      voiceGender: voice.voiceGender,
+      assetType: input.assetType,
+      audioFormat,
+      textHash,
+    });
+  } catch (err) {
+    await store.markFailed(asset.id);
+    inflight().delete(key);
+    throw err;
+  }
+
+  // Promise that resolves once the cache row is persisted; concurrent callers for
+  // the same text_hash await this instead of paying for a second synthesis.
+  let resolveReady!: (asset: TtsAudioAsset) => void;
+  let rejectReady!: (error: unknown) => void;
+  const readyPromise = new Promise<TtsAudioAsset>((resolve, reject) => {
+    resolveReady = resolve;
+    rejectReady = reject;
+  });
+  readyPromise.catch(() => {});
+  inflight().set(key, readyPromise);
+
+  const persist = async () => {
     try {
-      const synth = await provider.synthesize({
-        text: normalizedText,
-        languageCode: voice.languageCode,
-        voiceName: voice.voiceName,
-        voiceProfileId,
-        voiceGender: voice.voiceGender,
-        assetType: input.assetType,
-        audioFormat,
-        textHash,
-      });
       let output = synth;
       if (synth.audioBytes && synth.audioBytes.byteLength) {
-        audioBase64 = synth.audioBytes.toString("base64");
         const audioPath = await storeGeneratedAudio({
           bytes: synth.audioBytes,
           provider: provider.name,
@@ -217,21 +235,24 @@ export async function getOrCreateTtsAsset(
         });
         output = { audioPath, durationMs: synth.durationMs, audioFormat: synth.audioFormat };
       }
-      return await store.markReady(asset.id, output);
+      resolveReady(await store.markReady(asset.id, output));
     } catch (err) {
-      await store.markFailed(asset.id);
-      throw err;
+      await store.markFailed(asset.id).catch(() => {});
+      rejectReady(err);
     } finally {
       inflight().delete(key);
     }
-  })();
-  inflight().set(key, job);
-
-  const finalAsset = await job;
-  return {
-    asset: finalAsset,
-    cached: false,
-    signedUrl: audioBase64 ? null : await buildSignedUrl(finalAsset),
-    audioBase64,
   };
+
+  // Fresh bytes -> return inline right away, persist to cache in the background.
+  if (synth.audioBytes && synth.audioBytes.byteLength) {
+    const audioBase64 = synth.audioBytes.toString("base64");
+    void persist();
+    return { asset, cached: false, signedUrl: null, audioBase64 };
+  }
+
+  // No inline bytes (stub provider): wait for persistence and return a signed URL.
+  await persist();
+  const finalAsset = await readyPromise;
+  return { asset: finalAsset, cached: false, signedUrl: await buildSignedUrl(finalAsset) };
 }
