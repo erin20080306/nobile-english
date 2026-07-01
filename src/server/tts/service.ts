@@ -165,7 +165,7 @@ export async function getOrCreateTtsAsset(
   if (ready) return { asset: ready, cached: true, signedUrl: await buildSignedUrl(ready) };
 
   // 2) Reserve a row (status = generating) or attach to an existing one.
-  const { asset, created } = await store.reserve({
+  const reserved = await store.reserve({
     languageCode: voice.languageCode,
     voiceProfileId,
     provider: provider.name,
@@ -178,6 +178,20 @@ export async function getOrCreateTtsAsset(
     sceneId: input.sceneId,
     sceneVersion: input.sceneVersion,
   });
+  let asset = reserved.asset;
+  let created = reserved.created;
+
+  // reserve() matches on key regardless of status, so a row left permanently
+  // 'failed' by an earlier broken attempt would otherwise be returned forever
+  // without ever retrying synthesis. Try to resurrect it; only one concurrent
+  // caller wins this race (atomic status guard in retryFailed).
+  if (!created && asset.status === "failed") {
+    const resurrected = await store.retryFailed(asset.id);
+    if (resurrected) {
+      asset = resurrected;
+      created = true;
+    }
+  }
 
   if (!created) {
     // Another worker is generating (or already did). Await any in-flight promise.

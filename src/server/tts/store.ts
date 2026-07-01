@@ -44,6 +44,11 @@ export interface TtsAssetStore {
   markReady(id: string, output: SynthesisOutput): Promise<TtsAudioAsset>;
   markFailed(id: string): Promise<TtsAudioAsset>;
   getById(id: string): Promise<TtsAudioAsset | null>;
+
+  // Atomically flips a 'failed' row back to 'generating' so a new synthesis
+  // attempt can run. Returns null if the row is no longer 'failed' (another
+  // caller already retried it, or it since became ready).
+  retryFailed(id: string): Promise<TtsAudioAsset | null>;
 }
 
 function nowIso() {
@@ -135,6 +140,14 @@ class InMemoryTtsAssetStore implements TtsAssetStore {
 
   async getById(id: string): Promise<TtsAudioAsset | null> {
     return this.byId.get(id) || null;
+  }
+
+  async retryFailed(id: string): Promise<TtsAudioAsset | null> {
+    const asset = this.byId.get(id);
+    if (!asset || asset.status !== "failed") return null;
+    const updated: TtsAudioAsset = { ...asset, status: "generating", updatedAt: nowIso() };
+    this.byId.set(id, updated);
+    return updated;
   }
 }
 
@@ -326,6 +339,22 @@ class SupabaseTtsAssetStore implements TtsAssetStore {
 
     if (error) throw new Error(`TTS cache getById failed: ${error.message}`);
     return data ? rowToAsset(data as TtsAudioAssetRow) : null;
+  }
+
+  async retryFailed(id: string): Promise<TtsAudioAsset | null> {
+    // The `.eq("status", "failed")` guard makes this atomic: only the caller
+    // that actually flips the row wins the retry; concurrent callers get 0
+    // rows updated and this returns null for them.
+    const { data, error } = await this.requireClient()
+      .from("tts_audio_assets")
+      .update({ status: "generating", processing_status: "none" })
+      .eq("id", id)
+      .eq("status", "failed")
+      .select("*")
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return rowToAsset(data as TtsAudioAssetRow);
   }
 }
 
