@@ -362,7 +362,7 @@ export async function prewarmReadingArticle(
 
 export async function prewarmReadingArticlesForDate(
   supabase: SupabaseClient,
-  options: { publishDate?: string; includeAudio?: boolean } = {}
+  options: { publishDate?: string; includeAudio?: boolean; languageCode?: string } = {}
 ): Promise<ArticlesPrewarmSummary> {
   const publishDate = options.publishDate || getTaipeiDateString();
   const { data: topic, error: topicError } = await supabase
@@ -376,10 +376,14 @@ export async function prewarmReadingArticlesForDate(
     throw new Error(`No ready or published reading topic found for ${publishDate}`);
   }
 
-  const { data: articles, error: articlesError } = await supabase
+  let articlesQuery = supabase
     .from("reading_articles")
     .select("id, topic_id, language_code, status")
     .eq("topic_id", topic.id);
+  if (options.languageCode) {
+    articlesQuery = articlesQuery.eq("language_code", options.languageCode);
+  }
+  const { data: articles, error: articlesError } = await articlesQuery;
 
   if (articlesError || !articles) {
     throw new Error(`Failed to fetch articles for ${publishDate}`);

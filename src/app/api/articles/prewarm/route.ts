@@ -15,14 +15,15 @@ import {
  *   articleId?: string
  *   publishDate?: string
  *   includeAudio?: boolean
+ *   languageCode?: string  // e.g. "ja" — limit to one language to avoid timeouts
  * }
  *
- * 未傳 articleId 時，會預熱今日五語文章。
+ * 未傳 articleId 時，會預熱今日五語文章（可用 languageCode 限制單一語言，避免逾時）。
  */
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 async function readOptionalJson(request: NextRequest): Promise<Record<string, unknown>> {
   try {
@@ -58,6 +59,7 @@ export async function POST(request: NextRequest) {
     const summary = await prewarmReadingArticlesForDate(supabase, {
       publishDate: typeof body.publishDate === "string" ? body.publishDate : undefined,
       includeAudio,
+      languageCode: typeof body.languageCode === "string" ? body.languageCode : undefined,
     });
     return NextResponse.json(summary);
   } catch (error) {
