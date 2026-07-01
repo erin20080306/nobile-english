@@ -2,6 +2,7 @@ import { assetCacheKey, computeTextHash } from "./hash";
 import { combineTutorText, normalizeText } from "./normalizeText";
 import { getTtsProvider } from "./provider";
 import { getTtsAssetStore } from "./store";
+import { createSignedAudioUrl } from "./storage";
 import type {
   GetOrCreateInput,
   GetOrCreateResult,
@@ -21,9 +22,9 @@ function inflight(): Map<string, Promise<TtsAudioAsset>> {
 
 // A signed, short-lived URL for the client to play. For the stub provider this
 // is just the placeholder path; the production storage adapter returns a real one.
-export function buildSignedUrl(asset: TtsAudioAsset): string | null {
+export async function buildSignedUrl(asset: TtsAudioAsset): Promise<string | null> {
   if (asset.status !== "ready" || !asset.audioPath) return null;
-  return asset.audioPath;
+  return createSignedAudioUrl(asset.audioPath);
 }
 
 export interface PeekResult {
@@ -43,7 +44,7 @@ function normalizeForAsset(input: GetOrCreateInput): string {
 // Check whether a text is already cached and how many characters it would bill,
 // WITHOUT calling the provider. Used by prewarm dry-run cost estimation.
 export async function peekTtsAsset(input: GetOrCreateInput): Promise<PeekResult> {
-  const provider = getTtsProvider();
+  const provider = getTtsProvider(input.assetType);
   const store = getTtsAssetStore();
 
   const normalizedText = normalizeForAsset(input);
@@ -53,7 +54,7 @@ export async function peekTtsAsset(input: GetOrCreateInput): Promise<PeekResult>
     resolveVoiceProfile(input.languageCode, input.voiceGender);
   if (!voice) throw new Error(`no voice profile for language: ${input.languageCode}`);
 
-  const audioFormat = input.audioFormat || "m4a";
+  const audioFormat = input.audioFormat || "mp3";
   const audioVersionString = input.audioVersionString ?? "v2_loud";
   const textHash = computeTextHash({
     provider: provider.name,
@@ -86,7 +87,7 @@ export async function peekTtsAsset(input: GetOrCreateInput): Promise<PeekResult>
 export async function getCachedTtsAsset(
   input: GetOrCreateInput
 ): Promise<GetOrCreateResult | null> {
-  const provider = getTtsProvider();
+  const provider = getTtsProvider(input.assetType);
   const store = getTtsAssetStore();
 
   const normalizedText = normalizeForAsset(input);
@@ -97,7 +98,7 @@ export async function getCachedTtsAsset(
     resolveVoiceProfile(input.languageCode, input.voiceGender);
   if (!voice) throw new Error(`no voice profile for language: ${input.languageCode}`);
 
-  const audioFormat = input.audioFormat || "m4a";
+  const audioFormat = input.audioFormat || "mp3";
   const audioVersionString = input.audioVersionString ?? "v2_loud";
   const textHash = computeTextHash({
     provider: provider.name,
@@ -118,13 +119,13 @@ export async function getCachedTtsAsset(
     audioVersionString,
   });
 
-  return ready ? { asset: ready, cached: true, signedUrl: buildSignedUrl(ready) } : null;
+  return ready ? { asset: ready, cached: true, signedUrl: await buildSignedUrl(ready) } : null;
 }
 
 export async function getOrCreateTtsAsset(
   input: GetOrCreateInput
 ): Promise<GetOrCreateResult> {
-  const provider = getTtsProvider();
+  const provider = getTtsProvider(input.assetType);
   const store = getTtsAssetStore();
 
   const normalizedText = normalizeForAsset(input);
@@ -137,7 +138,7 @@ export async function getOrCreateTtsAsset(
   if (!voice) throw new Error(`no voice profile for language: ${input.languageCode}`);
   const voiceProfileId = voice.id;
 
-  const audioFormat = input.audioFormat || "m4a";
+  const audioFormat = input.audioFormat || "mp3";
   const audioVersionString = input.audioVersionString ?? "v2_loud";
 
   const textHash = computeTextHash({
@@ -161,7 +162,7 @@ export async function getOrCreateTtsAsset(
 
   // 1) Fast path: already cached and ready -> never call the provider.
   const ready = await store.getReadyByKey(keyParams);
-  if (ready) return { asset: ready, cached: true, signedUrl: buildSignedUrl(ready) };
+  if (ready) return { asset: ready, cached: true, signedUrl: await buildSignedUrl(ready) };
 
   // 2) Reserve a row (status = generating) or attach to an existing one.
   const { asset, created } = await store.reserve({
@@ -183,7 +184,7 @@ export async function getOrCreateTtsAsset(
     const key = assetCacheKey(keyParams);
     const pending = inflight().get(key);
     const finalAsset = pending ? await pending : asset;
-    return { asset: finalAsset, cached: true, signedUrl: buildSignedUrl(finalAsset) };
+    return { asset: finalAsset, cached: true, signedUrl: await buildSignedUrl(finalAsset) };
   }
 
   // 3) We won the race: synthesize, post-process, persist.
@@ -194,6 +195,9 @@ export async function getOrCreateTtsAsset(
         text: normalizedText,
         languageCode: voice.languageCode,
         voiceName: voice.voiceName,
+        voiceProfileId,
+        voiceGender: voice.voiceGender,
+        assetType: input.assetType,
         audioFormat,
         textHash,
       });
@@ -208,5 +212,5 @@ export async function getOrCreateTtsAsset(
   inflight().set(key, job);
 
   const finalAsset = await job;
-  return { asset: finalAsset, cached: false, signedUrl: buildSignedUrl(finalAsset) };
+  return { asset: finalAsset, cached: false, signedUrl: await buildSignedUrl(finalAsset) };
 }

@@ -114,6 +114,9 @@ export interface SynthesisRequest {
   text: string; // already normalized + combined
   languageCode: string;
   voiceName: string;
+  voiceProfileId: string;
+  voiceGender: VoiceGender;
+  assetType: TtsAssetType;
   audioFormat: AudioFormat;
   textHash: string;
 }

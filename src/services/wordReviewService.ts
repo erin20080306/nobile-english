@@ -87,8 +87,8 @@ interface WordReviewMemory {
 
 const LEVEL_LIMITS: Record<LearningLanguageCode, Record<EnglishLevel, number>> = {
   en: {
-    Beginner: 1500,
-    Elementary: 2500,
+    Beginner: 650,
+    Elementary: 1800,
     Intermediate: 4000,
     "Upper-Intermediate": 6000,
     Advanced: 16000,
@@ -177,6 +177,53 @@ function normalizePoolWords(words: Word[], language: LearningLanguageCode) {
   return uniqueWords(words.filter((word) => matchesLanguage(word, language)));
 }
 
+function containsCjk(text?: string) {
+  return /[\u3400-\u9fff]/.test(text || "");
+}
+
+function wordCount(text = "") {
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function shortText(text = "", max = 72) {
+  const clean = text.replace(/\s+/g, " ").trim();
+  if (clean.length <= max) return clean;
+  const sentence = clean.split(/[.!?。！？]/)[0]?.trim();
+  if (sentence && sentence.length <= max) return sentence;
+  return `${clean.slice(0, max - 1).trim()}…`;
+}
+
+function shortMeaning(word: Word) {
+  const zh = String(word.zh || "").trim();
+  if (containsCjk(zh)) return shortText(zh.split(/[；;,，、]/)[0] || zh, 30);
+  const def = String(word.enDef || zh || word.word).trim();
+  return shortText(def, 64);
+}
+
+function blankedExample(word: Word) {
+  const target = word.word.trim();
+  const example = String(word.example || "").replace(/\s+/g, " ").trim();
+  if (example && target) {
+    const escaped = target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const exact = new RegExp(`\\b${escaped}\\b`, "i");
+    if (exact.test(example)) return shortText(example.replace(exact, "____"), 90);
+  }
+  return `____ = ${shortMeaning(word)}`;
+}
+
+function isFriendlyForLevel(word: Word, level: EnglishLevel, language: LearningLanguageCode) {
+  if (level !== "Beginner" && level !== "Elementary") return true;
+  const surface = word.word.trim();
+  const maxSurface = level === "Beginner" ? 13 : 18;
+  const maxDefWords = level === "Beginner" ? 9 : 16;
+  const maxExampleWords = level === "Beginner" ? 9 : 14;
+  if (!surface || Array.from(surface).length > maxSurface) return false;
+  if (language === "en" && /\s/.test(surface)) return false;
+  if (wordCount(word.enDef || word.zh) > maxDefWords && !containsCjk(word.zh)) return false;
+  if (word.example && wordCount(word.example) > maxExampleWords) return false;
+  return true;
+}
+
 function savedLearnedWords(language: LearningLanguageCode) {
   return vocabularyService.getSaved().filter((word) => matchesLanguage(word, language));
 }
@@ -220,7 +267,7 @@ function nextDueDate(correct: boolean, streak: number) {
 }
 
 function optionText(word: Word, questionKind: WordReviewQuestionKind) {
-  return questionKind === "meaningChoice" ? word.zh || word.word : word.word;
+  return questionKind === "meaningChoice" ? shortMeaning(word) || word.word : word.word;
 }
 
 function normalizeAnswer(text: string) {
@@ -231,9 +278,14 @@ function choiceScore(text: string, seed: number) {
   return Array.from(text).reduce((sum, char) => sum + char.charCodeAt(0), seed);
 }
 
-function pickQuestionKinds(words: Word[]): WordReviewQuestionKind[] {
-  const fillCount = words.length >= 5 ? Math.max(1, Math.round(words.length * 0.25)) : words.length >= 3 ? 1 : 0;
-  const wordChoiceCount = words.length >= 4 ? Math.max(1, Math.round(words.length * 0.25)) : words.length >= 2 ? 1 : 0;
+function pickQuestionKinds(words: Word[], level: EnglishLevel): WordReviewQuestionKind[] {
+  const beginnerLike = level === "Beginner" || level === "Elementary";
+  const fillCount = beginnerLike
+    ? words.length >= 8 ? 2 : words.length >= 4 ? 1 : 0
+    : words.length >= 5 ? Math.max(1, Math.round(words.length * 0.25)) : words.length >= 3 ? 1 : 0;
+  const wordChoiceCount = beginnerLike
+    ? words.length >= 3 ? Math.max(1, Math.round(words.length * 0.45)) : 1
+    : words.length >= 4 ? Math.max(1, Math.round(words.length * 0.25)) : words.length >= 2 ? 1 : 0;
   const shuffledIndexes = words
     .map((_, index) => index)
     .sort(() => Math.random() - 0.5);
@@ -256,7 +308,7 @@ function buildSessionFromPool(options: WordReviewOptions, poolWords: Word[]): Wo
   const memory = getMemory();
   const count = clamp(options.count, 1, 30);
   const learnedPercent = clamp(options.learnedPercent, 0, 100);
-  const pool = normalizePoolWords(poolWords, language);
+  const pool = normalizePoolWords(poolWords, language).filter((word) => isFriendlyForLevel(word, options.level, language));
   const saved = savedLearnedWords(language);
   const learned = uniqueWords([...saved, ...memoryWords(language, pool, memory)]);
   const learnedTarget = Math.min(learned.length, Math.round(count * (learnedPercent / 100)));
@@ -265,7 +317,7 @@ function buildSessionFromPool(options: WordReviewOptions, poolWords: Word[]): Wo
   const selectedNew = takeWords(pool, count - selectedLearned.length, excluded, language);
   const fill = takeWords([...learned, ...pool], count - selectedLearned.length - selectedNew.length, excluded, language);
   const selected = [...selectedLearned, ...selectedNew, ...fill].slice(0, count);
-  const questionKinds = pickQuestionKinds(selected);
+  const questionKinds = pickQuestionKinds(selected, options.level);
 
   memory.lastOptions = { language, count, learnedPercent };
   saveMemory(memory);
@@ -382,6 +434,18 @@ export const wordReviewService = {
       .filter(Boolean)
       .slice(0, 4)
       .sort((a, b) => (choiceScore(a, seed) % 11) - (choiceScore(b, seed) % 11));
+  },
+
+  questionPromptFor(word: Word, questionKind: WordReviewQuestionKind): string {
+    if (questionKind === "wordFill") return blankedExample(word);
+    if (questionKind === "wordChoice") return shortMeaning(word);
+    return word.word;
+  },
+
+  questionHintFor(word: Word, questionKind: WordReviewQuestionKind): string {
+    if (questionKind === "wordFill") return "看短句填單字";
+    if (questionKind === "wordChoice") return "看意思選單字";
+    return "看單字選意思";
   },
 
   completeSession(session: WordReviewSession): WordReviewScore {

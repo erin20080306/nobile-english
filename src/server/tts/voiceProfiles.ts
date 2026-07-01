@@ -1,23 +1,22 @@
 import type { VoiceGender, VoiceProfile } from "./types";
 
-// In-memory mirror of tutor-level voice profiles. English has six visual tutors;
-// Japanese/Korean/Italian/Spanish each have one male and one female tutor.
-// Production providers can map these logical profiles to their chosen voices.
+// In-memory mirror of tutor-level voice profiles. These ids are stable app
+// tutor ids and must not be collapsed by language/gender only.
 export const SEED_VOICE_PROFILES: VoiceProfile[] = [
-  { id: "vp-en-jake", languageCode: "en-US", voiceName: "en-US-Chirp3-HD-Charon", voiceGender: "male", isDefault: true, isActive: true },
-  { id: "vp-en-william", languageCode: "en-GB", voiceName: "en-GB-Chirp3-HD-Charon", voiceGender: "male", isDefault: false, isActive: true },
-  { id: "vp-en-emma", languageCode: "en-US", voiceName: "en-US-Chirp3-HD-Aoede", voiceGender: "female", isDefault: true, isActive: true },
-  { id: "vp-en-amy", languageCode: "en-US", voiceName: "en-US-Chirp3-HD-Aoede", voiceGender: "female", isDefault: false, isActive: true },
-  { id: "vp-en-sophie", languageCode: "en-GB", voiceName: "en-GB-Chirp3-HD-Aoede", voiceGender: "female", isDefault: false, isActive: true },
-  { id: "vp-en-lily", languageCode: "en-US", voiceName: "en-US-Chirp3-HD-Aoede", voiceGender: "female", isDefault: false, isActive: true },
-  { id: "vp-ja-haruto", languageCode: "ja-JP", voiceName: "ja-JP-Chirp3-HD-Charon", voiceGender: "male", isDefault: true, isActive: true },
-  { id: "vp-ja-yui", languageCode: "ja-JP", voiceName: "ja-JP-Chirp3-HD-Aoede", voiceGender: "female", isDefault: true, isActive: true },
-  { id: "vp-ko-minjun", languageCode: "ko-KR", voiceName: "ko-KR-Chirp3-HD-Charon", voiceGender: "male", isDefault: true, isActive: true },
-  { id: "vp-ko-seoyeon", languageCode: "ko-KR", voiceName: "ko-KR-Chirp3-HD-Aoede", voiceGender: "female", isDefault: true, isActive: true },
-  { id: "vp-it-marco", languageCode: "it-IT", voiceName: "it-IT-Chirp3-HD-Charon", voiceGender: "male", isDefault: true, isActive: true },
-  { id: "vp-it-giulia", languageCode: "it-IT", voiceName: "it-IT-Chirp3-HD-Aoede", voiceGender: "female", isDefault: true, isActive: true },
-  { id: "vp-es-carlos", languageCode: "es-ES", voiceName: "es-ES-Chirp3-HD-Charon", voiceGender: "male", isDefault: true, isActive: true },
-  { id: "vp-es-sofia", languageCode: "es-ES", voiceName: "es-ES-Chirp3-HD-Aoede", voiceGender: "female", isDefault: true, isActive: true },
+  { id: "vp-en-jake", languageCode: "en-US", voiceName: "en-US-Neural2-D", voiceGender: "male", isDefault: true, isActive: true },
+  { id: "vp-en-william", languageCode: "en-GB", voiceName: "en-GB-Neural2-B", voiceGender: "male", isDefault: false, isActive: true },
+  { id: "vp-en-emma", languageCode: "en-US", voiceName: "en-US-Neural2-F", voiceGender: "female", isDefault: true, isActive: true },
+  { id: "vp-en-amy", languageCode: "en-US", voiceName: "en-US-Neural2-E", voiceGender: "female", isDefault: false, isActive: true },
+  { id: "vp-en-sophie", languageCode: "en-GB", voiceName: "en-GB-Neural2-A", voiceGender: "female", isDefault: false, isActive: true },
+  { id: "vp-en-lily", languageCode: "cmn-CN", voiceName: "cmn-CN-Wavenet-A", voiceGender: "female", isDefault: false, isActive: true },
+  { id: "vp-ja-haruto", languageCode: "ja-JP", voiceName: "ja-JP-Neural2-C", voiceGender: "male", isDefault: true, isActive: true },
+  { id: "vp-ja-yui", languageCode: "ja-JP", voiceName: "ja-JP-Neural2-B", voiceGender: "female", isDefault: true, isActive: true },
+  { id: "vp-ko-minjun", languageCode: "ko-KR", voiceName: "ko-KR-Neural2-C", voiceGender: "male", isDefault: true, isActive: true },
+  { id: "vp-ko-seoyeon", languageCode: "ko-KR", voiceName: "ko-KR-Neural2-A", voiceGender: "female", isDefault: true, isActive: true },
+  { id: "vp-it-marco", languageCode: "it-IT", voiceName: "it-IT-Neural2-C", voiceGender: "male", isDefault: true, isActive: true },
+  { id: "vp-it-giulia", languageCode: "it-IT", voiceName: "it-IT-Neural2-A", voiceGender: "female", isDefault: true, isActive: true },
+  { id: "vp-es-carlos", languageCode: "es-ES", voiceName: "es-ES-Neural2-B", voiceGender: "male", isDefault: true, isActive: true },
+  { id: "vp-es-sofia", languageCode: "es-ES", voiceName: "es-ES-Neural2-A", voiceGender: "female", isDefault: true, isActive: true },
 ];
 
 // Map app learning-language codes (en/ja/ko/it/es) to BCP-47 languageCode used by voices.

@@ -149,7 +149,7 @@ export default function DailyReadingPage() {
           languageCode: selectedLanguage,
           assetType: "reading_sentence",
           voiceGender: "female",
-          audioFormat: "m4a",
+          audioFormat: "mp3",
           cacheOnly,
         }),
       });

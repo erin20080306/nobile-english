@@ -73,6 +73,7 @@ export default function Dashboard() {
     setSettings(nextSettings);
     setGarden(gardenService.getState(nextSettings.targetLanguage));
     setSavedCount(vocabularyService.getSaved().length);
+    void learningService.syncRecords(user.id);
     trialAccessService
       .getAccessState(user, { fresh: true })
       .then(setAccessState)

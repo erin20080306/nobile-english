@@ -62,6 +62,7 @@ export const KEYS = {
   lastResult: "lastResult",
   feedbackReports: "feedbackReports",
   wordReviewMemory: "wordReviewMemory",
+  learningRecordSyncQueue: "learningRecordSyncQueue",
   trialUsage: "trialUsage",
   deviceId: "deviceId",
 } as const;

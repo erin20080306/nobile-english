@@ -12,6 +12,7 @@ import type {
 import { storageService, KEYS } from "./storageService";
 import { getLearningLanguage, languageFromLabel } from "@/data/learningLanguages";
 import { gardenService } from "./gardenService";
+import { learningRecordSyncService } from "./learningRecordSyncService";
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -156,7 +157,12 @@ export const learningService = {
     };
     records.unshift(full);
     storageService.set(KEYS.records, records);
+    learningRecordSyncService.syncRecord(full);
     return full;
+  },
+
+  syncRecords(userId = storageService.get<string>(KEYS.session, "")) {
+    return learningRecordSyncService.syncAll(this.getRecords(), userId);
   },
 
   // ---- Level test scoring ----
