@@ -99,37 +99,58 @@ function normalizeTutorFeedback(feedback: Partial<TutorFeedback>): TutorFeedback
 }
 
 
+function isGarbledInput(input: string): boolean {
+  const trimmed = input.trim();
+  if (trimmed.length < 2) return true;
+  const letters = (trimmed.match(/[a-zA-Z]/g) || []).length;
+  const letterRatio = letters / trimmed.length;
+  const wordCount = trimmed.split(/\s+/).filter(Boolean).length;
+  if (wordCount === 1 && trimmed.length <= 3 && letterRatio < 0.8) return true;
+  const hasVowelOrCommonWord = /[aeiouAEIOU]|\b(the|a|is|i|you|he|she|we|do|can|my|hi|hello|yes|no|ok)\b/i.test(trimmed);
+  if (trimmed.length >= 4 && letterRatio > 0.8 && !hasVowelOrCommonWord) return true;
+  return false;
+}
+
+const CONFUSION_REPLIES: Array<{ en: string; zh: string }> = [
+  { en: "Sorry, I didn't quite catch that. Could you say it again?", zh: "抱歉，我沒聽清楚，可以再說一次嗎？" },
+  { en: "Hmm, could you repeat that? I'm not sure I understood.", zh: "嗯，可以再說一遍嗎？我不確定我聽懂了。" },
+  { en: "Pardon? I missed that — mind saying it again?", zh: "什麼？我沒聽到——可以再說一次嗎？" },
+  { en: "Sorry, what did you say? Could you say that a bit more clearly?", zh: "不好意思，你說什麼？可以說清楚一點嗎？" },
+];
+
 function buildPrompt({ scene, userInput, turn, history = [] }: TutorRequest, persona: string) {
   const targetLanguage = getLearningLanguage(scene.targetLanguage || "en");
-  // The client sends the full alternating transcript (both "Tutor:" and "You:"
-  // lines). Show the recent window so the model can see what it already asked
-  // and never repeat the same question.
   const transcript = history.slice(-8).join("\n");
   const patterns = scene.keyPatterns.slice(0, 3).map((p) => p.en).join(" | ");
-  const tutorLines = scene.dialogue
-    .filter((d) => d.speaker === "tutor")
-    .slice(0, 3)
-    .map((d) => d.en)
-    .join(" / ");
+
+  const langInstruction = targetLanguage.code === "en"
+    ? "Reply in English. Casual, warm, varied sentence lengths. Natural fillers like 'Oh!', 'Sure!', 'Hmm...', 'Yeah,' welcome when they fit."
+    : `Reply ONLY in ${targetLanguage.nativeName}. Never switch to English unless the learner explicitly asks for a translation. Sound like a native speaker, not a textbook.`;
 
   return [
-    `You are ${persona}, playing the NON-LEARNER role in scene: "${scene.name}".`,
-    `Target learning language: ${targetLanguage.label} / ${targetLanguage.nativeName}.`,
-    targetLanguage.code === "en"
-      ? "Use natural English for reply and betterWay."
-      : `Use natural ${targetLanguage.nativeName} for reply and betterWay. Do not answer in English unless the learner explicitly asks for an English translation.`,
+    `You are ${persona}, playing the role of a real person in the scene: "${scene.name}".`,
+    langInstruction,
     sceneRoleGuide(scene),
-    `IMPORTANT: You are the ${persona} (staff/host/interviewer). The learner is the customer/guest/applicant. NEVER say lines that belong to the learner's role.`,
-    `Your job: respond naturally as ${persona} to what the learner said, then MOVE THE SCENE FORWARD to the next step.`,
-    `CRITICAL: Do NOT repeat a question or sentence you already said earlier in the conversation. Each turn must advance to a new step (e.g. cafe flow: greeting -> order -> size/hot-iced -> name -> payment -> pickup time). Vary your wording so it never feels scripted.`,
-    `You may chat naturally, but never change your role. If the learner's sentence is off-topic, bridge it back to the scene in character.`,
-    `The example tutor lines below are only style hints; do NOT copy them verbatim: ${tutorLines}`,
-    `Key patterns learner should use: ${patterns}`,
-    transcript ? `Conversation so far (do not repeat any tutor line already here):\n${transcript}` : "",
-    `Turn ${turn}/7. Learner just said: "${userInput}"`,
     ``,
-    `Return ONLY valid JSON (no extra text):`,
-    `{"reply":"your natural in-character ${targetLanguage.nativeName} response, 2 short sentences","replyZh":"Traditional Chinese translation","ttsCandidate":"the exact text to be spoken by TTS (same as reply, but without any Chinese characters or explanations)","naturalness":50-99,"grammarTip":"短中文文法建議","betterWay":"more natural version of learner sentence in ${targetLanguage.nativeName}","zhExplain":"短中文解釋","encouragement":"短鼓勵繁中，可加一句${targetLanguage.nativeName}"}`,
+    `## MOST IMPORTANT RULE`,
+    `The learner just said: "${userInput}"`,
+    `Your reply MUST directly respond to those specific words. Do NOT ignore what they said and jump to a generic next step.`,
+    `- If they asked a question → answer it first.`,
+    `- If they made a statement or shared information → react to the content ("Oh really?", "That sounds great!", "I see,", etc.) before moving on.`,
+    `- If they used a wrong word or awkward phrase → still understand their intent and reply naturally (real people don't refuse to respond over grammar).`,
+    `- If they wrote something very short or unclear → ask a natural, curious follow-up question ("Oh? What do you mean?", "Sorry, could you say a bit more?").`,
+    ``,
+    `## CONVERSATION FLOW`,
+    transcript ? `Conversation so far:\n${transcript}\n` : "",
+    `After reacting to what they said, naturally continue the ${scene.name} scenario — but only if it fits. Do NOT repeat any question or phrase already used above.`,
+    `Key patterns for this scene (for context, do not force them): ${patterns}`,
+    ``,
+    `## STYLE`,
+    `1-3 sentences. Vary your opening each turn (don't always start the same way). Sound spontaneous, not scripted.`,
+    `Turn ${turn}/7.`,
+    ``,
+    `Return ONLY valid JSON:`,
+    `{"reply":"natural in-character reply in ${targetLanguage.nativeName} — react first, then continue","replyZh":"繁體中文翻譯","ttsCandidate":"exact reply text for TTS, no Chinese characters","naturalness":50-99,"grammarTip":"短中文文法建議（如無問題可留空）","betterWay":"更自然的說法 in ${targetLanguage.nativeName}（如已很好可留空）","zhExplain":"短中文補充說明","encouragement":"短鼓勵（繁中）"}`,
   ].filter(Boolean).join("\n");
 }
 
@@ -151,16 +172,31 @@ export async function POST(req: Request) {
   const model = getGeminiModel();
   const persona = getScenePersona(body.scene, body.persona);
 
+  // Garbled/unclear input → respond like a real person asking for clarification.
+  if (isGarbledInput(body.userInput)) {
+    const pick = CONFUSION_REPLIES[body.turn % CONFUSION_REPLIES.length];
+    const local = mockAiTutorService.feedback(body.scene, body.userInput, body.turn, body.history || []);
+    return NextResponse.json({
+      source: "local",
+      feedback: normalizeTutorFeedback({
+        ...local,
+        reply: pick.en,
+        replyZh: pick.zh,
+        ttsCandidate: pick.en,
+      }),
+    });
+  }
+
   try {
     const outputText = await generateWithGemini({
       prompt: buildPrompt(body, persona),
-      temperature: 0.6,
+      temperature: 0.78,
       maxOutputTokens: 512,
       json: true,
     });
-
     const parsed = parseJsonFromModel<Partial<TutorFeedback>>(outputText);
     const local = mockAiTutorService.feedback(body.scene, body.userInput, body.turn, body.history || []);
+
     const feedback = normalizeTutorFeedback({
       reply: String(parsed.reply || local.reply),
       replyZh: String(parsed.replyZh || local.replyZh),

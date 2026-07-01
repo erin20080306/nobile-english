@@ -185,13 +185,13 @@ export default function DailyReadingPage() {
     const sentences = article.sentences.slice(startIndex);
     if (sentences.length === 0) return;
 
-    const urls = await Promise.all(sentences.map((s) => getSentenceAudioUrl(s)));
-
+    // Load sentence audio sequentially (not Promise.all) to avoid firing many
+    // parallel TTS requests at once, which can get rate-limited and fail silently.
     for (let i = 0; i < sentences.length; i++) {
-      const url = urls[i];
-      if (!url) continue;
       const s = sentences[i];
-      const idx = s.sentence_order - 1;
+      const url = await getSentenceAudioUrl(s);
+      if (!url) continue;
+      const idx = startIndex + i;
       audioQueueService.enqueue({
         id: `sentence-${s.id}-${Date.now()}-${i}`,
         url,
@@ -279,9 +279,9 @@ export default function DailyReadingPage() {
     } catch {}
   }
 
-  function handleWordClick(_e: React.MouseEvent, sentence: string) {
-    const text = window.getSelection()?.toString().trim();
-    if (text) setSelectedWord({ word: text, sentence });
+  function handleWordClick(word: string, sentence: string) {
+    const cleaned = word.replace(/^[^a-zA-Z0-9\u00C0-\u024F\u3040-\u30FF\u4E00-\u9FFF]+|[^a-zA-Z0-9\u00C0-\u024F\u3040-\u30FF\u4E00-\u9FFF]+$/g, "");
+    if (cleaned) setSelectedWord({ word: cleaned, sentence });
   }
 
   function getQuizScore() {
@@ -428,11 +428,23 @@ export default function DailyReadingPage() {
                 {sentence.sentence_order}
               </span>
               <div className="flex-1">
-                <p
-                  className="text-base text-ink leading-relaxed"
-                  onMouseUp={(e) => handleWordClick(e, sentence.sentence_text)}
-                >
-                  {sentence.sentence_text}
+                <p className="text-base text-ink leading-relaxed">
+                  {sentence.sentence_text.split(/(\s+)/).map((token, ti) =>
+                    token.trim() === "" ? (
+                      <span key={ti}>{token}</span>
+                    ) : (
+                      <span
+                        key={ti}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleWordClick(token, sentence.sentence_text);
+                        }}
+                        className="hover:bg-lilacLight/60 rounded px-0.5 -mx-0.5"
+                      >
+                        {token}
+                      </span>
+                    )
+                  )}
                 </p>
                 {showChinese && (
                   <p className="text-sm text-inkSoft mt-1">{sentence.sentence_zh_tw}</p>

@@ -76,18 +76,42 @@ export async function GET(request: NextRequest) {
     }
 
     // 5. 取得句子音檔
-    const { data: audioAssets, error: audioError } = await supabase
+    const { data: audioAssets } = await supabase
       .from('reading_article_audio_assets')
-      .select('*')
+      .select('sentence_id, audio_path')
       .eq('article_id', article.id)
       .eq('status', 'ready');
 
-    // 建立音檔 URL 映射
-    const audioMap = new Map();
-    if (audioAssets) {
-      for (const asset of audioAssets) {
-        if (asset.sentence_id && asset.audio_path) {
-          audioMap.set(asset.sentence_id, asset.audio_path);
+    // 建立音檔 URL 映射：stable storage paths → fresh signed URLs (30 min)
+    const audioMap = new Map<string, string>();
+    if (audioAssets && audioAssets.length > 0) {
+      const bucket = process.env.TTS_AUDIO_BUCKET || process.env.SUPABASE_TTS_BUCKET || 'tts-audio';
+
+      // Stable paths are relative storage keys (no http/blob/stub/data prefix).
+      const stableAssets = audioAssets.filter(
+        (a) => a.sentence_id && a.audio_path && !/^(https?:|stub:|blob:|data:)/.test(a.audio_path)
+      );
+      // Legacy rows stored a signed https URL directly — use as-is (may be expired).
+      const legacyAssets = audioAssets.filter(
+        (a) => a.sentence_id && a.audio_path && /^https:\/\//.test(a.audio_path)
+      );
+
+      if (stableAssets.length > 0) {
+        const paths = stableAssets.map((a) => a.audio_path as string);
+        const { data: signed } = await supabase.storage
+          .from(bucket)
+          .createSignedUrls(paths, 60 * 30);
+        if (signed) {
+          for (let i = 0; i < stableAssets.length; i++) {
+            const url = signed[i]?.signedUrl;
+            if (url) audioMap.set(stableAssets[i].sentence_id as string, url);
+          }
+        }
+      }
+
+      for (const asset of legacyAssets) {
+        if (!audioMap.has(asset.sentence_id as string)) {
+          audioMap.set(asset.sentence_id as string, asset.audio_path as string);
         }
       }
     }
