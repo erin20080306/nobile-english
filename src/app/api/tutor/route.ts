@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import { createHash } from "crypto";
 import type { Scene, TutorFeedback } from "@/types";
 import { mockAiTutorService } from "@/services/mockAiTutorService";
 import { getLearningLanguage } from "@/data/learningLanguages";
 import { generateWithGemini, getGeminiApiKey, getGeminiModel, parseJsonFromModel } from "@/server/gemini";
+import { getSupabaseServerClient } from "@/server/supabaseClient";
 
 export const runtime = "nodejs";
 
@@ -74,6 +76,73 @@ interface TutorRequest {
   persona?: string;
 }
 
+function hashText(text: string) {
+  return createHash("sha256").update(text).digest("hex");
+}
+
+function buildTutorReplyCacheKey(body: TutorRequest, persona: string) {
+  const languageCode = body.scene.targetLanguage || "en";
+  const recentHistory = (body.history || []).slice(-8).join("\n").trim();
+  const normalizedInput = body.userInput.trim().replace(/\s+/g, " ").toLowerCase();
+  return hashText(
+    JSON.stringify({
+      version: 2,
+      sceneId: body.scene.id,
+      languageCode,
+      persona,
+      turn: body.turn,
+      userInput: normalizedInput,
+      historyHash: hashText(recentHistory),
+    })
+  );
+}
+
+async function readCachedTutorReply(cacheKey: string): Promise<TutorFeedback | null> {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from("tutor_reply_cache")
+      .select("feedback")
+      .eq("cache_key", cacheKey)
+      .maybeSingle();
+    if (error || !data?.feedback) return null;
+    return normalizeTutorFeedback(data.feedback as Partial<TutorFeedback>);
+  } catch {
+    return null;
+  }
+}
+
+async function writeCachedTutorReply(
+  cacheKey: string,
+  body: TutorRequest,
+  persona: string,
+  model: string,
+  feedback: TutorFeedback
+) {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) return;
+  try {
+    await supabase.from("tutor_reply_cache").upsert(
+      {
+        cache_key: cacheKey,
+        scene_id: body.scene.id,
+        language_code: body.scene.targetLanguage || "en",
+        persona,
+        turn: body.turn,
+        user_input: body.userInput.trim(),
+        history_hash: hashText((body.history || []).slice(-8).join("\n").trim()),
+        model,
+        feedback,
+      },
+      { onConflict: "cache_key" }
+    );
+  } catch {
+    // Cache is optional; tutor practice should keep working if the migration has
+    // not been applied yet.
+  }
+}
+
 function fallback(body: TutorRequest, status = 200) {
   return NextResponse.json({
     source: "local",
@@ -121,7 +190,9 @@ function buildPrompt({ scene, userInput, turn, history = [] }: TutorRequest, per
     sceneRoleGuide(scene),
     `IMPORTANT: You are the ${persona} (staff/host/interviewer). The learner is the customer/guest/applicant. NEVER say lines that belong to the learner's role.`,
     `Your job: respond naturally as ${persona} to what the learner said, then MOVE THE SCENE FORWARD to the next step.`,
-    `CRITICAL: Do NOT repeat a question or sentence you already said earlier in the conversation. Each turn must advance to a new step (e.g. cafe flow: greeting -> order -> size/hot-iced -> name -> payment -> pickup time). Vary your wording so it never feels scripted.`,
+    `CRITICAL: Build your next reply from the learner's actual latest answer. If the learner gives a short answer, infer the likely intent and ask one natural follow-up that fits it.`,
+    `Do NOT follow the example script mechanically. The example lines are only reference material, not a fixed order.`,
+    `Do NOT repeat a question or sentence you already said earlier in the conversation. Each turn must advance to a new step (e.g. cafe flow: greeting -> order -> size/hot-iced -> name -> payment -> pickup time). Vary your wording so it never feels scripted.`,
     `You may chat naturally, but never change your role. If the learner's sentence is off-topic, bridge it back to the scene in character.`,
     `The example tutor lines below are only style hints; do NOT copy them verbatim: ${tutorLines}`,
     `Key patterns learner should use: ${patterns}`,
@@ -150,12 +221,17 @@ export async function POST(req: Request) {
 
   const model = getGeminiModel();
   const persona = getScenePersona(body.scene, body.persona);
+  const cacheKey = buildTutorReplyCacheKey(body, persona);
+  const cachedFeedback = await readCachedTutorReply(cacheKey);
+  if (cachedFeedback) {
+    return NextResponse.json({ source: "gemini_cache", model, feedback: cachedFeedback });
+  }
 
   try {
     const outputText = await generateWithGemini({
       prompt: buildPrompt(body, persona),
-      temperature: 0.6,
-      maxOutputTokens: 512,
+      temperature: 0.85,
+      maxOutputTokens: 640,
       json: true,
     });
 
@@ -171,6 +247,7 @@ export async function POST(req: Request) {
       zhExplain: String(parsed.zhExplain || local.zhExplain),
       encouragement: String(parsed.encouragement || local.encouragement),
     });
+    await writeCachedTutorReply(cacheKey, body, persona, model, feedback);
     return NextResponse.json({ source: "gemini", model, feedback });
   } catch {
     return fallback(body);

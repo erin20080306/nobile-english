@@ -306,10 +306,13 @@ async function generateWithGeminiArticle(
 ): Promise<ArticleContent> {
   const langName = LANG_NAMES[languageCode];
 
-  const prompt = `You are a language learning content creator. Generate a short learning article in ${langName} about the topic: "${topicZhTw}" (category: ${category}).
+  const prompt = `You are a language learning content creator. Generate a learning article in ${langName} about the topic: "${topicZhTw}" (category: ${category}).
 
 Requirements:
-- 7-9 natural sentences appropriate for A2/B1 level learners
+- 11-14 natural sentences appropriate for A2/B1 level learners
+- Each sentence should be clear enough for sentence-by-sentence audio playback
+- English articles should be about 180-260 words; other languages should be similar in reading time
+- Include useful vocabulary repeatedly enough for learners to tap words and review them
 - Include Traditional Chinese (繁體中文) translations for each sentence
 - 3 comprehension questions (mix of multiple_choice and true_false)
 - Return ONLY valid JSON, no extra text
@@ -336,7 +339,7 @@ Output JSON format:
   const content = await generateJsonWithGemini<ArticleContent>({
     prompt,
     temperature: 0.7,
-    maxOutputTokens: 2048,
+    maxOutputTokens: 4096,
   });
   if (!content?.sentences?.length) throw new Error("Gemini returned no sentences");
   return content;

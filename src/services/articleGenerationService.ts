@@ -6,6 +6,7 @@
  */
 
 import type { GeminiArticleResponse, LearningLanguageCode, CEFRLevel } from "@/types";
+import { generateJsonWithGemini, hasGeminiConfig } from "@/server/gemini";
 
 interface ArticleGenerationOptions {
   topicKey: string;
@@ -21,9 +22,9 @@ interface ArticleGenerationOptions {
 }
 
 class ArticleGenerationService {
-  private readonly DEFAULT_MAX_CHARACTERS = 800;
-  private readonly DEFAULT_MIN_SENTENCES = 6;
-  private readonly DEFAULT_MAX_SENTENCES = 10;
+  private readonly DEFAULT_MAX_CHARACTERS = 1400;
+  private readonly DEFAULT_MIN_SENTENCES = 10;
+  private readonly DEFAULT_MAX_SENTENCES = 14;
   private readonly DEFAULT_MIN_QUESTIONS = 3;
   private readonly DEFAULT_MAX_QUESTIONS = 5;
 
@@ -57,9 +58,14 @@ class ArticleGenerationService {
       maxQuestions,
     });
 
-    // TODO: 呼叫 Gemini API
-    // const response = await this.callGemini(prompt);
-    // return this.parseResponse(response);
+    if (hasGeminiConfig()) {
+      try {
+        const response = await this.callGemini(prompt);
+        return this.parseResponse(response);
+      } catch (error) {
+        console.warn("Gemini article generation failed, using mock:", error);
+      }
+    }
 
     // 暫時返回 mock 資料
     return this.getMockResponse(options);
@@ -102,6 +108,7 @@ class ArticleGenerationService {
 2. Maximum characters: ${options.maxCharacters} (including spaces)
 3. Number of sentences: ${options.minSentences}-${options.maxSentences}
 4. Number of questions: ${options.minQuestions}-${options.maxQuestions}
+5. English articles should feel like a complete short article, about 180-260 words when the character limit allows it
 
 **Content Guidelines:**
 - Use natural, correct ${languageName} appropriate for ${options.difficultyLevel} learners
@@ -168,10 +175,12 @@ class ArticleGenerationService {
    * 呼叫 Gemini API
    */
   private async callGemini(prompt: string): Promise<string> {
-    // TODO: 實作 Gemini API 呼叫
-    // 使用 Gemini Flash-Lite
-    // 不使用 Search Grounding
-    throw new Error("Gemini API not implemented yet");
+    const result = await generateJsonWithGemini<GeminiArticleResponse>({
+      prompt,
+      temperature: 0.7,
+      maxOutputTokens: 4096,
+    });
+    return JSON.stringify(result);
   }
 
   /**

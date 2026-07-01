@@ -12,6 +12,7 @@ import { trialAccessService, type AccessState } from "@/services/trialAccessServ
 import { trialUsageService, TRIAL_READING_ARTICLE_LIMIT } from "@/services/trialUsageService";
 import { useUser } from "@/hooks/useUser";
 import WordSheet from "@/components/WordSheet";
+import ClickableText from "@/components/ClickableText";
 import SubscriptionLaunchPrompt from "@/components/SubscriptionLaunchPrompt";
 
 interface ReadingQuestion {
@@ -49,6 +50,13 @@ function isPlayableAudioUrl(url?: string | null) {
   return Boolean(url && !url.startsWith("stub://"));
 }
 
+function audioBase64ToObjectUrl(audioBase64: string, audioFormat = "mp3") {
+  const binary = window.atob(audioBase64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return URL.createObjectURL(new Blob([bytes], { type: `audio/${audioFormat || "mp3"}` }));
+}
+
 export default function DailyReadingPage() {
   const router = useRouter();
   const { user, ready } = useUser({ requireOnboarded: true });
@@ -69,6 +77,7 @@ export default function DailyReadingPage() {
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [access, setAccess] = useState<AccessState | null>(null);
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(false);
+  const [audioError, setAudioError] = useState("");
 
   const blobUrlsRef = useRef<string[]>([]);
 
@@ -136,7 +145,6 @@ export default function DailyReadingPage() {
   }
 
   async function getSentenceAudioUrl(sentence: ReadingSentence): Promise<string | null> {
-    if (isPlayableAudioUrl(sentence.audio_url)) return sentence.audio_url!;
     const access = await trialAccessService.getAccessState(user).catch(() => null);
     const cacheOnly = Boolean(access && !access.isSubscribed);
 
@@ -155,10 +163,16 @@ export default function DailyReadingPage() {
       });
       if (cached.ok) {
         const data = await cached.json();
+        if (typeof data.audioBase64 === "string" && data.audioBase64) {
+          const url = audioBase64ToObjectUrl(data.audioBase64, data.audioFormat || "mp3");
+          blobUrlsRef.current.push(url);
+          return url;
+        }
         if (isPlayableAudioUrl(data.signedUrl)) return data.signedUrl;
       }
     } catch {}
 
+    if (isPlayableAudioUrl(sentence.audio_url)) return sentence.audio_url!;
     if (cacheOnly) return null;
 
     try {
@@ -181,11 +195,12 @@ export default function DailyReadingPage() {
   }
 
   async function enqueueFrom(startIndex: number) {
-    if (!article) return;
+    if (!article) return 0;
     const sentences = article.sentences.slice(startIndex);
-    if (sentences.length === 0) return;
+    if (sentences.length === 0) return 0;
 
     const urls = await Promise.all(sentences.map((s) => getSentenceAudioUrl(s)));
+    let queued = 0;
 
     for (let i = 0; i < sentences.length; i++) {
       const url = urls[i];
@@ -206,17 +221,21 @@ export default function DailyReadingPage() {
         },
         onError: () => setPlaying(false),
       });
+      queued += 1;
     }
+    return queued;
   }
 
   async function playFullArticle() {
     if (!article) return;
     setAudioLoading(true);
+    setAudioError("");
     await audioQueueService.unlockAudio();
     audioQueueService.clearQueue();
-    await enqueueFrom(0);
+    const queued = await enqueueFrom(0);
     setAudioLoading(false);
-    setPlaying(true);
+    setPlaying(queued > 0);
+    if (queued === 0) setAudioError("目前沒有可播放的文章音檔，請確認 TTS_PROVIDER 與 Google/Polly key 已設定。");
   }
 
   function pausePlayback() {
@@ -228,11 +247,13 @@ export default function DailyReadingPage() {
   async function resumePlayback() {
     if (!article) return;
     setAudioLoading(true);
+    setAudioError("");
     await audioQueueService.unlockAudio();
     audioQueueService.clearQueue();
-    await enqueueFrom(currentSentenceIndex);
+    const queued = await enqueueFrom(currentSentenceIndex);
     setAudioLoading(false);
-    setPlaying(true);
+    setPlaying(queued > 0);
+    if (queued === 0) setAudioError("目前沒有可播放的文章音檔，請確認 TTS_PROVIDER 與 Google/Polly key 已設定。");
   }
 
   function stopPlayback() {
@@ -248,10 +269,12 @@ export default function DailyReadingPage() {
     audioQueueService.clearQueue();
     setCurrentSentenceIndex(index);
     setAudioLoading(true);
+    setAudioError("");
     await audioQueueService.unlockAudio();
-    await enqueueFrom(index);
+    const queued = await enqueueFrom(index);
     setAudioLoading(false);
-    setPlaying(true);
+    setPlaying(queued > 0);
+    if (queued === 0) setAudioError("目前沒有可播放的文章音檔，請確認 TTS_PROVIDER 與 Google/Polly key 已設定。");
   }
 
   function playPreviousSentence() {
@@ -416,7 +439,10 @@ export default function DailyReadingPage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: Math.min(index * 0.04, 0.4) }}
-            onClick={() => void playSpecificSentence(index)}
+            onClick={(event) => {
+              if ((event.target as HTMLElement).closest("button")) return;
+              void playSpecificSentence(index);
+            }}
             className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
               currentSentenceIndex === index
                 ? "border-lilacDeep bg-lilacLight/40 shadow-soft"
@@ -428,11 +454,12 @@ export default function DailyReadingPage() {
                 {sentence.sentence_order}
               </span>
               <div className="flex-1">
-                <p
-                  className="text-base text-ink leading-relaxed"
-                  onMouseUp={(e) => handleWordClick(e, sentence.sentence_text)}
-                >
-                  {sentence.sentence_text}
+                <p className="text-base text-ink leading-relaxed" onMouseUp={(e) => handleWordClick(e, sentence.sentence_text)}>
+                  <ClickableText
+                    text={sentence.sentence_text}
+                    language={selectedLanguage}
+                    onWord={(word) => setSelectedWord({ word, sentence: sentence.sentence_text })}
+                  />
                 </p>
                 {showChinese && (
                   <p className="text-sm text-inkSoft mt-1">{sentence.sentence_zh_tw}</p>
@@ -504,6 +531,11 @@ export default function DailyReadingPage() {
       <div className="fixed bottom-0 left-0 right-0 bg-cream/95 backdrop-blur border-t border-sand p-4 z-10">
         <div className="max-w-2xl mx-auto">
           {/* Progress Bar */}
+          {audioError && (
+            <div className="mb-3 rounded-2xl bg-peachLight px-3 py-2 text-xs font-bold text-peachDeep">
+              {audioError}
+            </div>
+          )}
           <div className="mb-3">
             <div className="h-1.5 bg-sand rounded-full overflow-hidden">
               <motion.div
