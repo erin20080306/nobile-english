@@ -223,6 +223,9 @@ class GoogleTtsProvider implements TtsProvider {
         },
         audioConfig: {
           audioEncoding: "MP3",
+          // Google TTS defaults to 0dB gain, which sounds noticeably quiet for a
+          // tutor voice. Boost it so the AI tutor is loud and clear by default.
+          volumeGainDb: 9,
         },
       }),
     });
