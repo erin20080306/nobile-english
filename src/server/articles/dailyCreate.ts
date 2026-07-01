@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getDatedTopicKey, getDayOfYearFromDateString, getTaipeiDateString } from "./dates";
 import { prewarmReadingArticle, type ArticlePrewarmResult } from "./prewarm";
+import { generateJsonWithGemini, hasGeminiConfig } from "../gemini";
 
 const TOPICS = [
   { key: "coffee_shop", zhTw: "咖啡店點餐", category: "daily_life" },
@@ -288,22 +289,20 @@ async function generateArticle(
   topicZhTw: string,
   category: string
 ): Promise<ArticleContent> {
-  const openaiKey = process.env.OPENAI_API_KEY;
-  if (openaiKey) {
+  if (hasGeminiConfig()) {
     try {
-      return await generateWithOpenAI(languageCode, topicZhTw, category, openaiKey);
+      return await generateWithGeminiArticle(languageCode, topicZhTw, category);
     } catch (e) {
-      console.warn(`OpenAI failed for ${languageCode}, using mock:`, e);
+      console.warn(`Gemini failed for ${languageCode}, using mock:`, e);
     }
   }
   return getMockContent(languageCode, topicZhTw);
 }
 
-async function generateWithOpenAI(
+async function generateWithGeminiArticle(
   languageCode: string,
   topicZhTw: string,
-  category: string,
-  apiKey: string
+  category: string
 ): Promise<ArticleContent> {
   const langName = LANG_NAMES[languageCode];
 
@@ -334,24 +333,13 @@ Output JSON format:
   ]
 }`;
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.7,
-      response_format: { type: "json_object" },
-    }),
+  const content = await generateJsonWithGemini<ArticleContent>({
+    prompt,
+    temperature: 0.7,
+    maxOutputTokens: 2048,
   });
-
-  if (!response.ok) throw new Error(`OpenAI API error: ${response.status}`);
-
-  const data = await response.json();
-  return JSON.parse(data.choices[0].message.content) as ArticleContent;
+  if (!content?.sentences?.length) throw new Error("Gemini returned no sentences");
+  return content;
 }
 
 function getMockContent(languageCode: string, topicZhTw: string): ArticleContent {

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import type { ChineseSetting, LearningLanguageCode } from "@/types";
+import type { ChineseSetting, EnglishLevel, LearningLanguageCode } from "@/types";
 import { learningService } from "@/services/learningService";
 import { authService } from "@/services/authService";
 import { getLearningLanguage } from "@/data/learningLanguages";
@@ -40,7 +40,27 @@ const steps = [
     multi: false,
     options: ["全程顯示中文", "需要時顯示中文", "練習時隱藏中文", "複習時顯示中文"],
   },
+  {
+    key: "selfRatedLevel",
+    title: "目前的程度大概是？",
+    multi: false,
+    options: [
+      "完全初學，幾乎不會",
+      "基礎，能講單字或短句",
+      "中等，能進行簡單對話",
+      "中高，能聊日常話題",
+      "進階，接近流利",
+    ],
+  },
 ] as const;
+
+const levelMap: Record<string, EnglishLevel> = {
+  "完全初學，幾乎不會": "Beginner",
+  "基礎，能講單字或短句": "Elementary",
+  "中等，能進行簡單對話": "Intermediate",
+  "中高，能聊日常話題": "Upper-Intermediate",
+  "進階，接近流利": "Advanced",
+};
 
 const chineseMap: Record<string, ChineseSetting> = {
   "全程顯示中文": "always",
@@ -95,6 +115,7 @@ export default function OnboardingPage() {
       interests,
       dailyGoalMinutes: parseInt(single["dailyGoalMinutes"]) || 15,
       chineseSetting: chineseMap[single["chineseSetting"]] || "always",
+      selfRatedLevel: levelMap[single["selfRatedLevel"]] || "Beginner",
     });
     const user = authService.getCurrentUser();
     learningService.setCurrentLanguage(targetLanguage, user?.id || undefined);

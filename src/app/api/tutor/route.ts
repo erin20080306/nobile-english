@@ -2,11 +2,9 @@ import { NextResponse } from "next/server";
 import type { Scene, TutorFeedback } from "@/types";
 import { mockAiTutorService } from "@/services/mockAiTutorService";
 import { getLearningLanguage } from "@/data/learningLanguages";
+import { generateWithGemini, getGeminiApiKey, getGeminiModel, parseJsonFromModel } from "@/server/gemini";
 
 export const runtime = "nodejs";
-
-const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
-const MODEL = process.env.OPENAI_TUTOR_MODEL || "gpt-4o-mini";
 
 const PERSONAS: Record<string, string[]> = {
   daily:      ["Alex (local helper)", "Jordan (neighbor)", "Taylor (local guide)"],
@@ -100,15 +98,6 @@ function normalizeTutorFeedback(feedback: Partial<TutorFeedback>): TutorFeedback
   };
 }
 
-function safeJson(text: string) {
-  const trimmed = text.trim();
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
-  const raw = fenced || trimmed;
-  const start = raw.indexOf("{");
-  const end = raw.lastIndexOf("}");
-  if (start >= 0 && end > start) return JSON.parse(raw.slice(start, end + 1));
-  return JSON.parse(raw);
-}
 
 function buildPrompt({ scene, userInput, turn, history = [] }: TutorRequest, persona: string) {
   const targetLanguage = getLearningLanguage(scene.targetLanguage || "en");
@@ -152,36 +141,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing scene, userInput, or turn" }, { status: 400 });
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = getGeminiApiKey();
   if (!apiKey) return fallback(body);
 
+  const model = getGeminiModel();
   const persona = getScenePersona(body.scene, body.persona);
 
   try {
-    const response = await fetch(OPENAI_RESPONSES_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        input: buildPrompt(body, persona),
-        temperature: 0.55,
-        max_output_tokens: 320,
-      }),
+    const outputText = await generateWithGemini({
+      prompt: buildPrompt(body, persona),
+      temperature: 0.6,
+      maxOutputTokens: 512,
+      json: true,
     });
 
-    if (!response.ok) return fallback(body, 200);
-
-    const data = await response.json();
-    const outputText =
-      data.output_text ||
-      data.output?.flatMap((item: { content?: Array<{ text?: string }> }) => item.content || [])
-        .map((content: { text?: string }) => content.text || "")
-        .join("") ||
-      "";
-    const parsed = safeJson(outputText);
+    const parsed = parseJsonFromModel<Partial<TutorFeedback>>(outputText);
     const local = mockAiTutorService.feedback(body.scene, body.userInput, body.turn, body.history || []);
     const feedback = normalizeTutorFeedback({
       reply: String(parsed.reply || local.reply),
@@ -193,7 +167,7 @@ export async function POST(req: Request) {
       zhExplain: String(parsed.zhExplain || local.zhExplain),
       encouragement: String(parsed.encouragement || local.encouragement),
     });
-    return NextResponse.json({ source: "openai", model: MODEL, feedback });
+    return NextResponse.json({ source: "gemini", model, feedback });
   } catch {
     return fallback(body);
   }

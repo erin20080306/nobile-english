@@ -6,6 +6,12 @@ export async function GET() {
     NEXT_PUBLIC_SUPABASE_ANON_KEY: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
     OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
+    GEMINI_API_KEY: !!(
+      process.env.GEMINI_API_KEY ||
+      process.env.GOOGLE_GEMINI_API_KEY ||
+      process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+      process.env.GOOGLE_AI_API_KEY
+    ),
     GOOGLE_TTS_API_KEY: !!process.env.GOOGLE_TTS_API_KEY,
     GOOGLE_CLOUD_SERVICE_ACCOUNT_JSON: !!process.env.GOOGLE_CLOUD_SERVICE_ACCOUNT_JSON,
     AWS_ACCESS_KEY_ID: !!process.env.AWS_ACCESS_KEY_ID,
