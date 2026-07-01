@@ -213,6 +213,26 @@ export default function CustomScenePage() {
             </div>
           </Section>
 
+          <Section title="互動選擇題">
+            <div className="space-y-4">
+              {s.quiz.map((q, qi) => (
+                <div key={qi}>
+                  <p className="font-semibold text-ink">{qi + 1}. {q.question}</p>
+                  <div className="mt-2 space-y-2">
+                    {q.options.map((opt, oi) => (
+                      <button
+                        key={oi}
+                        className="w-full text-left rounded-2xl px-3 py-2 font-semibold bg-cream text-ink"
+                      >
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Section>
+
           <button className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50" disabled={!canStart} onClick={startScene}>
             <Play size={18} /> 開始角色扮演
           </button>

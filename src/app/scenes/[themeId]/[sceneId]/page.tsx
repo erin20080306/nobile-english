@@ -57,7 +57,11 @@ export default function ScenePracticePage() {
   const router = useRouter();
   const params = useParams();
   const sceneId = String(params.sceneId);
-  const scene = useMemo(() => sceneService.getScene(sceneId), [sceneId]);
+  const scene = useMemo(() => {
+    const custom = sceneService.getCustomScenes().find((c) => c.scene.id === sceneId);
+    if (custom) return custom.scene;
+    return sceneService.getScene(sceneId);
+  }, [sceneId]);
   const customScene = useMemo(() => sceneService.getCustomScenes().find((c) => c.scene.id === sceneId), [sceneId]);
   const customStages = customScene?.stages;
 

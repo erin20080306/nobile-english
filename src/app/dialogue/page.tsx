@@ -18,6 +18,7 @@ import { sceneCardStyle } from "@/data/sceneVisuals";
 import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
 import ConversationPractice from "@/components/ConversationPractice";
+import ShadowingPractice from "@/components/ShadowingPractice";
 import SubscriptionLaunchPrompt from "@/components/SubscriptionLaunchPrompt";
 import TutorSelector, { getSelectedTutor, TutorAvatar } from "@/components/TutorSelector";
 import HorizontalScrollChips from "@/components/HorizontalScrollChips";
@@ -371,6 +372,8 @@ function FreeChat({ targetLanguage, onExit }: { targetLanguage: LearningLanguage
   const [createdScene, setCreatedScene] = useState<CustomScene | null>(null);
   const [creatingScene, setCreatingScene] = useState(false);
   const [topicListening, setTopicListening] = useState(false);
+  const [shadowingPatternIndex, setShadowingPatternIndex] = useState<number | null>(null);
+  const [pronunciationScores, setPronunciationScores] = useState<Record<number, number>>({});
   const topicStopListenRef = useRef<(() => void) | null>(null);
 
   const languageInfo = getLearningLanguage(targetLanguage);
@@ -536,10 +539,36 @@ function FreeChat({ targetLanguage, onExit }: { targetLanguage: LearningLanguage
           <div className="card">
             <p className="font-extrabold text-ink mb-2">會用到的句型</p>
             <div className="space-y-2">
-              {scene.keyPatterns.map((p) => (
-                <div key={p.en} className="rounded-2xl bg-white/70 px-3 py-2">
-                  <p className="font-semibold text-ink">{p.en}</p>
-                  <p className="text-sm text-inkSoft">{p.zh}</p>
+              {scene.keyPatterns.map((p, i) => (
+                <div key={p.en}>
+                  {shadowingPatternIndex === i ? (
+                    <ShadowingPractice
+                      sentence={p.en}
+                      translation={p.zh}
+                      targetLanguage={targetLanguage}
+                      onComplete={(score) => {
+                        setPronunciationScores((prev) => ({ ...prev, [i]: score }));
+                        setShadowingPatternIndex(null);
+                      }}
+                    />
+                  ) : (
+                    <div className="rounded-2xl bg-white/70 px-3 py-2 flex items-center gap-2">
+                      <p className="font-semibold text-ink flex-1">{p.en}</p>
+                      <p className="text-sm text-inkSoft">{p.zh}</p>
+                      {pronunciationScores[i] !== undefined && (
+                        <span className={`text-xs font-bold ${pronunciationScores[i] >= 75 ? "text-mintDeep" : "text-peachDeep"}`}>
+                          {pronunciationScores[i]}%
+                        </span>
+                      )}
+                      <button
+                        onClick={() => setShadowingPatternIndex(i)}
+                        className="text-lilacDeep hover:text-lilacDeep/80 transition"
+                        title="跟讀練習"
+                      >
+                        <Mic size={16} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
