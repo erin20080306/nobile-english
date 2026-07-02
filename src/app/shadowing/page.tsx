@@ -49,12 +49,6 @@ export default function ShadowingPage() {
         setCurrentIndex(startIndex);
         setTutor(getSelectedTutor(patternData.targetLanguage as LearningLanguageCode));
         setPhase("idle");
-        
-        // Auto-start playback after sentences are loaded
-        setTimeout(() => {
-          console.log("Auto-starting playback from scene pattern");
-          playSentence(true);
-        }, 2000);
       } else {
         // Default sentences for standalone access
         const lang = learningService.getCurrentLanguage();
@@ -70,12 +64,6 @@ export default function ShadowingPage() {
         ];
         setSentences(defaultSentences);
         setPhase("idle");
-        
-        // Auto-start playback after sentences are loaded
-        setTimeout(() => {
-          console.log("Auto-starting playback from default sentences");
-          playSentence(true);
-        }, 2000);
       }
     };
 
@@ -87,6 +75,17 @@ export default function ShadowingPage() {
 
   const currentSentence = sentences[currentIndex];
   const isRecording = phase === "recording";
+
+  // Auto-start playback after everything is loaded and speech service is ready
+  useEffect(() => {
+    if (sentences.length > 0 && phase === "idle" && currentSentence) {
+      const timer = setTimeout(() => {
+        console.log("Auto-starting playback with full delay");
+        playSentence(true);
+      }, 3000); // Longer delay to ensure speech service is ready
+      return () => clearTimeout(timer);
+    }
+  }, [sentences, phase, currentSentence]);
 
   function calculateSimilarity(original: string, spoken: string): number {
     const normalize = (text: string) => 
@@ -165,7 +164,7 @@ export default function ShadowingPage() {
     const safetyTimeout = setTimeout(() => {
       console.warn("playSentence safety timeout triggered");
       setPhase("idle");
-    }, 15000); // 15 second timeout
+    }, 20000); // 20 second timeout
     
     try {
       // First speak Chinese prompt with browser TTS
@@ -176,7 +175,7 @@ export default function ShadowingPage() {
         rate: 0.9,
         onEnd: () => {
           console.log("Chinese TTS completed, starting target TTS");
-          // Small delay then speak target sentence
+          // Delay then speak target sentence
           setTimeout(() => {
             const opts = voiceForLanguage(targetLanguage, 1);
             console.log("Starting target TTS with opts:", opts);
@@ -186,11 +185,13 @@ export default function ShadowingPage() {
                 console.log("Target TTS completed");
                 clearTimeout(safetyTimeout);
                 if (autoRecordAfter && speechSupported && !useManualInput) {
-                  console.log("Auto-starting recording");
+                  console.log("Auto-starting recording after delay");
                   setTimeout(() => {
+                    console.log("Executing startRecording");
                     startRecording();
-                  }, 500); // Extra delay before recording
+                  }, 1000); // Longer delay before recording
                 } else {
+                  console.log("Not auto-starting recording, going to idle");
                   setPhase("idle");
                 }
               },
@@ -205,7 +206,7 @@ export default function ShadowingPage() {
               clearTimeout(safetyTimeout);
               setPhase("idle");
             }
-          }, 500); // Increased delay between TTS
+          }, 800); // Longer delay between TTS
         },
         onError: (msg) => {
           console.error("Chinese prompt TTS error:", msg);
@@ -426,32 +427,38 @@ export default function ShadowingPage() {
             <p className="text-inkSoft mt-2">{currentSentence.zh}</p>
           </div>
 
-        {(phase === "idle" || phase === "playing" || phase === "recording") && speechSupported && !useManualInput && (
+        {phase === "playing" && (
+          <div className="flex flex-col items-center gap-3 py-6">
+            <div className="relative flex h-32 w-32 items-center justify-center rounded-full bg-lilac text-lilacDeep shadow-soft">
+              <Volume2 size={44} className="relative" />
+            </div>
+            <p className="text-sm font-bold text-inkSoft">AI 示範中…</p>
+          </div>
+        )}
+
+        {(phase === "idle" || phase === "recording") && speechSupported && !useManualInput && (
           <div className="flex flex-col items-center gap-3 py-6">
             <motion.button
               onClick={() => {
                 if (phase === "recording") stopRecording();
                 else if (phase === "idle") playSentence(true);
               }}
-              disabled={phase === "playing"}
               animate={isRecording ? { scale: [1, 1.08, 1] } : { scale: 1 }}
               transition={isRecording ? { duration: 1, repeat: Infinity, ease: "easeInOut" } : {}}
-              className={`relative flex h-32 w-32 items-center justify-center rounded-full shadow-soft transition active:scale-95 disabled:opacity-70 ${
-                isRecording ? "bg-peachDeep text-white" : phase === "playing" ? "bg-lilac text-lilacDeep" : "bg-lilacDeep text-white"
+              className={`relative flex h-32 w-32 items-center justify-center rounded-full shadow-soft transition active:scale-95 ${
+                isRecording ? "bg-peachDeep text-white" : "bg-lilacDeep text-white"
               }`}
               title={isRecording ? "停止錄音" : "點擊說話"}
             >
               {isRecording && <span className="absolute inset-0 rounded-full bg-peachDeep/60 animate-ping" />}
-              {phase === "playing" ? (
-                <Volume2 size={44} className="relative" />
-              ) : isRecording ? (
+              {isRecording ? (
                 <MicOff size={44} className="relative" />
               ) : (
                 <Mic size={44} className="relative" />
               )}
             </motion.button>
             <p className="text-sm font-bold text-inkSoft">
-              {phase === "playing" ? "AI 示範中…" : isRecording ? "換你了！自動辨識中英文" : "點擊說話"}
+              {isRecording ? "換你了！自動辨識中英文" : "點擊說話"}
             </p>
             {isRecording && (
               <button onClick={stopRecording} className="btn-secondary px-4 py-2 text-sm flex items-center gap-2">
