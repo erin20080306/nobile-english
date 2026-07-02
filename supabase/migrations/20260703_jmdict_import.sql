@@ -27,6 +27,10 @@ CREATE INDEX IF NOT EXISTS idx_jmdict_entries_seq ON jmdict_entries(entry_seq);
 -- RLS Policy
 ALTER TABLE jmdict_entries ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "JMdict entries are publicly readable" ON jmdict_entries;
+DROP POLICY IF EXISTS "Service role can manage JMdict entries" ON jmdict_entries;
+
 -- Public read access for JMdict data
 CREATE POLICY "JMdict entries are publicly readable" ON jmdict_entries
   FOR SELECT USING (true);
