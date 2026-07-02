@@ -319,21 +319,22 @@ export default function ScenePracticePage() {
   const currentStep = steps[stepIndex];
   const isLastStep = stepIndex === steps.length - 1;
 
-  // Shadowing pattern steps use ShadowingPractice's own full-screen "AI 導師
-  // 視訊" UI directly, closing (or completing) it advances to the next step.
+  // Shadowing pattern steps link to standalone shadowing page
   if (currentStep.type === "pattern") {
     const p = scene.keyPatterns[currentStep.index];
-    return (
-      <ShadowingPractice
-        sentence={p.en}
-        translation={p.zh}
-        targetLanguage={targetLanguage}
-        onComplete={(score) => {
-          setPronunciationScores((prev) => ({ ...prev, [currentStep.index]: score }));
-        }}
-        onClose={goToNextStep}
-      />
-    );
+    // Store pattern info for the shadowing page
+    storageService.set(KEYS.shadowingPattern, { 
+      sentence: p.en, 
+      translation: p.zh, 
+      targetLanguage,
+      allPatterns: scene.keyPatterns,
+      currentIndex: currentStep.index,
+      onComplete: (score: number) => {
+        setPronunciationScores((prev) => ({ ...prev, [currentStep.index]: score }));
+      }
+    });
+    router.push("/shadowing");
+    return null;
   }
 
   return (

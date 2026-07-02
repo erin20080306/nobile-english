@@ -122,25 +122,30 @@ export default function ShadowingPractice({
     // When cloud voice is available, have the tutor say "請跟我讀" in Chinese first,
     // then the target sentence in the target language
     if (opts.ttsVoice) {
-      // Speak Chinese prompt first using browser TTS (no cloud TTS for Chinese)
+      // Speak Chinese prompt first using browser TTS with voice keywords
       const r1 = speechService.speak("請跟我讀", {
         lang: "zh-TW",
+        voiceKeywords: ["google 繁體中文", "microsoft huihui", "microsoft yating", "mei-jia"],
+        rate: 0.9,
         onEnd: () => {
-          // Then speak the target sentence with cloud TTS
-          const r2 = speechService.speak(sentence, {
-            ...opts,
-            onEnd: () => {
-              if (autoRecordAfter && speechSupported && !useManualInput) {
-                startRecording();
-              } else {
-                setPhase("idle");
-              }
-            },
-          });
-          if (!r2.ok) {
-            alert(r2.message);
-            setPhase("idle");
-          }
+          // Small delay before target sentence
+          setTimeout(() => {
+            // Then speak the target sentence with cloud TTS
+            const r2 = speechService.speak(sentence, {
+              ...opts,
+              onEnd: () => {
+                if (autoRecordAfter && speechSupported && !useManualInput) {
+                  startRecording();
+                } else {
+                  setPhase("idle");
+                }
+              },
+            });
+            if (!r2.ok) {
+              alert(r2.message);
+              setPhase("idle");
+            }
+          }, 300);
         },
       });
       if (!r1.ok) {

@@ -76,4 +76,5 @@ export const KEYS = {
   learningRecordSyncQueue: "learningRecordSyncQueue",
   trialUsage: "trialUsage",
   deviceId: "deviceId",
+  shadowingPattern: "shadowingPattern",
 } as const;
