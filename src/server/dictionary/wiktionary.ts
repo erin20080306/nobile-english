@@ -39,8 +39,8 @@ export async function queryWiktionary(word: string, language: "es" | "it"): Prom
 
     const data: Record<string, WiktionaryEntry[]> = await response.json();
     
-    // Get entries for the target language
-    const langCode = language === "es" ? "Spanish" : "Italian";
+    // Get entries for the target language (Wiktionary uses ISO codes: es, it)
+    const langCode = language; // "es" or "it"
     const entries = data[langCode] || [];
 
     if (!entries || entries.length === 0) {
