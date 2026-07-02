@@ -4,13 +4,14 @@ const WIKTIONARY_API_URL = "https://en.wiktionary.org/api/rest_v1/page/definitio
 
 interface WiktionarySense {
   definition: string;
-  examples?: { text: string }[];
+  parsedExamples?: { example: string; translation?: string }[];
+  examples?: string[];
   tags?: string[];
 }
 
 interface WiktionaryPartOfSpeech {
   partOfSpeech: string;
-  senses: WiktionarySense[];
+  definitions: WiktionarySense[];
 }
 
 interface WiktionaryEntry {
@@ -55,14 +56,20 @@ export async function queryWiktionary(word: string, language: "es" | "it"): Prom
 
     for (const pos of entry.pos) {
       posTags.push(pos.partOfSpeech);
-      for (const sense of pos.senses) {
+      for (const sense of pos.definitions) {
         if (sense.definition) {
           definitions.push(sense.definition);
         }
-        if (sense.examples && sense.examples.length > 0) {
+        if (sense.parsedExamples && sense.parsedExamples.length > 0) {
+          for (const example of sense.parsedExamples) {
+            if (example.example) {
+              examples.push({ text: example.example, translation: example.translation });
+            }
+          }
+        } else if (sense.examples && sense.examples.length > 0) {
           for (const example of sense.examples) {
-            if (example.text) {
-              examples.push({ text: example.text });
+            if (example) {
+              examples.push({ text: example });
             }
           }
         }
