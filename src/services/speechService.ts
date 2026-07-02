@@ -399,7 +399,12 @@ export const speechService = {
       return null;
     }
     const rec = new Ctor();
-    rec.lang = handlers.lang || "en-US";
+    // Note: the Web Speech API has no real "auto-detect language" mode.
+    // Setting rec.lang to a literal "auto" is an invalid BCP-47 tag and
+    // causes recognition to fail immediately on most engines. When callers
+    // request "auto", fall back to a sensible default instead.
+    const requestedLang = handlers.lang && handlers.lang !== "auto" ? handlers.lang : "en-US";
+    rec.lang = requestedLang;
     rec.interimResults = true;
     rec.maxAlternatives = 1;
     rec.continuous = true;
