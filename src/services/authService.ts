@@ -228,6 +228,19 @@ export const authService = {
     if (!cloudProfile) {
       await cloudSyncService.pushProfile(uid, user);
       await cloudSyncService.pushAll(uid);
+    } else {
+      // Ensure cloud profile is pushed to keep it up to date
+      await cloudSyncService.pushProfile(uid, user);
+    }
+
+    // After pulling cloud data, check if user has learning data and update onboarded flag
+    const { learningService } = await import("@/services/learningService");
+    const hasLearningData = learningService.getPlan() || learningService.getLevelResult();
+    if (hasLearningData && !user.onboarded) {
+      user = { ...user, onboarded: true };
+      const updatedUsers = this.getUsers().map((u) => (u.id === uid ? user : u));
+      storageService.set(KEYS.users, updatedUsers, { skipSync: true });
+      await cloudSyncService.pushProfile(uid, user);
     }
 
     return user;
