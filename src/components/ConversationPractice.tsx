@@ -234,6 +234,7 @@ export default function ConversationPractice({
   const [persona] = useState(() => pickPersona(scene));
   const [selectedTutor] = useState(() => getSelectedTutor(targetLanguage));
   const [playingMessageIndex, setPlayingMessageIndex] = useState<number | null>(null);
+  const [recognitionLang, setRecognitionLang] = useState<"target" | "zh">("target");
   const tutorName = selectedTutor.name;
 
   const endRef = useRef<HTMLDivElement>(null);
@@ -476,8 +477,9 @@ export default function ConversationPractice({
     voiceDraftRef.current = "";
     voiceSubmitHandledRef.current = false;
     setVoiceDraft("");
+    const lang = recognitionLang === "target" ? languageInfo.speechLang : "zh-TW";
     const stop = speechService.listen({
-      lang: languageInfo.speechLang,
+      lang,
       onResult: (text) => {
         const transcript = text.trim();
         if (!transcript) return;
@@ -699,9 +701,9 @@ export default function ConversationPractice({
                 <Mic size={18} />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-extrabold text-ink">錄音中 · 請用{languageInfo.zhName}回覆</p>
+                <p className="text-sm font-extrabold text-ink">錄音中 · 請用{recognitionLang === "target" ? languageInfo.zhName : "中文"}回覆</p>
                 <p className="truncate text-xs font-semibold text-inkSoft">
-                  {voiceDraft || `辨識中（${languageInfo.zhName}）`}
+                  {voiceDraft || `辨識中（${recognitionLang === "target" ? languageInfo.zhName : "中文"}）`}
                 </p>
               </div>
               <button
@@ -716,6 +718,16 @@ export default function ConversationPractice({
         )}
 
         <div className="flex items-center gap-2 bg-white rounded-3xl px-3 py-2 shadow-softer">
+          {recSupported && (
+            <button
+              onClick={() => setRecognitionLang(recognitionLang === "target" ? "zh" : "target")}
+              disabled={listening || busy || finishedRef.current}
+              className="h-10 px-2 rounded-2xl bg-lilac/10 text-lilacDeep text-xs font-bold flex items-center gap-1 active:scale-95 transition disabled:opacity-50 shrink-0"
+              title={`切換語音辨識語言：${recognitionLang === "target" ? languageInfo.zhName : "中文"}`}
+            >
+              {recognitionLang === "target" ? languageInfo.flag : "🇹🇼"} {recognitionLang === "target" ? languageInfo.zhName : "中文"}
+            </button>
+          )}
           <button
             onClick={toggleMic}
             disabled={busy || finishedRef.current}
@@ -729,12 +741,16 @@ export default function ConversationPractice({
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSend(input)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !listening) {
+                handleSend(input);
+              }
+            }}
             placeholder="用語音或打字回覆…"
             disabled={finishedRef.current}
             className="flex-1 bg-transparent outline-none text-ink min-w-0"
           />
-          <button onClick={() => handleSend(input)} disabled={busy || !input.trim() || finishedRef.current} className="h-10 w-10 rounded-2xl bg-lilacDeep text-white flex items-center justify-center active:scale-90 transition disabled:opacity-50 shrink-0">
+          <button onClick={() => !listening && handleSend(input)} disabled={busy || !input.trim() || finishedRef.current || listening} className="h-10 w-10 rounded-2xl bg-lilacDeep text-white flex items-center justify-center active:scale-90 transition disabled:opacity-50 shrink-0">
             <Send size={18} />
           </button>
         </div>

@@ -30,6 +30,7 @@ export default function ShadowingPractice({
   const [score, setScore] = useState<number | null>(null);
   const [feedback, setFeedback] = useState("");
   const [useManualInput, setUseManualInput] = useState(false);
+  const [recognitionLang, setRecognitionLang] = useState<"target" | "zh">("target");
 
   const stopListenRef = useRef<(() => void) | null>(null);
   const languageInfo = getLearningLanguage(targetLanguage as any);
@@ -100,8 +101,9 @@ export default function ShadowingPractice({
     setPhase("recording");
     setUserTranscript("");
     
+    const lang = recognitionLang === "target" ? languageInfo.speechLang : "zh-TW";
     const stop = speechService.listen({
-      lang: languageInfo.speechLang,
+      lang,
       onResult: (text) => {
         const transcript = text.trim();
         if (!transcript) return;
@@ -222,6 +224,14 @@ export default function ShadowingPractice({
 
           {(phase === "idle" || phase === "playing" || phase === "recording") && speechSupported && !useManualInput && (
             <div className="flex flex-col items-center gap-3 py-6">
+              <button
+                onClick={() => setRecognitionLang(recognitionLang === "target" ? "zh" : "target")}
+                disabled={phase === "recording" || phase === "playing"}
+                className="h-8 px-3 rounded-2xl bg-lilac/10 text-lilacDeep text-xs font-bold flex items-center gap-1 active:scale-95 transition disabled:opacity-50"
+                title={`切換語音辨識語言：${recognitionLang === "target" ? languageInfo.zhName : "中文"}`}
+              >
+                {recognitionLang === "target" ? languageInfo.flag : "🇹🇼"} {recognitionLang === "target" ? languageInfo.zhName : "中文"}
+              </button>
               <motion.button
                 onClick={() => {
                   if (phase === "recording") stopRecording();
@@ -245,7 +255,7 @@ export default function ShadowingPractice({
                 )}
               </motion.button>
               <p className="text-sm font-bold text-inkSoft">
-                {phase === "playing" ? "AI 示範中…" : isRecording ? "換你了！請跟著念" : "點擊說話"}
+                {phase === "playing" ? "AI 示範中…" : isRecording ? `換你了！請用${recognitionLang === "target" ? languageInfo.zhName : "中文"}跟著念` : "點擊說話"}
               </p>
               {isRecording && (
                 <button onClick={stopRecording} className="btn-secondary px-4 py-2 text-sm flex items-center gap-2">
