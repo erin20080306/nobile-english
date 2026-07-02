@@ -137,6 +137,12 @@ export default function DictionaryPage() {
 
         {/* Search */}
         <div className="card">
+          {lang !== "zh" && (
+            <div className="mb-2 flex items-center gap-2 text-xs text-lilacDeep bg-lilac/20 rounded-2xl px-3 py-2">
+              <span className="font-medium">💡 提示</span>
+              <span>也可以直接輸入中文，系統會自動翻譯後查詢</span>
+            </div>
+          )}
           <div className="flex items-center gap-2 bg-cream rounded-3xl px-3 py-2">
             <Search size={18} className="text-inkSoft" />
             <input
@@ -158,9 +164,6 @@ export default function DictionaryPage() {
           <button className="btn-primary w-full mt-3" onClick={() => lookup()} disabled={loading}>
             {loading ? "查詢中..." : "查詢"}
           </button>
-          {lang !== "zh" && (
-            <p className="text-xs text-inkSoft mt-2">也可以直接輸入中文，系統會自動翻譯後查詢。</p>
-          )}
         </div>
 
         {notFound && !loading && (
