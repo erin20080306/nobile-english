@@ -38,7 +38,7 @@ interface AudioState {
   playbackRate: number;
 }
 
-const PLAYBACK_GAIN = 1.4;
+const PLAYBACK_GAIN = 2.0;
 
 class AudioQueueService {
   private audio: HTMLAudioElement | null = null;
