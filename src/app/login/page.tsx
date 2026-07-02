@@ -12,7 +12,11 @@ export default function LoginPage() {
   const [error, setError] = useState("");
 
   function go(user: { onboarded: boolean }) {
-    router.replace(user.onboarded ? "/dashboard" : "/onboarding");
+    // Check if user already has learning data (plan or level result) to skip onboarding
+    const { learningService } = require("@/services/learningService");
+    const hasLearningData = learningService.getPlan() || learningService.getLevelResult();
+    const shouldSkipOnboarding = user.onboarded || hasLearningData;
+    router.replace(shouldSkipOnboarding ? "/dashboard" : "/onboarding");
   }
 
   async function handleGoogle() {
@@ -45,6 +49,9 @@ export default function LoginPage() {
           setError(res.error || "Apple 登入失敗");
           return;
         }
+        // Set the user as current session before checking onboarding
+        const { storageService, KEYS } = require("@/services/storageService");
+        storageService.set(KEYS.session, res.user.id);
         go(res.user);
       }
     } catch {

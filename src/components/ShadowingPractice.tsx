@@ -46,26 +46,66 @@ export default function ShadowingPractice({
     
     if (!orig || !spok) return 0;
     
-    // Simple word-based similarity
-    const origWords = orig.split(" ");
-    const spokWords = spok.split(" ");
+    // More lenient word-based similarity with partial matching
+    const origWords = orig.split(" ").filter(w => w.length > 0);
+    const spokWords = spok.split(" ").filter(w => w.length > 0);
+    
+    if (origWords.length === 0) return 0;
     
     let matches = 0;
     const usedIndices = new Set<number>();
     
     for (const origWord of origWords) {
+      let bestMatch = false;
       for (let i = 0; i < spokWords.length; i++) {
         if (usedIndices.has(i)) continue;
-        if (origWord === spokWords[i] || spokWords[i].includes(origWord) || origWord.includes(spokWords[i])) {
-          matches++;
+        
+        const spokWord = spokWords[i];
+        
+        // Exact match
+        if (origWord === spokWord) {
+          bestMatch = true;
           usedIndices.add(i);
           break;
         }
+        
+        // Partial match (one word contains the other)
+        if (spokWord.includes(origWord) || origWord.includes(spokWord)) {
+          // Only count if the partial match is reasonable (at least 50% of the longer word)
+          const longer = Math.max(origWord.length, spokWord.length);
+          const shorter = Math.min(origWord.length, spokWord.length);
+          if (shorter / longer >= 0.5) {
+            bestMatch = true;
+            usedIndices.add(i);
+            break;
+          }
+        }
+        
+        // Levenshtein-like distance for very short words
+        if (origWord.length <= 4 && spokWord.length <= 4) {
+          let diff = 0;
+          const maxLen = Math.max(origWord.length, spokWord.length);
+          for (let i = 0; i < maxLen; i++) {
+            if (origWord[i] !== spokWord[i]) diff++;
+          }
+          if (diff <= 1) {
+            bestMatch = true;
+            usedIndices.add(i);
+            break;
+          }
+        }
       }
+      if (bestMatch) matches++;
     }
     
+    // Bonus for having most of the words even if not exact matches
+    const wordCountRatio = Math.min(spokWords.length / origWords.length, origWords.length / spokWords.length);
     const similarity = (matches / origWords.length) * 100;
-    return Math.round(similarity);
+    
+    // Boost score if word count is close (indicates user said roughly the right amount)
+    const boosted = similarity * (0.7 + 0.3 * wordCountRatio);
+    
+    return Math.round(Math.min(boosted, 100));
   }
 
   function getFeedbackText(score: number): string {

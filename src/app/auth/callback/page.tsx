@@ -36,7 +36,13 @@ export default function AuthCallbackPage() {
       try {
         const user = await authService.hydrateFromSupabaseSession(session.user);
         if (cancelled) return;
-        router.replace(user.onboarded ? "/dashboard" : "/onboarding");
+        
+        // Check if user already has learning data to skip onboarding
+        const { learningService } = await import("@/services/learningService");
+        const hasLearningData = learningService.getPlan() || learningService.getLevelResult();
+        const shouldSkipOnboarding = user.onboarded || hasLearningData;
+        
+        router.replace(shouldSkipOnboarding ? "/dashboard" : "/onboarding");
       } catch {
         if (!cancelled) setError("恢復帳號資料時發生錯誤，請重新嘗試");
       }
