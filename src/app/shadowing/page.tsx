@@ -75,17 +75,25 @@ export default function ShadowingPage() {
 
   const currentSentence = sentences[currentIndex];
   const isRecording = phase === "recording";
+  const [hasAutoStarted, setHasAutoStarted] = useState(false);
 
-  // Auto-start playback after everything is loaded and speech service is ready
+  // Auto-start playback for the first sentence. This relies on the previous
+  // screen having called speechService.unlockAudio() synchronously inside
+  // the button click that navigated here (see scenes/[..]/page.tsx
+  // goToNextStep), which unlocks audio playback for the rest of this
+  // client-side navigation session so mobile browsers (iOS Safari) allow
+  // this even though it's fired from a timer, not a direct gesture. If the
+  // page was opened without that unlock (e.g. direct URL visit), the tap
+  // button below still works as a fallback.
   useEffect(() => {
-    if (sentences.length > 0 && phase === "idle" && currentSentence) {
+    if (sentences.length > 0 && phase === "idle" && currentSentence && !hasAutoStarted) {
+      setHasAutoStarted(true);
       const timer = setTimeout(() => {
-        console.log("Auto-starting playback with full delay");
         playSentence(true);
-      }, 3000); // Longer delay to ensure speech service is ready
+      }, 600);
       return () => clearTimeout(timer);
     }
-  }, [sentences, phase, currentSentence]);
+  }, [sentences, phase, currentSentence, hasAutoStarted]);
 
   function calculateSimilarity(original: string, spoken: string): number {
     const normalize = (text: string) => 
@@ -157,8 +165,13 @@ export default function ShadowingPage() {
     return "再試一次，注意語音和語調。";
   }
 
-  async function playSentence(autoRecordAfter = false) {
+  async function playSentence(autoRecordAfter = false, sentenceTextOverride?: string) {
     setPhase("playing");
+    const sentenceText = sentenceTextOverride ?? currentSentence?.en;
+    if (!sentenceText) {
+      setPhase("idle");
+      return;
+    }
     
     // Safety timeout to prevent getting stuck
     const safetyTimeout = setTimeout(() => {
@@ -179,7 +192,7 @@ export default function ShadowingPage() {
           setTimeout(() => {
             const opts = voiceForLanguage(targetLanguage, 1);
             console.log("Starting target TTS with opts:", opts);
-            const r2 = speechService.speak(currentSentence.en, {
+            const r2 = speechService.speak(sentenceText, {
               ...opts,
               onEnd: () => {
                 console.log("Target TTS completed");
@@ -280,19 +293,25 @@ export default function ShadowingPage() {
   }
 
   function reset() {
-    setPhase("idle");
     setUserTranscript("");
     setScore(null);
     setFeedback("");
+    // Called directly from a button click (user gesture), so it's safe
+    // to trigger TTS playback synchronously here for iOS Safari.
+    playSentence(true);
   }
 
   function goToNext() {
     if (currentIndex < sentences.length - 1) {
-      setCurrentIndex((prev) => prev + 1);
-      setPhase("idle");
+      const nextIndex = currentIndex + 1;
+      const nextSentence = sentences[nextIndex];
+      setCurrentIndex(nextIndex);
       setUserTranscript("");
       setScore(null);
       setFeedback("");
+      // Called directly from a button click (user gesture), so it's safe
+      // to trigger TTS playback synchronously here for iOS Safari.
+      playSentence(true, nextSentence?.en);
     } else {
       setPhase("complete");
     }
@@ -448,7 +467,7 @@ export default function ShadowingPage() {
               className={`relative flex h-32 w-32 items-center justify-center rounded-full shadow-soft transition active:scale-95 ${
                 isRecording ? "bg-peachDeep text-white" : "bg-lilacDeep text-white"
               }`}
-              title={isRecording ? "停止錄音" : "點擊說話"}
+              title={isRecording ? "停止錄音" : "點擊開始跟讀"}
             >
               {isRecording && <span className="absolute inset-0 rounded-full bg-peachDeep/60 animate-ping" />}
               {isRecording ? (
@@ -458,7 +477,7 @@ export default function ShadowingPage() {
               )}
             </motion.button>
             <p className="text-sm font-bold text-inkSoft">
-              {isRecording ? "換你了！自動辨識中英文" : "點擊說話"}
+              {isRecording ? "換你了！自動辨識中英文" : "點擊開始跟讀"}
             </p>
             {isRecording && (
               <button onClick={stopRecording} className="btn-secondary px-4 py-2 text-sm flex items-center gap-2">

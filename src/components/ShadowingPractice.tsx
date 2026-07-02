@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Volume2, Mic, MicOff, Check, X, RotateCcw, Keyboard } from "lucide-react";
 import { speechService } from "@/services/speechService";
@@ -36,6 +36,16 @@ export default function ShadowingPractice({
   const languageInfo = getLearningLanguage(targetLanguage as any);
   const speechSupported = speechService.isRecognitionSupported();
   const [tutor] = useState(() => getSelectedTutor(targetLanguage as LearningLanguageCode));
+
+  // Auto-play as soon as this component mounts. This component is only ever
+  // opened from a direct user tap (e.g. the mic icon), which synchronously
+  // calls speechService.unlockAudio() right before mounting us, so browsers
+  // (including iOS Safari) will allow this TTS call even though it fires
+  // from an effect rather than the click itself.
+  useEffect(() => {
+    playSentence(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function calculateSimilarity(original: string, spoken: string): number {
     const normalize = (text: string) => 
@@ -118,6 +128,22 @@ export default function ShadowingPractice({
   async function playSentence(autoRecordAfter = false) {
     setPhase("playing");
     const opts = voiceForLanguage(targetLanguage as any, 1);
+
+    // Safety timeout to prevent getting stuck on "AI 示範中…" forever if
+    // some TTS callback never fires (e.g. cloud TTS request hangs).
+    const safetyTimeout = setTimeout(() => {
+      console.warn("ShadowingPractice playSentence safety timeout triggered");
+      setPhase("idle");
+    }, 20000);
+
+    const finishAndMaybeRecord = () => {
+      clearTimeout(safetyTimeout);
+      if (autoRecordAfter && speechSupported && !useManualInput) {
+        setTimeout(() => startRecording(), 800);
+      } else {
+        setPhase("idle");
+      }
+    };
     
     // When cloud voice is available, have the tutor say "請跟我讀" in Chinese first,
     // then the target sentence in the target language
@@ -133,39 +159,45 @@ export default function ShadowingPractice({
             // Then speak the target sentence with cloud TTS
             const r2 = speechService.speak(sentence, {
               ...opts,
-              onEnd: () => {
-                if (autoRecordAfter && speechSupported && !useManualInput) {
-                  startRecording();
-                } else {
-                  setPhase("idle");
-                }
+              onEnd: finishAndMaybeRecord,
+              onError: (msg) => {
+                console.error("Target sentence TTS error:", msg);
+                clearTimeout(safetyTimeout);
+                setPhase("idle");
               },
             });
             if (!r2.ok) {
-              alert(r2.message);
+              console.error("Target sentence TTS failed:", r2.message);
+              clearTimeout(safetyTimeout);
               setPhase("idle");
             }
-          }, 300);
+          }, 500);
+        },
+        onError: (msg) => {
+          console.error("Chinese prompt TTS error:", msg);
+          clearTimeout(safetyTimeout);
+          setPhase("idle");
         },
       });
       if (!r1.ok) {
-        alert(r1.message);
+        console.error("Chinese prompt TTS failed:", r1.message);
+        clearTimeout(safetyTimeout);
         setPhase("idle");
       }
     } else {
       // Fallback: just speak the sentence in target language
       const r = speechService.speak(sentence, {
         ...opts,
-        onEnd: () => {
-          if (autoRecordAfter && speechSupported && !useManualInput) {
-            startRecording();
-          } else {
-            setPhase("idle");
-          }
+        onEnd: finishAndMaybeRecord,
+        onError: (msg) => {
+          console.error("Sentence TTS error:", msg);
+          clearTimeout(safetyTimeout);
+          setPhase("idle");
         },
       });
       if (!r.ok) {
-        alert(r.message);
+        console.error("Sentence TTS failed:", r.message);
+        clearTimeout(safetyTimeout);
         setPhase("idle");
       }
     }

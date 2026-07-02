@@ -272,6 +272,46 @@ export const speechService = {
     });
   },
 
+  // Unlocks speechSynthesis + AudioContext for the rest of this page session.
+  // Must be called SYNCHRONOUSLY from within a user gesture handler (onClick/
+  // onTouchEnd), e.g. a button the user taps to navigate into a page that
+  // will later auto-play TTS via setTimeout. iOS Safari (and some Android
+  // browsers) require the *first* speechSynthesis.speak()/AudioContext
+  // resume() call on a page to happen inside the direct call stack of a
+  // user gesture; after that first successful unlock, subsequent calls
+  // (even from setTimeout/async code) are allowed for the rest of the
+  // browsing session as long as it's a client-side (SPA) navigation.
+  unlockAudio(): void {
+    if (typeof window === "undefined") return;
+    try {
+      if (supported()) {
+        const primer = new SpeechSynthesisUtterance(" ");
+        primer.volume = 0;
+        primer.rate = 1;
+        window.speechSynthesis.speak(primer);
+      }
+    } catch {
+      /* ignore */
+    }
+    try {
+      const AudioContextCtor =
+        window.AudioContext ||
+        (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (AudioContextCtor) {
+        const ctx = new AudioContextCtor();
+        if (ctx.state === "suspended") void ctx.resume();
+        // Play a near-silent buffer to fully unlock the audio pipeline.
+        const buffer = ctx.createBuffer(1, 1, 22050);
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        source.start(0);
+      }
+    } catch {
+      /* ignore */
+    }
+  },
+
   speak(text: string, opts?: SpeakOptions): { ok: boolean; message?: string } {
     const canUseCloud = Boolean(opts?.ttsVoice && typeof fetch !== "undefined" && typeof Audio !== "undefined");
     if (!this.isSupported() && !canUseCloud) {

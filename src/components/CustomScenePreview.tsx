@@ -153,7 +153,12 @@ export default function CustomScenePreview({
                     </span>
                   )}
                   <button
-                    onClick={() => setShadowingPatternIndex(i)}
+                    onClick={() => {
+                      // Unlock speech synthesis / audio synchronously in this
+                      // click so the ShadowingPractice modal can auto-play.
+                      speechService.unlockAudio();
+                      setShadowingPatternIndex(i);
+                    }}
                     className="text-lilacDeep hover:text-lilacDeep/80 transition"
                     title="跟讀練習"
                   >

@@ -306,6 +306,10 @@ export default function ScenePracticePage() {
 
   // ---- Preview phase: step-by-step, one screen per stage ----
   function goToNextStep() {
+    // Unlock speech synthesis / audio playback synchronously within this
+    // user gesture, so that if the next step auto-plays TTS (e.g. the
+    // shadowing page), mobile browsers (iOS Safari) will allow it.
+    speechService.unlockAudio();
     setStepIndex((i) => Math.min(i + 1, steps.length - 1));
   }
   function goToPrevStep() {
