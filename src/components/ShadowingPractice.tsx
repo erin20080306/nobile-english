@@ -118,22 +118,51 @@ export default function ShadowingPractice({
   async function playSentence(autoRecordAfter = false) {
     setPhase("playing");
     const opts = voiceForLanguage(targetLanguage as any, 1);
-    // When cloud voice is available, have the tutor say a short Chinese lead-in
-    // ("請跟我讀：") before the target sentence, like a real tutor prompting you.
-    const promptText = opts.ttsVoice ? `請跟我讀：${sentence}` : sentence;
-    const r = speechService.speak(promptText, {
-      ...opts,
-      onEnd: () => {
-        if (autoRecordAfter && speechSupported && !useManualInput) {
-          startRecording();
-        } else {
-          setPhase("idle");
-        }
-      },
-    });
-    if (!r.ok) {
-      alert(r.message);
-      setPhase("idle");
+    
+    // When cloud voice is available, have the tutor say "請跟我讀" in Chinese first,
+    // then the target sentence in the target language
+    if (opts.ttsVoice) {
+      // Speak Chinese prompt first using browser TTS (no cloud TTS for Chinese)
+      const r1 = speechService.speak("請跟我讀", {
+        lang: "zh-TW",
+        onEnd: () => {
+          // Then speak the target sentence with cloud TTS
+          const r2 = speechService.speak(sentence, {
+            ...opts,
+            onEnd: () => {
+              if (autoRecordAfter && speechSupported && !useManualInput) {
+                startRecording();
+              } else {
+                setPhase("idle");
+              }
+            },
+          });
+          if (!r2.ok) {
+            alert(r2.message);
+            setPhase("idle");
+          }
+        },
+      });
+      if (!r1.ok) {
+        alert(r1.message);
+        setPhase("idle");
+      }
+    } else {
+      // Fallback: just speak the sentence in target language
+      const r = speechService.speak(sentence, {
+        ...opts,
+        onEnd: () => {
+          if (autoRecordAfter && speechSupported && !useManualInput) {
+            startRecording();
+          } else {
+            setPhase("idle");
+          }
+        },
+      });
+      if (!r.ok) {
+        alert(r.message);
+        setPhase("idle");
+      }
     }
   }
 
