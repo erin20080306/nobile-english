@@ -22,7 +22,8 @@ ALTER TABLE dictionary_cache ENABLE ROW LEVEL SECURITY;
 
 -- Service role can manage cache (for API routes)
 CREATE POLICY "Service role can manage dictionary cache" ON dictionary_cache
-  FOR ALL USING (auth.role() = 'service_role');
+  FOR ALL USING (true)
+  WITH CHECK (true);
 
 -- Public read access for cache entries
 CREATE POLICY "Dictionary cache is publicly readable" ON dictionary_cache
@@ -39,3 +40,10 @@ BEGIN
   DELETE FROM dictionary_cache WHERE expires_at < NOW();
 END;
 $$ LANGUAGE plpgsql;
+
+-- Grant permissions to service role
+GRANT ALL ON dictionary_cache TO service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;
+
+-- Grant read permissions to anon role (public access)
+GRANT SELECT ON dictionary_cache TO anon;

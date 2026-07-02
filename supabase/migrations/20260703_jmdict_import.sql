@@ -35,9 +35,10 @@ DROP POLICY IF EXISTS "Service role can manage JMdict entries" ON jmdict_entries
 CREATE POLICY "JMdict entries are publicly readable" ON jmdict_entries
   FOR SELECT USING (true);
 
--- Service role can manage JMdict entries
+-- Service role can manage JMdict entries (bypasses RLS)
 CREATE POLICY "Service role can manage JMdict entries" ON jmdict_entries
-  FOR ALL USING (auth.role() = 'service_role');
+  FOR ALL USING (true)
+  WITH CHECK (true);
 
 -- Drop existing trigger if it exists
 DROP TRIGGER IF EXISTS update_jmdict_entries_updated_at ON jmdict_entries;
@@ -82,3 +83,10 @@ $$ LANGUAGE plpgsql;
 
 -- Comment on table
 COMMENT ON TABLE jmdict_entries IS 'JMdict Japanese-English dictionary entries from EDICT project (CC BY-SA 4.0)';
+
+-- Grant permissions to service role
+GRANT ALL ON jmdict_entries TO service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;
+
+-- Grant read permissions to anon role (public access)
+GRANT SELECT ON jmdict_entries TO anon;

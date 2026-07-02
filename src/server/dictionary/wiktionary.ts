@@ -22,12 +22,12 @@ interface WiktionaryEntry {
 }
 
 /**
- * Query Wiktionary API for Spanish and Italian words
+ * Query Wiktionary API for Spanish, Italian, and Korean words
  * @param word - The word to look up
- * @param language - 'es' for Spanish, 'it' for Italian
+ * @param language - 'es' for Spanish, 'it' for Italian, 'ko' for Korean
  * @returns DictionaryEntry or null if not found
  */
-export async function queryWiktionary(word: string, language: "es" | "it"): Promise<DictionaryEntry | null> {
+export async function queryWiktionary(word: string, language: "es" | "it" | "ko"): Promise<DictionaryEntry | null> {
   try {
     const response = await fetch(`${WIKTIONARY_API_URL}${encodeURIComponent(word)}`);
     
@@ -77,9 +77,16 @@ export async function queryWiktionary(word: string, language: "es" | "it"): Prom
     }
 
     // External URLs for official dictionaries
-    const externalUrl = language === "es" 
-      ? `https://dle.rae.es/${encodeURIComponent(word)}`
-      : `https://www.treccani.it/vocabolario/${encodeURIComponent(word)}/`;
+    let externalUrl: string;
+    if (language === "es") {
+      externalUrl = `https://dle.rae.es/${encodeURIComponent(word)}`;
+    } else if (language === "it") {
+      externalUrl = `https://www.treccani.it/vocabolario/${encodeURIComponent(word)}/`;
+    } else if (language === "ko") {
+      externalUrl = `https://krdict.korean.go.kr/dictSearch/details?nationCode=0000&keyword=${encodeURIComponent(word)}`;
+    } else {
+      externalUrl = `https://en.wiktionary.org/wiki/${encodeURIComponent(word)}`;
+    }
 
     return {
       word: word,

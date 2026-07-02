@@ -92,7 +92,13 @@ export async function POST(req: Request) {
       break;
     case "ko":
       entry = await queryUrimalSaem(targetWord);
-      source = "urimal_saem";
+      if (!entry) {
+        // Fallback to Wiktionary if Urimal Saem fails
+        entry = await queryWiktionary(targetWord, "ko");
+        source = "wiktionary";
+      } else {
+        source = "urimal_saem";
+      }
       break;
     case "es":
       entry = await queryWiktionary(targetWord, "es");

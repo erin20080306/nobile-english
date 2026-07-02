@@ -64,17 +64,23 @@ interface JMDictRow {
 function calculatePriority(entry: JMdictEntry): number {
   let priority = 0;
   
+  // Handle both array and single object cases
+  const kEleArray = Array.isArray(entry.k_ele) ? entry.k_ele : (entry.k_ele ? [entry.k_ele] : []);
+  const rEleArray = Array.isArray(entry.r_ele) ? entry.r_ele : (entry.r_ele ? [entry.r_ele] : []);
+  
   // Check kanji priorities
-  entry.k_ele?.forEach(k => {
-    k.ke_pri?.forEach(p => {
+  kEleArray.forEach(k => {
+    const priArray = Array.isArray(k.ke_pri) ? k.ke_pri : (k.ke_pri ? [k.ke_pri] : []);
+    priArray.forEach(p => {
       if (p === "news1" || p === "ichi1" || p === "spec1" || p === "gai1") priority += 10;
       if (p === "news2" || p === "ichi2" || p === "spec2" || p === "gai2") priority += 5;
     });
   });
   
   // Check reading priorities
-  entry.r_ele?.forEach(r => {
-    r.re_pri?.forEach(p => {
+  rEleArray.forEach(r => {
+    const priArray = Array.isArray(r.re_pri) ? r.re_pri : (r.re_pri ? [r.re_pri] : []);
+    priArray.forEach(p => {
       if (p === "news1" || p === "ichi1" || p === "spec1" || p === "gai1") priority += 10;
       if (p === "news2" || p === "ichi2" || p === "spec2" || p === "gai2") priority += 5;
     });
