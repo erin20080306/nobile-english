@@ -44,7 +44,7 @@ export default function WordSheet({
     let cancelled = false;
     setAiEntry(null);
     if (!word) return;
-    if (result.entry && !shouldAskAi(result.entry, result.fromFallback, sentence)) return;
+    if (result.entry && !shouldAskAi(result.entry, result.fromFallback)) return;
 
     const cacheKey = `dictionary-ai:${language}:${word.trim().toLowerCase()}:${(sentence || "").slice(0, 80)}`;
     try {
@@ -243,13 +243,17 @@ function Block({ label, value, sub }: { label: string; value: string; sub?: stri
   );
 }
 
-function shouldAskAi(entry: Word, fromFallback: boolean, sentence?: string) {
-  const rough =
+function shouldAskAi(entry: Word, fromFallback: boolean) {
+  // Only fall back to the AI-generated "情境解釋" when the local dictionary
+  // doesn't have a real entry for this word. A word appearing inside a
+  // scene sentence is not, by itself, a reason to call the AI — the
+  // learner just wants the plain Chinese/English definition.
+  return (
     fromFallback ||
     entry.phonetic === "/-/" ||
     entry.zh.includes("情境對話") ||
     entry.zh.includes("請搭配") ||
     entry.enDef.includes("common conversation word") ||
-    entry.enDef.includes("common conversations");
-  return rough || Boolean(sentence);
+    entry.enDef.includes("common conversations")
+  );
 }
