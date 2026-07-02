@@ -44,6 +44,11 @@ export default function ShadowingPage() {
         setSentences(allPatterns);
         setCurrentIndex(startIndex);
         setPhase("idle");
+        
+        // Auto-start playback after a short delay
+        setTimeout(() => {
+          playSentence(true);
+        }, 500);
       } else {
         // Default sentences for standalone access
         const lang = learningService.getCurrentLanguage();
@@ -58,10 +63,18 @@ export default function ShadowingPage() {
         ];
         setSentences(defaultSentences);
         setPhase("idle");
+        
+        // Auto-start playback after a short delay
+        setTimeout(() => {
+          playSentence(true);
+        }, 500);
       }
     };
 
     loadSentences();
+    
+    // Warm up speech service
+    speechService.warmUp();
   }, []);
 
   const currentSentence = sentences[currentIndex];
@@ -141,49 +154,34 @@ export default function ShadowingPage() {
     setPhase("playing");
     const opts = voiceForLanguage(targetLanguage, 1);
     
-    if (opts.ttsVoice) {
-      const r1 = speechService.speak("請跟我讀", {
-        lang: "zh-TW",
-        voiceKeywords: ["google 繁體中文", "microsoft huihui", "microsoft yating", "mei-jia"],
-        rate: 0.9,
-        onEnd: () => {
-          setTimeout(() => {
-            const r2 = speechService.speak(currentSentence.en, {
-              ...opts,
-              onEnd: () => {
-                if (autoRecordAfter && speechSupported && !useManualInput) {
-                  startRecording();
-                } else {
-                  setPhase("idle");
-                }
-              },
-            });
-            if (!r2.ok) {
-              alert(r2.message);
-              setPhase("idle");
-            }
-          }, 300);
-        },
-      });
-      if (!r1.ok) {
-        alert(r1.message);
-        setPhase("idle");
-      }
-    } else {
-      const r = speechService.speak(currentSentence.en, {
-        ...opts,
-        onEnd: () => {
-          if (autoRecordAfter && speechSupported && !useManualInput) {
-            startRecording();
-          } else {
+    // Always use browser TTS for Chinese prompt to ensure it works
+    const r1 = speechService.speak("請跟我讀", {
+      lang: "zh-TW",
+      voiceKeywords: ["google 繁體中文", "microsoft huihui", "microsoft yating", "mei-jia"],
+      rate: 0.9,
+      onEnd: () => {
+        setTimeout(() => {
+          // Use cloud TTS for target sentence if available, otherwise browser TTS
+          const r2 = speechService.speak(currentSentence.en, {
+            ...opts,
+            onEnd: () => {
+              if (autoRecordAfter && speechSupported && !useManualInput) {
+                startRecording();
+              } else {
+                setPhase("idle");
+              }
+            },
+          });
+          if (!r2.ok) {
+            alert(r2.message);
             setPhase("idle");
           }
-        },
-      });
-      if (!r.ok) {
-        alert(r.message);
-        setPhase("idle");
-      }
+        }, 300);
+      },
+    });
+    if (!r1.ok) {
+      alert(r1.message);
+      setPhase("idle");
     }
   }
 
