@@ -189,6 +189,32 @@ function localizedOpening(scene: Scene, targetLanguage: ReturnType<typeof getLea
         { en: "Perfecto. Vamos a practicar una conversación natural.", zh: "很好。我們來一段自然對話。" },
       ],
     },
+    zh: {
+      free: [
+        { en: "你好！今天想聊什麼呢？", zh: "你好！今天想聊什麼呢？" },
+        { en: "你好！今天想練習什麼呢？", zh: "你好！今天想練習什麼呢？" },
+      ],
+      restaurant: [
+        { en: "晚上好，歡迎光臨。請問有預約嗎？", zh: "晚上好，歡迎光臨。請問有預約嗎？" },
+        { en: "你好，歡迎。請問幾位？", zh: "你好，歡迎。請問幾位？" },
+      ],
+      cafe: [
+        { en: "你好，歡迎光臨。今天想點什麼？", zh: "你好，歡迎光臨。今天想點什麼？" },
+        { en: "你好。內用還是外帶？", zh: "你好。內用還是外帶？" },
+      ],
+      travel: [
+        { en: "你好。你想去哪裡？我可以幫你指路。", zh: "你好。你想去哪裡？我可以幫你指路。" },
+        { en: "你需要幫忙看路嗎？", zh: "你需要幫忙看路嗎？" },
+      ],
+      daily: [
+        { en: "你好！今天過得怎麼樣？", zh: "你好！今天過得怎麼樣？" },
+        { en: "你好！跟我說今天發生的一件事。", zh: "你好！跟我說今天發生的一件事。" },
+      ],
+      default: [
+        { en: "你好！我們開始這個情境對話吧。", zh: "你好！我們開始這個情境對話吧。" },
+        { en: "很好。我們來一段自然對話。", zh: "很好。我們來一段自然對話。" },
+      ],
+    },
   }[targetLanguage.code];
   if (!map) return fallback;
   if (scene.themeId === "free") return choose(map.free);
