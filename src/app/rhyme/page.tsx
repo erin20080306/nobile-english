@@ -19,6 +19,7 @@ const defaultInput: Record<LearningLanguageCode, string> = {
   ko: "주세요",
   it: "parlare",
   es: "hablar",
+  zh: "請求",
 };
 
 export default function RhymePage() {
