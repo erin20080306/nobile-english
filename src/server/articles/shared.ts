@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { LearningLanguageCode } from "@/types";
 
-export const ARTICLE_LANGUAGES = ["en", "ja", "ko", "it", "es"] as const satisfies readonly LearningLanguageCode[];
+export const ARTICLE_LANGUAGES = ["en", "ja", "ko", "it", "es", "zh"] as const satisfies readonly LearningLanguageCode[];
 export const MIN_ARTICLE_SENTENCES = 6;
 export const MAX_ARTICLE_SENTENCES = 10;
 export const MIN_ARTICLE_QUESTIONS = 3;
