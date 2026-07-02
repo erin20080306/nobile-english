@@ -1,16 +1,21 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Volume2, Mic, MicOff, Check, X, RotateCcw, Keyboard } from "lucide-react";
 import { speechService } from "@/services/speechService";
 import { getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
+import { getSelectedTutor } from "@/components/TutorSelector";
+import type { LearningLanguageCode } from "@/types";
+
+const TUTOR_FALLBACK_PHOTO = "/assets/tutors/tutor-fallback.svg";
 
 interface ShadowingPracticeProps {
   sentence: string;
   translation: string;
   targetLanguage: string;
   onComplete?: (score: number) => void;
+  onClose?: () => void;
 }
 
 export default function ShadowingPractice({
@@ -18,16 +23,18 @@ export default function ShadowingPractice({
   translation,
   targetLanguage,
   onComplete,
+  onClose,
 }: ShadowingPracticeProps) {
   const [phase, setPhase] = useState<"idle" | "playing" | "recording" | "evaluating" | "result">("idle");
   const [userTranscript, setUserTranscript] = useState("");
   const [score, setScore] = useState<number | null>(null);
   const [feedback, setFeedback] = useState("");
   const [useManualInput, setUseManualInput] = useState(false);
-  
+
   const stopListenRef = useRef<(() => void) | null>(null);
   const languageInfo = getLearningLanguage(targetLanguage as any);
   const speechSupported = speechService.isRecognitionSupported();
+  const [tutor] = useState(() => getSelectedTutor(targetLanguage as LearningLanguageCode));
 
   function calculateSimilarity(original: string, spoken: string): number {
     const normalize = (text: string) => 
@@ -69,8 +76,12 @@ export default function ShadowingPractice({
 
   async function playSentence(autoRecordAfter = false) {
     setPhase("playing");
-    const r = speechService.speak(sentence, {
-      ...voiceForLanguage(targetLanguage as any, 1),
+    const opts = voiceForLanguage(targetLanguage as any, 1);
+    // When cloud voice is available, have the tutor say a short Chinese lead-in
+    // ("跟我讀：") before the target sentence, like a real tutor prompting you.
+    const promptText = opts.ttsVoice ? `跟我讀：${sentence}` : sentence;
+    const r = speechService.speak(promptText, {
+      ...opts,
       onEnd: () => {
         if (autoRecordAfter && speechSupported && !useManualInput) {
           startRecording();
@@ -145,129 +156,192 @@ export default function ShadowingPractice({
     setUserTranscript("");
   }
 
+  const tutorSpeaking = phase === "playing";
+  const isRecording = phase === "recording";
+
   return (
-    <div className="bg-cream rounded-3xl p-4 space-y-3">
-      <div className="flex items-start gap-3">
-        <div className="flex-1">
-          <p className="text-ink font-semibold">{sentence}</p>
-          <p className="text-sm text-inkSoft mt-1">{translation}</p>
-        </div>
-        {phase === "idle" && (
+    <div className="fixed inset-0 z-50 flex flex-col bg-ink">
+      {/* AI tutor video-call style header */}
+      <div className={`relative h-[42vh] min-h-[280px] shrink-0 overflow-hidden transition-all duration-300 ${tutorSpeaking ? "ring-4 ring-mint/70" : ""}`}>
+        <img
+          src={tutor.photoUrl}
+          alt=""
+          onError={(e) => { e.currentTarget.src = TUTOR_FALLBACK_PHOTO; }}
+          className="absolute inset-0 h-full w-full scale-110 object-cover blur-lg opacity-50"
+        />
+        <motion.img
+          src={tutor.photoUrl}
+          alt={tutor.name}
+          onError={(e) => { e.currentTarget.src = TUTOR_FALLBACK_PHOTO; }}
+          animate={tutorSpeaking ? { scale: [1, 1.025, 1], y: [0, -3, 0] } : { scale: 1, y: 0 }}
+          transition={tutorSpeaking ? { duration: 1.15, repeat: Infinity, ease: "easeInOut" } : { duration: 0.25 }}
+          className={`relative h-full w-full object-contain object-center transition-[filter] duration-300 ${tutorSpeaking ? "drop-shadow-[0_0_24px_rgba(167,139,250,0.55)]" : ""}`}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-ink/90 via-ink/10 to-black/30" />
+
+        {onClose && (
           <button
-            onClick={() => playSentence(false)}
-            className="h-10 w-10 rounded-2xl bg-lilacDeep text-white flex items-center justify-center shrink-0 active:scale-95 transition"
-            title="只播放，不錄音"
+            onClick={onClose}
+            className="absolute left-4 top-4 h-10 w-10 rounded-2xl bg-white/15 text-white flex items-center justify-center backdrop-blur active:scale-90 transition"
           >
-            <Volume2 size={18} />
+            <X size={20} />
           </button>
         )}
+
+        <div className="absolute left-4 top-4 ml-14 flex items-center gap-2 rounded-full bg-black/35 px-3 py-1.5 text-xs font-extrabold text-white backdrop-blur">
+          <span className={`h-2 w-2 rounded-full bg-mintDeep shadow-[0_0_12px_rgba(86,211,145,0.9)] ${tutorSpeaking ? "animate-ping" : ""}`} />
+          LIVE
+        </div>
+
+        {tutorSpeaking && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="absolute right-4 top-4 flex h-10 items-center gap-1 rounded-2xl bg-white/90 px-3 shadow-softer"
+          >
+            <span className="h-3 w-1 rounded-full bg-lilacDeep animate-bounce" style={{ animationDelay: "0ms" }} />
+            <span className="h-5 w-1 rounded-full bg-lilacDeep animate-bounce" style={{ animationDelay: "120ms" }} />
+            <span className="h-4 w-1 rounded-full bg-lilacDeep animate-bounce" style={{ animationDelay: "240ms" }} />
+            <span className="h-6 w-1 rounded-full bg-peachDeep animate-bounce" style={{ animationDelay: "360ms" }} />
+          </motion.div>
+        )}
+
+        <div className="absolute left-4 right-4 bottom-4">
+          <p className="text-lg font-black text-white leading-tight drop-shadow">{tutor.name} {tutor.flag}</p>
+          <p className="text-sm font-semibold text-white/85">說出這個句子</p>
+        </div>
       </div>
 
-      {(phase === "idle" || phase === "playing" || phase === "recording") && speechSupported && !useManualInput && (
-        <div className="flex flex-col items-center gap-2 py-2">
-          <motion.button
-            onClick={() => {
-              if (phase === "recording") stopRecording();
-              else if (phase === "idle") playSentence(true);
-            }}
-            disabled={phase === "playing"}
-            animate={phase === "recording" ? { scale: [1, 1.08, 1] } : { scale: 1 }}
-            transition={phase === "recording" ? { duration: 1, repeat: Infinity, ease: "easeInOut" } : {}}
-            className={`relative flex h-20 w-20 items-center justify-center rounded-full shadow-soft transition active:scale-95 disabled:opacity-70 ${
-              phase === "recording" ? "bg-peachDeep text-white" : phase === "playing" ? "bg-lilac text-lilacDeep" : "bg-lilacDeep text-white"
-            }`}
-            title={phase === "recording" ? "停止錄音" : "播放並跟讀"}
-          >
-            {phase === "recording" && <span className="absolute inset-0 rounded-full bg-peachDeep/60 animate-ping" />}
-            {phase === "playing" ? (
-              <Volume2 size={30} className="relative" />
-            ) : phase === "recording" ? (
-              <MicOff size={30} className="relative" />
-            ) : (
-              <Mic size={30} className="relative" />
-            )}
-          </motion.button>
-          <p className="text-sm font-bold text-inkSoft">
-            {phase === "playing" ? "AI 示範中…" : phase === "recording" ? "換你了！請跟著念" : "點一下：先聽 AI 示範，再跟著念"}
-          </p>
-          {phase === "recording" && (
-            <button onClick={stopRecording} className="btn-secondary px-4 py-2 text-sm flex items-center gap-2">
-              <MicOff size={14} /> 停止錄音
-            </button>
-          )}
-        </div>
-      )}
+      {/* Content sheet */}
+      <div className="flex-1 min-h-0 overflow-y-auto rounded-t-[32px] bg-cream px-5 pt-6 pb-8 -mt-5 relative">
+        <div className="mx-auto max-w-md">
+          <div className="rounded-3xl bg-white shadow-soft p-5 text-center">
+            <p className="text-2xl font-black text-ink leading-snug">{sentence}</p>
+            <p className="text-inkSoft mt-2">{translation}</p>
+          </div>
 
-      {phase === "idle" && (
-        <div className="space-y-2">
-          {speechSupported && (
-            <button
-              onClick={toggleManualInput}
-              className="w-full btn-secondary flex items-center justify-center gap-2"
-            >
-              <Keyboard size={18} /> {useManualInput ? "改用語音輸入" : "改用文字輸入"}
-            </button>
-          )}
-          {!speechSupported && (
-            <p className="text-sm text-inkSoft text-center">您的瀏覽器不支援語音輸入，請使用文字輸入</p>
-          )}
-          {(useManualInput || !speechSupported) && (
-            <div className="space-y-2">
-              <textarea
-                value={userTranscript}
-                onChange={(e) => setUserTranscript(e.target.value)}
-                placeholder="輸入你聽到的句子..."
-                className="w-full rounded-2xl px-3 py-2 text-ink bg-white border-2 border-lilac/20 focus:border-lilac outline-none resize-none"
-                rows={2}
-              />
-              <button
-                onClick={submitManualInput}
-                className="w-full btn-primary flex items-center justify-center gap-2"
+          {(phase === "idle" || phase === "playing" || phase === "recording") && speechSupported && !useManualInput && (
+            <div className="flex flex-col items-center gap-3 py-6">
+              <motion.button
+                onClick={() => {
+                  if (phase === "recording") stopRecording();
+                  else if (phase === "idle") playSentence(true);
+                }}
+                disabled={phase === "playing"}
+                animate={isRecording ? { scale: [1, 1.08, 1] } : { scale: 1 }}
+                transition={isRecording ? { duration: 1, repeat: Infinity, ease: "easeInOut" } : {}}
+                className={`relative flex h-24 w-24 items-center justify-center rounded-full shadow-soft transition active:scale-95 disabled:opacity-70 ${
+                  isRecording ? "bg-peachDeep text-white" : phase === "playing" ? "bg-lilac text-lilacDeep" : "bg-lilacDeep text-white"
+                }`}
+                title={isRecording ? "停止錄音" : "點擊說話"}
               >
-                <Check size={18} /> 提交答案
-              </button>
+                {isRecording && <span className="absolute inset-0 rounded-full bg-peachDeep/60 animate-ping" />}
+                {phase === "playing" ? (
+                  <Volume2 size={34} className="relative" />
+                ) : isRecording ? (
+                  <MicOff size={34} className="relative" />
+                ) : (
+                  <Mic size={34} className="relative" />
+                )}
+              </motion.button>
+              <p className="text-sm font-bold text-inkSoft">
+                {phase === "playing" ? "AI 示範中…" : isRecording ? "換你了！請跟著念" : "點擊說話"}
+              </p>
+              {isRecording && (
+                <button onClick={stopRecording} className="btn-secondary px-4 py-2 text-sm flex items-center gap-2">
+                  <MicOff size={14} /> 停止錄音
+                </button>
+              )}
             </div>
           )}
-        </div>
-      )}
 
-      {phase === "result" && score !== null && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-bold text-inkSoft">你的發音：</span>
-            <span className={`text-sm font-bold ${score >= 75 ? "text-mintDeep" : "text-peachDeep"}`}>
-              {userTranscript || "(未辨識到語音)"}
-            </span>
-          </div>
-          
-          <div className="flex items-center justify-between bg-white rounded-2xl px-4 py-3">
-            <span className="text-sm font-bold text-inkSoft">相似度：</span>
-            <div className="flex items-center gap-2">
-              <span className={`text-2xl font-black ${score >= 75 ? "text-mintDeep" : score >= 50 ? "text-lilacDeep" : "text-peachDeep"}`}>
-                {score}%
-              </span>
-              {score >= 75 ? <Check size={20} className="text-mintDeep" /> : <X size={20} className="text-peachDeep" />}
+          {phase === "idle" && (
+            <div className="space-y-2">
+              {speechSupported && (
+                <button
+                  onClick={toggleManualInput}
+                  className="w-full flex items-center justify-center gap-2 text-sm font-bold text-inkSoft"
+                >
+                  <Keyboard size={16} /> {useManualInput ? "改用語音輸入" : "現在不方便說話"}
+                </button>
+              )}
+              {!speechSupported && (
+                <p className="text-sm text-inkSoft text-center">您的瀏覽器不支援語音輸入，請使用文字輸入</p>
+              )}
+              {(useManualInput || !speechSupported) && (
+                <div className="space-y-2 mt-2">
+                  <textarea
+                    value={userTranscript}
+                    onChange={(e) => setUserTranscript(e.target.value)}
+                    placeholder="輸入你聽到的句子..."
+                    className="w-full rounded-2xl px-3 py-2 text-ink bg-white border-2 border-lilac/20 focus:border-lilac outline-none resize-none"
+                    rows={2}
+                  />
+                  <button
+                    onClick={submitManualInput}
+                    className="w-full btn-primary flex items-center justify-center gap-2"
+                  >
+                    <Check size={18} /> 提交答案
+                  </button>
+                </div>
+              )}
             </div>
-          </div>
+          )}
 
-          <p className="text-sm text-center font-semibold text-ink">{feedback}</p>
+          <AnimatePresence>
+            {phase === "result" && score !== null && (
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-3 mt-4"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-inkSoft">你的發音：</span>
+                  <span className={`text-sm font-bold ${score >= 75 ? "text-mintDeep" : "text-peachDeep"}`}>
+                    {userTranscript || "(未辨識到語音)"}
+                  </span>
+                </div>
 
-          <div className="flex gap-2">
-            <button
-              onClick={reset}
-              className="flex-1 btn-secondary flex items-center justify-center gap-2"
-            >
-              <RotateCcw size={16} /> 再試一次
-            </button>
-            <button
-              onClick={() => playSentence(false)}
-              className="flex-1 btn-primary flex items-center justify-center gap-2"
-            >
-              <Volume2 size={16} /> 再聽一次
-            </button>
-          </div>
+                <div className="flex items-center justify-between bg-white rounded-2xl px-4 py-3">
+                  <span className="text-sm font-bold text-inkSoft">相似度：</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-2xl font-black ${score >= 75 ? "text-mintDeep" : score >= 50 ? "text-lilacDeep" : "text-peachDeep"}`}>
+                      {score}%
+                    </span>
+                    {score >= 75 ? <Check size={20} className="text-mintDeep" /> : <X size={20} className="text-peachDeep" />}
+                  </div>
+                </div>
+
+                <p className="text-sm text-center font-semibold text-ink">{feedback}</p>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={reset}
+                    className="flex-1 btn-secondary flex items-center justify-center gap-2"
+                  >
+                    <RotateCcw size={16} /> 再試一次
+                  </button>
+                  {score >= 75 && onComplete ? (
+                    <button
+                      onClick={onClose}
+                      className="flex-1 btn-primary flex items-center justify-center gap-2"
+                    >
+                      <Check size={16} /> 完成
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => playSentence(false)}
+                      className="flex-1 btn-primary flex items-center justify-center gap-2"
+                    >
+                      <Volume2 size={16} /> 再聽一次
+                    </button>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-      )}
+      </div>
     </div>
   );
 }

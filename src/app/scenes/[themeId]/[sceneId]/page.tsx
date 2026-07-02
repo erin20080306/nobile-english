@@ -68,12 +68,27 @@ export default function ScenePracticePage() {
   const [activeWord, setActiveWord] = useState<{ word: string; sentence?: string } | null>(null);
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
   const [savedSentences, setSavedSentences] = useState<string[]>([]);
-  const [shadowingPatternIndex, setShadowingPatternIndex] = useState<number | null>(null);
   const [pronunciationScores, setPronunciationScores] = useState<Record<number, number>>({});
   const [currentStageIndex, setCurrentStageIndex] = useState(0);
   const [phase, setPhase] = useState<"preview" | "staged" | "conversation">("preview");
+  const [stepIndex, setStepIndex] = useState(0);
   const [access, setAccess] = useState<AccessState | null>(null);
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(false);
+
+  type PreviewStep =
+    | { type: "overview" }
+    | { type: "pattern"; index: number }
+    | { type: "dialogue" }
+    | { type: "quiz" };
+
+  const steps = useMemo<PreviewStep[]>(() => {
+    if (!scene) return [{ type: "overview" }];
+    const list: PreviewStep[] = [{ type: "overview" }];
+    scene.keyPatterns.forEach((_, index) => list.push({ type: "pattern", index }));
+    list.push({ type: "dialogue" });
+    if (scene.quiz.length > 0) list.push({ type: "quiz" });
+    return list;
+  }, [scene]);
 
   const settings = useMemo(() => {
     const u = authService.getCurrentUser();
@@ -289,195 +304,203 @@ export default function ScenePracticePage() {
     );
   }
 
-  // ---- Preview phase ----
+  // ---- Preview phase: step-by-step, one screen per stage ----
+  function goToNextStep() {
+    setStepIndex((i) => Math.min(i + 1, steps.length - 1));
+  }
+  function goToPrevStep() {
+    if (stepIndex === 0) {
+      router.back();
+      return;
+    }
+    setStepIndex((i) => Math.max(i - 1, 0));
+  }
+
+  const currentStep = steps[stepIndex];
+  const isLastStep = stepIndex === steps.length - 1;
+
+  // Shadowing pattern steps use ShadowingPractice's own full-screen "AI 導師
+  // 視訊" UI directly, closing (or completing) it advances to the next step.
+  if (currentStep.type === "pattern") {
+    const p = scene.keyPatterns[currentStep.index];
+    return (
+      <ShadowingPractice
+        sentence={p.en}
+        translation={p.zh}
+        targetLanguage={targetLanguage}
+        onComplete={(score) => {
+          setPronunciationScores((prev) => ({ ...prev, [currentStep.index]: score }));
+        }}
+        onClose={goToNextStep}
+      />
+    );
+  }
+
   return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
+    <motion.div
+      key={stepIndex}
+      initial={{ opacity: 0, x: 12 }}
+      animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.2 }}
       className="min-h-[100dvh] pb-28"
     >
-      <AppHeader title={scene.name} subtitle={`${scene.enName} · ${languageInfo.flag} ${languageInfo.zhName}`} />
-
-      <div className="px-5 space-y-4">
-        {/* Overview */}
-        <div className="card">
-          <div className="flex items-center gap-2 mb-2">
-            <LevelBadge level={scene.difficulty} />
-            <span className="chip bg-cream text-inkSoft text-xs">{scene.minutes} 分鐘</span>
-          </div>
-          <p className="text-ink">{scene.intro}</p>
-          <div className="mt-3">
-            <p className="text-sm font-bold text-inkSoft flex items-center gap-1"><Target size={14} /> 學習目標</p>
-            <ul className="mt-1 list-disc list-inside text-sm text-ink">
-              {scene.goals.map((g) => <li key={g}>{g}</li>)}
-            </ul>
-          </div>
+      <AppHeader
+        title={scene.name}
+        subtitle={`步驟 ${stepIndex + 1} / ${steps.length}`}
+        onBack={goToPrevStep}
+      />
+      <div className="px-5 pt-1">
+        <div className="h-1.5 bg-sand rounded-full overflow-hidden">
+          <motion.div
+            className="h-full bg-lilacDeep rounded-full"
+            animate={{ width: `${((stepIndex + 1) / steps.length) * 100}%` }}
+            transition={{ duration: 0.3 }}
+          />
         </div>
+      </div>
 
-        {/* Custom Stages */}
-        {customStages && customStages.length > 0 && (
+      <div className="px-5 pt-4 space-y-4">
+        {currentStep.type === "overview" && (
+          <>
+            <div className="card">
+              <div className="flex items-center gap-2 mb-2">
+                <LevelBadge level={scene.difficulty} />
+                <span className="chip bg-cream text-inkSoft text-xs">{scene.minutes} 分鐘</span>
+              </div>
+              <p className="text-ink">{scene.intro}</p>
+              <div className="mt-3">
+                <p className="text-sm font-bold text-inkSoft flex items-center gap-1"><Target size={14} /> 學習目標</p>
+                <ul className="mt-1 list-disc list-inside text-sm text-ink">
+                  {scene.goals.map((g) => <li key={g}>{g}</li>)}
+                </ul>
+              </div>
+            </div>
+
+            {customStages && customStages.length > 0 && (
+              <div className="card">
+                <p className="font-bold text-ink flex items-center gap-2"><BookOpen size={18} className="text-lilacDeep" /> 階段性練習</p>
+                <p className="text-sm text-inkSoft mt-1">AI 導師會按照以下階段逐步引導對話</p>
+                <div className="mt-3 space-y-2">
+                  {customStages.map((stage, index) => (
+                    <div key={index} className="rounded-2xl bg-cream p-3">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full bg-peachDeep px-2 py-0.5 text-[10px] font-extrabold text-white">STEP {index + 1}</span>
+                        <p className="font-bold text-ink text-sm">{stage.title}</p>
+                      </div>
+                      <p className="mt-1 text-xs font-semibold text-lilacDeep">{stage.enTitle}</p>
+                      <p className="mt-1 text-xs text-inkSoft">{stage.learnerGoal}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="card">
+              <p className="font-bold text-ink flex items-center gap-2"><BookOpen size={18} className="text-lilacDeep" /> 關鍵單字</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {scene.keyWords.map((w) => (
+                  <button key={w} onClick={() => setActiveWord({ word: w })} className="chip bg-lilac text-lilacDeep">{w}</button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {currentStep.type === "dialogue" && (
           <div className="card">
-            <p className="font-bold text-ink flex items-center gap-2"><BookOpen size={18} className="text-lilacDeep" /> 階段性練習</p>
-            <p className="text-sm text-inkSoft mt-1">AI 導師會按照以下階段逐步引導對話</p>
-            <div className="mt-3 space-y-2">
-              {customStages.map((stage, index) => (
-                <div key={index} className="rounded-2xl bg-cream p-3">
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-peachDeep px-2 py-0.5 text-[10px] font-extrabold text-white">STEP {index + 1}</span>
-                    <p className="font-bold text-ink text-sm">{stage.title}</p>
+            <p className="font-bold text-ink mb-2">參考對話（點單字看解釋）</p>
+            <div className="space-y-3">
+              {scene.dialogue.map((line, i) => {
+                const isUser = line.speaker === "user";
+                return (
+                  <div key={i} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+                    <div className={`max-w-[85%] rounded-3xl p-3 ${isUser ? "bg-lilacDeep text-white" : "bg-cream text-ink"}`}>
+                      <div className="flex items-start gap-2">
+                        <ClickableText
+                          text={line.en}
+                          onWord={(word) => setActiveWord({ word, sentence: line.en })}
+                          language={targetLanguage}
+                          className={isUser ? "text-white" : "text-ink"}
+                        />
+                      </div>
+                      {showZh && <p className={`text-sm mt-1 ${isUser ? "text-white/80" : "text-inkSoft"}`}>{line.zh}</p>}
+                      <div className="mt-1 flex gap-3">
+                        <button onClick={() => speak(line.en)} className={isUser ? "text-white/90" : "text-lilacDeep"}><Volume2 size={16} /></button>
+                        <button onClick={() => toggleSentence(line.en, line.zh)} className={savedSentences.includes(line.en) ? "text-yellow-300" : (isUser ? "text-white/90" : "text-peachDeep")}>
+                          <Star size={16} fill={savedSentences.includes(line.en) ? "currentColor" : "none"} />
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  <p className="mt-1 text-xs font-semibold text-lilacDeep">{stage.enTitle}</p>
-                  <p className="mt-1 text-xs text-inkSoft">{stage.learnerGoal}</p>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {currentStep.type === "quiz" && (
+          <div className="card">
+            <p className="font-bold text-ink mb-2">互動選擇題</p>
+            <div className="space-y-4">
+              {scene.quiz.map((q, qi) => (
+                <div key={qi}>
+                  <p className="font-semibold text-ink">{qi + 1}. {q.question}</p>
+                  <div className="mt-2 space-y-2">
+                    {q.options.map((opt, oi) => {
+                      const picked = quizAnswers[qi];
+                      const isPicked = picked === oi;
+                      const isCorrect = oi === q.answerIndex;
+                      const show = picked !== undefined;
+                      return (
+                        <button
+                          key={oi}
+                          disabled={show}
+                          onClick={() => setQuizAnswers((a) => ({ ...a, [qi]: oi }))}
+                          className={`w-full text-left rounded-2xl px-3 py-2 font-semibold transition ${
+                            show
+                              ? isCorrect
+                                ? "bg-mint text-mintDeep"
+                                : isPicked
+                                ? "bg-peach text-peachDeep"
+                                : "bg-cream text-inkSoft"
+                              : "bg-cream text-ink"
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {quizAnswers[qi] !== undefined && (
+                    <p className="text-sm text-inkSoft mt-1">💡 {q.explanation}</p>
+                  )}
                 </div>
               ))}
             </div>
           </div>
         )}
-
-        {/* Key words */}
-        <div className="card">
-          <p className="font-bold text-ink flex items-center gap-2"><BookOpen size={18} className="text-lilacDeep" /> 關鍵單字</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {scene.keyWords.map((w) => (
-              <button key={w} onClick={() => setActiveWord({ word: w })} className="chip bg-lilac text-lilacDeep">{w}</button>
-            ))}
-          </div>
-        </div>
-
-        {/* Patterns */}
-        <div className="card">
-          <p className="font-bold text-ink">重要句型</p>
-          <div className="mt-2 space-y-2">
-            {scene.keyPatterns.map((p, i) => (
-              <div key={i}>
-                {shadowingPatternIndex === i ? (
-                  <ShadowingPractice
-                    sentence={p.en}
-                    translation={p.zh}
-                    targetLanguage={targetLanguage}
-                    onComplete={(score) => {
-                      setPronunciationScores((prev) => ({ ...prev, [i]: score }));
-                      setShadowingPatternIndex(null);
-                    }}
-                  />
-                ) : (
-                  <div className="rounded-3xl bg-cream p-3 flex items-start gap-2">
-                    <button onClick={() => speak(p.en)} className="mt-0.5 text-lilacDeep"><Volume2 size={18} /></button>
-                    <div className="flex-1">
-                      <p className="text-ink font-semibold">
-                        <ClickableText text={p.en} onWord={(word) => setActiveWord({ word, sentence: p.en })} language={targetLanguage} />
-                      </p>
-                      {showZh && <p className="text-sm text-inkSoft">{p.zh}</p>}
-                    </div>
-                    {pronunciationScores[i] !== undefined && (
-                      <div className="flex items-center gap-1 text-xs font-bold">
-                        <span className={pronunciationScores[i] >= 75 ? "text-mintDeep" : "text-peachDeep"}>
-                          {pronunciationScores[i]}%
-                        </span>
-                      </div>
-                    )}
-                    <button
-                      onClick={() => setShadowingPatternIndex(i)}
-                      className="mt-0.5 text-lilacDeep hover:text-lilacDeep/80 transition"
-                      title="跟讀練習"
-                    >
-                      <Mic size={18} />
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Dialogue reference */}
-        <div className="card">
-          <p className="font-bold text-ink mb-2">參考對話（點單字看解釋）</p>
-          <div className="space-y-3">
-            {scene.dialogue.map((line, i) => {
-              const isUser = line.speaker === "user";
-              return (
-                <div key={i} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[85%] rounded-3xl p-3 ${isUser ? "bg-lilacDeep text-white" : "bg-cream text-ink"}`}>
-                    <div className="flex items-start gap-2">
-                      <ClickableText
-                        text={line.en}
-                        onWord={(word) => setActiveWord({ word, sentence: line.en })}
-                        language={targetLanguage}
-                        className={isUser ? "text-white" : "text-ink"}
-                      />
-                    </div>
-                    {showZh && <p className={`text-sm mt-1 ${isUser ? "text-white/80" : "text-inkSoft"}`}>{line.zh}</p>}
-                    <div className="mt-1 flex gap-3">
-                      <button onClick={() => speak(line.en)} className={isUser ? "text-white/90" : "text-lilacDeep"}><Volume2 size={16} /></button>
-                      <button onClick={() => toggleSentence(line.en, line.zh)} className={savedSentences.includes(line.en) ? "text-yellow-300" : (isUser ? "text-white/90" : "text-peachDeep")}>
-                        <Star size={16} fill={savedSentences.includes(line.en) ? "currentColor" : "none"} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Quiz */}
-        <div className="card">
-          <p className="font-bold text-ink mb-2">互動選擇題</p>
-          <div className="space-y-4">
-            {scene.quiz.map((q, qi) => (
-              <div key={qi}>
-                <p className="font-semibold text-ink">{qi + 1}. {q.question}</p>
-                <div className="mt-2 space-y-2">
-                  {q.options.map((opt, oi) => {
-                    const picked = quizAnswers[qi];
-                    const isPicked = picked === oi;
-                    const isCorrect = oi === q.answerIndex;
-                    const show = picked !== undefined;
-                    return (
-                      <button
-                        key={oi}
-                        disabled={show}
-                        onClick={() => setQuizAnswers((a) => ({ ...a, [qi]: oi }))}
-                        className={`w-full text-left rounded-2xl px-3 py-2 font-semibold transition ${
-                          show
-                            ? isCorrect
-                              ? "bg-mint text-mintDeep"
-                              : isPicked
-                              ? "bg-peach text-peachDeep"
-                              : "bg-cream text-inkSoft"
-                            : "bg-cream text-ink"
-                        }`}
-                      >
-                        {opt}
-                      </button>
-                    );
-                  })}
-                </div>
-                {quizAnswers[qi] !== undefined && (
-                  <p className="text-sm text-inkSoft mt-1">💡 {q.explanation}</p>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
 
-      {/* Start voice conversation bar */}
+      {/* Bottom bar: "下一步" until the last step, then start the conversation */}
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] p-4 bg-cream/90 backdrop-blur">
-        {customStages && customStages.length > 0 ? (
-          <div className="space-y-2">
-            <button className="btn-primary w-full flex items-center justify-center gap-2" onClick={startStagedPractice}>
-              <Target size={18} /> 開始階段性練習
+        {isLastStep ? (
+          customStages && customStages.length > 0 ? (
+            <div className="space-y-2">
+              <button className="btn-primary w-full flex items-center justify-center gap-2" onClick={startStagedPractice}>
+                <Target size={18} /> 開始階段性練習
+              </button>
+              <button className="btn-secondary w-full flex items-center justify-center gap-2" onClick={startConversation}>
+                <Mic size={18} /> 直接開始對話
+              </button>
+            </div>
+          ) : (
+            <button className="btn-primary w-full flex items-center justify-center gap-2" onClick={startConversation}>
+              <Mic size={18} /> 開始語音對話練習
             </button>
-            <button className="btn-secondary w-full flex items-center justify-center gap-2" onClick={startConversation}>
-              <Mic size={18} /> 直接開始對話
-            </button>
-          </div>
+          )
         ) : (
-          <button className="btn-primary w-full flex items-center justify-center gap-2" onClick={startConversation}>
-            <Mic size={18} /> 開始語音對話練習
+          <button className="btn-primary w-full flex items-center justify-center gap-2" onClick={goToNextStep}>
+            下一步
           </button>
         )}
       </div>

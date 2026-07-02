@@ -135,8 +135,8 @@ export default function CustomScenePreview({
                   targetLanguage={created.targetLanguage || targetLanguage}
                   onComplete={(score) => {
                     setPronunciationScores((prev) => ({ ...prev, [i]: score }));
-                    setShadowingPatternIndex(null);
                   }}
+                  onClose={() => setShadowingPatternIndex(null)}
                 />
               ) : (
                 <div className="rounded-3xl bg-cream p-3 flex items-start gap-2">
