@@ -38,9 +38,12 @@ interface AudioState {
   playbackRate: number;
 }
 
+const PLAYBACK_GAIN = 1.4;
+
 class AudioQueueService {
   private audio: HTMLAudioElement | null = null;
   private audioContext: AudioContext | null = null;
+  private gainNode: GainNode | null = null;
   private state: AudioState = {
     state: "locked",
     currentItem: null,
@@ -130,6 +133,9 @@ class AudioQueueService {
         }
       }
 
+      // 建立音量增益節點（只需建立一次，重複使用同一個 Audio element）
+      this.ensureGainNode();
+
       // 播放極短靜音音檔解鎖
       const silentUrl = this.createSilentAudio();
       this.audio.src = silentUrl;
@@ -161,6 +167,28 @@ class AudioQueueService {
       });
       
       return false;
+    }
+  }
+
+  /**
+   * 建立一次性的 MediaElementSource -> GainNode -> destination 音訊圖，
+   * 用來提升伺服器產生的 TTS/朗讀音檔音量。瀏覽器限制同一個 <audio>
+   * element 只能呼叫一次 createMediaElementSource，因此這裡快取結果並
+   * 在往後每次換 src 播放時重複使用同一個 gain node。
+   */
+  private ensureGainNode(): void {
+    if (!this.audio || !this.audioContext || this.gainNode) return;
+    try {
+      const source = this.audioContext.createMediaElementSource(this.audio);
+      const gain = this.audioContext.createGain();
+      gain.gain.value = PLAYBACK_GAIN;
+      source.connect(gain);
+      gain.connect(this.audioContext.destination);
+      this.gainNode = gain;
+    } catch (error) {
+      this.log("[AI_TTS] ensureGainNode failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -280,6 +308,10 @@ class AudioQueueService {
       // 建立或取得 Audio element
       if (!this.audio) {
         this.audio = new Audio();
+      }
+      this.ensureGainNode();
+      if (this.audioContext && this.audioContext.state === "suspended") {
+        await this.audioContext.resume().catch(() => undefined);
       }
 
       // 設定新音檔

@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { getAppSetting } from "../settings";
 import type { AudioFormat, SynthesisOutput, SynthesisRequest, TtsAssetType } from "./types";
 
 type TtsQuality = "standard" | "neural";
@@ -75,9 +76,16 @@ function normalizeEnvKey(value: string) {
   return value.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
 }
 
-function providerPreference(): ProviderKind {
+export const TTS_PROVIDER_SETTING_KEY = "tts_primary_provider";
+
+async function providerPreference(): Promise<ProviderKind> {
+  const override = (await getAppSetting(TTS_PROVIDER_SETTING_KEY))?.toLowerCase();
+  if (override === "google" && hasGoogleConfig()) return "google";
+  if (override === "polly" && hasPollyConfig()) return "polly";
+
   const preferred = (process.env.TTS_PROVIDER || process.env.TTS_PRIMARY_PROVIDER || "").toLowerCase();
-  if (preferred === "google" || preferred === "polly") return preferred;
+  if (preferred === "google" && hasGoogleConfig()) return "google";
+  if (preferred === "polly" && hasPollyConfig()) return "polly";
   if (hasGoogleConfig()) return "google";
   if (hasPollyConfig()) return "polly";
   return "stub";
@@ -364,9 +372,9 @@ const globalForProvider = globalThis as unknown as {
   __ttsProviders?: Map<string, TtsProvider>;
 };
 
-export function getTtsProvider(assetType?: TtsAssetType): TtsProvider {
+export async function getTtsProvider(assetType?: TtsAssetType): Promise<TtsProvider> {
   const quality = qualityForAsset(assetType);
-  const kind = providerPreference();
+  const kind = await providerPreference();
   const key = `${kind}:${quality}`;
   if (!globalForProvider.__ttsProviders) globalForProvider.__ttsProviders = new Map();
   const cached = globalForProvider.__ttsProviders.get(key);
@@ -384,4 +392,22 @@ export function getTtsProvider(assetType?: TtsAssetType): TtsProvider {
 
 export function isTtsProviderConfigured(): boolean {
   return hasGoogleConfig() || hasPollyConfig();
+}
+
+export interface TtsProviderStatus {
+  active: ProviderKind;
+  override: ProviderKind | null;
+  googleConfigured: boolean;
+  pollyConfigured: boolean;
+}
+
+export async function getTtsProviderStatus(): Promise<TtsProviderStatus> {
+  const override = (await getAppSetting(TTS_PROVIDER_SETTING_KEY))?.toLowerCase();
+  const validOverride = override === "google" || override === "polly" ? override : null;
+  return {
+    active: await providerPreference(),
+    override: validOverride,
+    googleConfigured: hasGoogleConfig(),
+    pollyConfigured: hasPollyConfig(),
+  };
 }

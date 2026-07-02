@@ -43,7 +43,8 @@ export default function WordSheet({
   useEffect(() => {
     let cancelled = false;
     setAiEntry(null);
-    if (!word || !result.entry || !shouldAskAi(result.entry, result.fromFallback, sentence)) return;
+    if (!word) return;
+    if (result.entry && !shouldAskAi(result.entry, result.fromFallback, sentence)) return;
 
     const cacheKey = `dictionary-ai:${language}:${word.trim().toLowerCase()}:${(sentence || "").slice(0, 80)}`;
     try {
@@ -143,7 +144,7 @@ export default function WordSheet({
 
             {!entry ? (
               <div className="py-8 text-center text-inkSoft">
-                找不到「{word}」的解釋，試試其他單字吧。
+                {loadingAi ? "正在查詢完整解釋…" : `找不到「${word}」的解釋，試試其他單字吧。`}
               </div>
             ) : (
               <div>

@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getDatedTopicKey, getDayOfYearFromDateString, getTaipeiDateString } from "./dates";
 import { prewarmReadingArticle, type ArticlePrewarmResult } from "./prewarm";
 import { generateJsonWithGemini, hasGeminiConfig } from "../gemini";
+import { fetchDailyNewsHeadline, type NewsHeadline } from "./newsSource";
 
 const TOPICS = [
   { key: "coffee_shop", zhTw: "咖啡店點餐", category: "daily_life" },
@@ -168,8 +169,11 @@ export async function createDailyArticles(
     };
   }
 
+  const newsHeadline = await fetchDailyNewsHeadline(publishDate);
   const dayOfYear = getDayOfYearFromDateString(publishDate);
-  const topic = TOPICS[dayOfYear % TOPICS.length];
+  const topic = newsHeadline
+    ? { key: `news_${newsHeadline.category}`, zhTw: newsHeadline.title, category: newsHeadline.category }
+    : TOPICS[dayOfYear % TOPICS.length];
   const topicKey = getDatedTopicKey(topic.key, publishDate);
 
   await supabase.from("reading_article_topics").delete().eq("publish_date", publishDate);
@@ -195,7 +199,7 @@ export async function createDailyArticles(
 
   for (const lang of LANGUAGES) {
     try {
-      const content = await generateArticle(lang, topic.zhTw, topic.category);
+      const content = await generateArticle(lang, topic.zhTw, topic.category, newsHeadline);
 
       await supabase
         .from("reading_articles")
@@ -287,11 +291,12 @@ export async function createDailyArticles(
 async function generateArticle(
   languageCode: string,
   topicZhTw: string,
-  category: string
+  category: string,
+  newsHeadline?: NewsHeadline | null
 ): Promise<ArticleContent> {
   if (hasGeminiConfig()) {
     try {
-      return await generateWithGeminiArticle(languageCode, topicZhTw, category);
+      return await generateWithGeminiArticle(languageCode, topicZhTw, category, newsHeadline);
     } catch (e) {
       console.warn(`Gemini failed for ${languageCode}, using mock:`, e);
     }
@@ -302,11 +307,16 @@ async function generateArticle(
 async function generateWithGeminiArticle(
   languageCode: string,
   topicZhTw: string,
-  category: string
+  category: string,
+  newsHeadline?: NewsHeadline | null
 ): Promise<ArticleContent> {
   const langName = LANG_NAMES[languageCode];
 
-  const prompt = `You are a language learning content creator. Generate a learning article in ${langName} about the topic: "${topicZhTw}" (category: ${category}).
+  const newsContext = newsHeadline
+    ? `\n\nBase this article on the following real, current news story so learners practice with authentic current events. Simplify vocabulary and sentence structure for A2/B1 learners, but keep the real facts (who/what/where) accurate. Do not copy sentences verbatim; rewrite them for language learners.\nNews title: ${newsHeadline.title}\nNews summary: ${newsHeadline.description || "(no summary provided)"}`
+    : "";
+
+  const prompt = `You are a language learning content creator. Generate a learning article in ${langName} about the topic: "${topicZhTw}" (category: ${category}).${newsContext}
 
 Requirements:
 - 11-14 natural sentences appropriate for A2/B1 level learners

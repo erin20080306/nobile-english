@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { motion } from "framer-motion";
 import { Volume2, Mic, MicOff, Check, X, RotateCcw, Keyboard } from "lucide-react";
 import { speechService } from "@/services/speechService";
 import { getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
@@ -66,12 +67,16 @@ export default function ShadowingPractice({
     return "再試一次，注意語音和語調。";
   }
 
-  async function playSentence() {
+  async function playSentence(autoRecordAfter = false) {
     setPhase("playing");
     const r = speechService.speak(sentence, {
       ...voiceForLanguage(targetLanguage as any, 1),
       onEnd: () => {
-        setPhase("idle");
+        if (autoRecordAfter && speechSupported && !useManualInput) {
+          startRecording();
+        } else {
+          setPhase("idle");
+        }
       },
     });
     if (!r.ok) {
@@ -85,7 +90,7 @@ export default function ShadowingPractice({
     setUserTranscript("");
     
     const stop = speechService.listen({
-      lang: targetLanguage === "en" ? "en-US" : targetLanguage === "ja" ? "ja-JP" : targetLanguage === "ko" ? "ko-KR" : targetLanguage === "it" ? "it-IT" : targetLanguage === "es" ? "es-ES" : "zh-TW",
+      lang: languageInfo.speechLang,
       onResult: (text) => {
         const transcript = text.trim();
         if (!transcript) return;
@@ -135,6 +140,11 @@ export default function ShadowingPractice({
     setFeedback("");
   }
 
+  function toggleManualInput() {
+    setUseManualInput((prev) => !prev);
+    setUserTranscript("");
+  }
+
   return (
     <div className="bg-cream rounded-3xl p-4 space-y-3">
       <div className="flex items-start gap-3">
@@ -144,28 +154,55 @@ export default function ShadowingPractice({
         </div>
         {phase === "idle" && (
           <button
-            onClick={playSentence}
+            onClick={() => playSentence(false)}
             className="h-10 w-10 rounded-2xl bg-lilacDeep text-white flex items-center justify-center shrink-0 active:scale-95 transition"
-            title="播放發音"
+            title="只播放，不錄音"
           >
             <Volume2 size={18} />
           </button>
         )}
       </div>
 
-      {phase === "idle" && (
-        <div className="space-y-2">
-          {speechSupported && !useManualInput && (
-            <button
-              onClick={startRecording}
-              className="w-full btn-primary flex items-center justify-center gap-2"
-            >
-              <Mic size={18} /> 開始跟讀練習
+      {(phase === "idle" || phase === "playing" || phase === "recording") && speechSupported && !useManualInput && (
+        <div className="flex flex-col items-center gap-2 py-2">
+          <motion.button
+            onClick={() => {
+              if (phase === "recording") stopRecording();
+              else if (phase === "idle") playSentence(true);
+            }}
+            disabled={phase === "playing"}
+            animate={phase === "recording" ? { scale: [1, 1.08, 1] } : { scale: 1 }}
+            transition={phase === "recording" ? { duration: 1, repeat: Infinity, ease: "easeInOut" } : {}}
+            className={`relative flex h-20 w-20 items-center justify-center rounded-full shadow-soft transition active:scale-95 disabled:opacity-70 ${
+              phase === "recording" ? "bg-peachDeep text-white" : phase === "playing" ? "bg-lilac text-lilacDeep" : "bg-lilacDeep text-white"
+            }`}
+            title={phase === "recording" ? "停止錄音" : "播放並跟讀"}
+          >
+            {phase === "recording" && <span className="absolute inset-0 rounded-full bg-peachDeep/60 animate-ping" />}
+            {phase === "playing" ? (
+              <Volume2 size={30} className="relative" />
+            ) : phase === "recording" ? (
+              <MicOff size={30} className="relative" />
+            ) : (
+              <Mic size={30} className="relative" />
+            )}
+          </motion.button>
+          <p className="text-sm font-bold text-inkSoft">
+            {phase === "playing" ? "AI 示範中…" : phase === "recording" ? "換你了！請跟著念" : "點一下：先聽 AI 示範，再跟著念"}
+          </p>
+          {phase === "recording" && (
+            <button onClick={stopRecording} className="btn-secondary px-4 py-2 text-sm flex items-center gap-2">
+              <MicOff size={14} /> 停止錄音
             </button>
           )}
+        </div>
+      )}
+
+      {phase === "idle" && (
+        <div className="space-y-2">
           {speechSupported && (
             <button
-              onClick={() => setUseManualInput(!useManualInput)}
+              onClick={toggleManualInput}
               className="w-full btn-secondary flex items-center justify-center gap-2"
             >
               <Keyboard size={18} /> {useManualInput ? "改用語音輸入" : "改用文字輸入"}
@@ -174,7 +211,7 @@ export default function ShadowingPractice({
           {!speechSupported && (
             <p className="text-sm text-inkSoft text-center">您的瀏覽器不支援語音輸入，請使用文字輸入</p>
           )}
-          {useManualInput || !speechSupported && (
+          {(useManualInput || !speechSupported) && (
             <div className="space-y-2">
               <textarea
                 value={userTranscript}
@@ -191,21 +228,6 @@ export default function ShadowingPractice({
               </button>
             </div>
           )}
-        </div>
-      )}
-
-      {phase === "recording" && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-peachDeep">
-            <div className="h-2 w-2 rounded-full bg-peachDeep animate-ping" />
-            <span className="text-sm font-bold">錄音中... 請跟讀</span>
-          </div>
-          <button
-            onClick={stopRecording}
-            className="w-full btn-secondary flex items-center justify-center gap-2"
-          >
-            <MicOff size={18} /> 停止錄音
-          </button>
         </div>
       )}
 
@@ -238,7 +260,7 @@ export default function ShadowingPractice({
               <RotateCcw size={16} /> 再試一次
             </button>
             <button
-              onClick={playSentence}
+              onClick={() => playSentence(false)}
               className="flex-1 btn-primary flex items-center justify-center gap-2"
             >
               <Volume2 size={16} /> 再聽一次

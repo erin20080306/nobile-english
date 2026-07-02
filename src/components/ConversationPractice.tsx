@@ -477,7 +477,7 @@ export default function ConversationPractice({
     voiceSubmitHandledRef.current = false;
     setVoiceDraft("");
     const stop = speechService.listen({
-      lang: "zh-TW",
+      lang: languageInfo.speechLang,
       onResult: (text) => {
         const transcript = text.trim();
         if (!transcript) return;
@@ -699,9 +699,9 @@ export default function ConversationPractice({
                 <Mic size={18} />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-extrabold text-ink">錄音中 · 請說中文或英文</p>
+                <p className="text-sm font-extrabold text-ink">錄音中 · 請用{languageInfo.zhName}回覆</p>
                 <p className="truncate text-xs font-semibold text-inkSoft">
-                  {voiceDraft || "自動辨識中英文"}
+                  {voiceDraft || `辨識中（${languageInfo.zhName}）`}
                 </p>
               </div>
               <button
@@ -720,11 +720,11 @@ export default function ConversationPractice({
             onClick={toggleMic}
             disabled={busy || finishedRef.current}
             title={recSupported ? "語音輸入" : "此瀏覽器不支援語音輸入"}
-            className={`h-10 w-10 rounded-2xl flex items-center justify-center active:scale-90 transition shrink-0 ${
+            className={`h-12 w-12 rounded-2xl flex items-center justify-center active:scale-90 transition shrink-0 ${
               listening ? "bg-peachDeep text-white animate-pulse" : recSupported ? "bg-mint text-mintDeep" : "bg-cream text-inkSoft"
             }`}
           >
-            {listening ? <MicOff size={18} /> : <Mic size={18} />}
+            {listening ? <MicOff size={22} /> : <Mic size={22} />}
           </button>
           <input
             value={input}

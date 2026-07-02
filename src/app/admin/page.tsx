@@ -37,6 +37,13 @@ interface TtsCheckError {
   fallbackModel?: string | null;
 }
 
+interface TtsProviderStatus {
+  active: "google" | "polly" | "stub";
+  override: "google" | "polly" | null;
+  googleConfigured: boolean;
+  pollyConfigured: boolean;
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const { user, ready } = useUser({ requireOnboarded: true });
@@ -47,6 +54,8 @@ export default function AdminPage() {
   const [log, setLog] = useState<{ msg: string; type: "ok" | "error" | "info" }[]>([]);
   const [articleLoading, setArticleLoading] = useState(true);
   const [envVars, setEnvVars] = useState<Record<string, boolean> | null>(null);
+  const [ttsProviderStatus, setTtsProviderStatus] = useState<TtsProviderStatus | null>(null);
+  const [switchingProvider, setSwitchingProvider] = useState(false);
 
   useEffect(() => {
     if (!ready) return;
@@ -57,8 +66,39 @@ export default function AdminPage() {
     checkSystem();
     loadArticleStatuses();
     checkEnvVars();
+    loadTtsProviderStatus();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, user]);
+
+  async function loadTtsProviderStatus() {
+    try {
+      const res = await fetch("/api/admin/tts-provider");
+      if (res.ok) setTtsProviderStatus(await res.json());
+    } catch {
+      setTtsProviderStatus(null);
+    }
+  }
+
+  async function switchTtsProvider(provider: "google" | "polly" | "auto") {
+    setSwitchingProvider(true);
+    try {
+      const res = await fetch("/api/admin/tts-provider", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setTtsProviderStatus(data);
+        addLog(`✅ AI 語音提供商已切換為：${provider === "auto" ? "自動" : provider}`, "ok");
+      } else {
+        addLog(`❌ 切換失敗：${data.error || "未知錯誤"}`, "error");
+      }
+    } catch (e) {
+      addLog(`❌ 切換錯誤：${e instanceof Error ? e.message : String(e)}`, "error");
+    }
+    setSwitchingProvider(false);
+  }
 
   async function checkEnvVars() {
     try {
@@ -344,14 +384,76 @@ export default function AdminPage() {
               <RefreshCw size={12} /> 重新檢查
             </button>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${statusColor[systemStatus.supabase]}`}>
               {statusIcon[systemStatus.supabase]} Supabase
             </span>
+            <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${statusColor[envVars?.GEMINI_API_KEY ? "ok" : "error"]}`}>
+              {statusIcon[envVars?.GEMINI_API_KEY ? "ok" : "error"]} Gemini AI（文章／導師）
+            </span>
             <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${statusColor[systemStatus.openai]}`}>
-              {statusIcon[systemStatus.openai]} OpenAI TTS
+              {statusIcon[systemStatus.openai]} OpenAI（僅備援語音）
             </span>
           </div>
+          <p className="text-xs text-inkSoft mt-2">
+            AI 文字生成（每日文章、導師回覆）已全面改用 Gemini。OpenAI 僅在 Google／Polly 語音暫時失敗時作為語音備援。
+          </p>
+        </div>
+
+        {/* AI Voice Provider */}
+        <div className="bg-white rounded-2xl p-4 shadow-softer">
+          <div className="flex items-center justify-between mb-3">
+            <p className="font-extrabold text-ink flex items-center gap-2"><Volume2 size={16} /> AI 語音提供商</p>
+            <button onClick={loadTtsProviderStatus} className="text-xs text-lilacDeep flex items-center gap-1 hover:underline">
+              <RefreshCw size={12} /> 重新整理
+            </button>
+          </div>
+          {ttsProviderStatus ? (
+            <>
+              <p className="text-sm text-inkSoft mb-3">
+                目前使用：<span className="font-bold text-ink">
+                  {ttsProviderStatus.active === "google" ? "Google TTS（便宜）" : ttsProviderStatus.active === "polly" ? "Amazon Polly（便宜）" : "尚未設定，暫用系統語音"}
+                </span>
+                {ttsProviderStatus.override && <span className="ml-1 text-xs text-lilacDeep">（手動指定）</span>}
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => switchTtsProvider("auto")}
+                  disabled={switchingProvider}
+                  className={`py-2.5 rounded-xl font-bold text-xs disabled:opacity-50 active:scale-95 transition ${
+                    !ttsProviderStatus.override ? "bg-lilacDeep text-white" : "bg-sand text-inkSoft"
+                  }`}
+                >
+                  自動（推薦）
+                </button>
+                <button
+                  onClick={() => switchTtsProvider("google")}
+                  disabled={switchingProvider || !ttsProviderStatus.googleConfigured}
+                  className={`py-2.5 rounded-xl font-bold text-xs disabled:opacity-40 active:scale-95 transition ${
+                    ttsProviderStatus.override === "google" ? "bg-lilacDeep text-white" : "bg-sand text-inkSoft"
+                  }`}
+                  title={ttsProviderStatus.googleConfigured ? "" : "尚未設定 GOOGLE_TTS_API_KEY"}
+                >
+                  Google TTS
+                </button>
+                <button
+                  onClick={() => switchTtsProvider("polly")}
+                  disabled={switchingProvider || !ttsProviderStatus.pollyConfigured}
+                  className={`py-2.5 rounded-xl font-bold text-xs disabled:opacity-40 active:scale-95 transition ${
+                    ttsProviderStatus.override === "polly" ? "bg-lilacDeep text-white" : "bg-sand text-inkSoft"
+                  }`}
+                  title={ttsProviderStatus.pollyConfigured ? "" : "尚未設定 AWS 金鑰"}
+                >
+                  Amazon Polly
+                </button>
+              </div>
+              <p className="text-xs text-inkSoft mt-2">
+                此設定套用於 AI 導師語音與每日文章朗讀。OpenAI 僅在此設定的服務暫時失敗時作為備援，不受此開關影響。
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-inkSoft">載入中...</p>
+          )}
         </div>
 
         {/* Today Article Status */}
@@ -468,10 +570,16 @@ export default function AdminPage() {
               <Database size={16} /> Supabase 後台
             </button>
             <button
+              onClick={() => window.open("https://aistudio.google.com", "_blank")}
+              className="py-3 px-4 rounded-xl bg-sand text-inkSoft font-bold text-sm text-left flex items-center gap-2 active:scale-95 transition"
+            >
+              <Zap size={16} /> Gemini / Google 後台
+            </button>
+            <button
               onClick={() => window.open("https://platform.openai.com", "_blank")}
               className="py-3 px-4 rounded-xl bg-sand text-inkSoft font-bold text-sm text-left flex items-center gap-2 active:scale-95 transition"
             >
-              <Zap size={16} /> OpenAI 後台
+              <Zap size={16} /> OpenAI 後台（備援）
             </button>
           </div>
         </div>

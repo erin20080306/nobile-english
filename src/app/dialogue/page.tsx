@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Home, Loader2, Mic, Play, RotateCcw, Square, Wand2 } from "lucide-react";
+import { Home, Loader2, Mic, RotateCcw, Square, Wand2 } from "lucide-react";
 import type { CustomScene, EnglishLevel, Scene, TutorFeedback, DialogueResult, DialogueTranscriptLine, LearningLanguageCode } from "@/types";
 import { sceneService } from "@/services/sceneService";
 import { learningService } from "@/services/learningService";
@@ -18,7 +18,7 @@ import { sceneCardStyle } from "@/data/sceneVisuals";
 import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
 import ConversationPractice from "@/components/ConversationPractice";
-import ShadowingPractice from "@/components/ShadowingPractice";
+import CustomScenePreview from "@/components/CustomScenePreview";
 import SubscriptionLaunchPrompt from "@/components/SubscriptionLaunchPrompt";
 import TutorSelector, { getSelectedTutor, TutorAvatar } from "@/components/TutorSelector";
 import HorizontalScrollChips from "@/components/HorizontalScrollChips";
@@ -372,8 +372,6 @@ function FreeChat({ targetLanguage, onExit }: { targetLanguage: LearningLanguage
   const [createdScene, setCreatedScene] = useState<CustomScene | null>(null);
   const [creatingScene, setCreatingScene] = useState(false);
   const [topicListening, setTopicListening] = useState(false);
-  const [shadowingPatternIndex, setShadowingPatternIndex] = useState<number | null>(null);
-  const [pronunciationScores, setPronunciationScores] = useState<Record<number, number>>({});
   const topicStopListenRef = useRef<(() => void) | null>(null);
 
   const languageInfo = getLearningLanguage(targetLanguage);
@@ -500,7 +498,6 @@ function FreeChat({ targetLanguage, onExit }: { targetLanguage: LearningLanguage
   }
 
   if (createdScene) {
-    const scene = createdScene.scene;
     return (
       <div className="min-h-[100dvh] flex flex-col">
         <AppHeader
@@ -512,75 +509,14 @@ function FreeChat({ targetLanguage, onExit }: { targetLanguage: LearningLanguage
             </button>
           }
         />
-        <div className="px-5 pb-8 space-y-4">
-          <div className="card bg-gradient-to-br from-peach to-lilac">
-            <div className="flex items-center gap-2">
-              <Wand2 className="text-peachDeep" />
-              <p className="text-xl font-extrabold text-ink">{scene.name}</p>
-            </div>
-            <p className="mt-2 text-sm leading-relaxed text-ink">{scene.intro}</p>
-          </div>
-
-          {createdScene.stages && createdScene.stages.length > 0 && (
-            <div className="card">
-              <p className="font-extrabold text-ink mb-3">自動階段</p>
-              <div className="space-y-2">
-                {createdScene.stages.map((stage, index) => (
-                  <div key={stage.title} className="rounded-3xl bg-cream p-3">
-                    <p className="text-sm font-extrabold text-peachDeep">STEP {index + 1}</p>
-                    <p className="font-bold text-ink">{stage.title}</p>
-                    <p className="text-sm text-inkSoft">{stage.learnerGoal}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="card">
-            <p className="font-extrabold text-ink mb-2">會用到的句型</p>
-            <div className="space-y-2">
-              {scene.keyPatterns.map((p, i) => (
-                <div key={p.en}>
-                  {shadowingPatternIndex === i ? (
-                    <ShadowingPractice
-                      sentence={p.en}
-                      translation={p.zh}
-                      targetLanguage={targetLanguage}
-                      onComplete={(score) => {
-                        setPronunciationScores((prev) => ({ ...prev, [i]: score }));
-                        setShadowingPatternIndex(null);
-                      }}
-                    />
-                  ) : (
-                    <div className="rounded-2xl bg-white/70 px-3 py-2 flex items-center gap-2">
-                      <p className="font-semibold text-ink flex-1">{p.en}</p>
-                      <p className="text-sm text-inkSoft">{p.zh}</p>
-                      {pronunciationScores[i] !== undefined && (
-                        <span className={`text-xs font-bold ${pronunciationScores[i] >= 75 ? "text-mintDeep" : "text-peachDeep"}`}>
-                          {pronunciationScores[i]}%
-                        </span>
-                      )}
-                      <button
-                        onClick={() => setShadowingPatternIndex(i)}
-                        className="text-lilacDeep hover:text-lilacDeep/80 transition"
-                        title="跟讀練習"
-                      >
-                        <Mic size={16} />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <button
-            className="btn-primary w-full flex items-center justify-center gap-2"
-            onClick={() => router.push(`/scenes/custom/${scene.id}`)}
-          >
-            <Play size={18} /> 開始自訂場景練習
-          </button>
-          <button className="btn-secondary w-full" onClick={() => setCreatedScene(null)}>繼續自由對話</button>
+        <div className="px-5 pb-8">
+          <CustomScenePreview
+            created={createdScene}
+            targetLanguage={targetLanguage}
+            onStart={() => router.push(`/scenes/custom/${createdScene.scene.id}`)}
+            startLabel="開始自訂場景練習"
+            secondaryAction={{ label: "繼續自由對話", onClick: () => setCreatedScene(null) }}
+          />
         </div>
       </div>
     );

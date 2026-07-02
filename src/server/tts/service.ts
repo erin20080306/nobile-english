@@ -44,7 +44,7 @@ function normalizeForAsset(input: GetOrCreateInput): string {
 // Check whether a text is already cached and how many characters it would bill,
 // WITHOUT calling the provider. Used by prewarm dry-run cost estimation.
 export async function peekTtsAsset(input: GetOrCreateInput): Promise<PeekResult> {
-  const provider = getTtsProvider(input.assetType);
+  const provider = await getTtsProvider(input.assetType);
   const store = getTtsAssetStore();
 
   const normalizedText = normalizeForAsset(input);
@@ -87,7 +87,7 @@ export async function peekTtsAsset(input: GetOrCreateInput): Promise<PeekResult>
 export async function getCachedTtsAsset(
   input: GetOrCreateInput
 ): Promise<GetOrCreateResult | null> {
-  const provider = getTtsProvider(input.assetType);
+  const provider = await getTtsProvider(input.assetType);
   const store = getTtsAssetStore();
 
   const normalizedText = normalizeForAsset(input);
@@ -125,7 +125,7 @@ export async function getCachedTtsAsset(
 export async function getOrCreateTtsAsset(
   input: GetOrCreateInput
 ): Promise<GetOrCreateResult> {
-  const provider = getTtsProvider(input.assetType);
+  const provider = await getTtsProvider(input.assetType);
   const store = getTtsAssetStore();
 
   const normalizedText = normalizeForAsset(input);

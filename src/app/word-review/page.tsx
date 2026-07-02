@@ -483,7 +483,9 @@ export default function WordReviewPage() {
                 <p className="font-semibold text-ink">
                   {(isWordChoice || isFillQuestion) ? wordReviewService.questionPromptFor(current.word, "wordFill") : current.word.example}
                 </p>
-                {current.word.exampleZh && <p className="text-sm text-inkSoft">{current.word.exampleZh}</p>}
+                {(current.word.exampleZh || current.word.zh) && (
+                  <p className="text-sm text-inkSoft">{current.word.exampleZh || current.word.zh}</p>
+                )}
               </div>
             )}
           </motion.div>
