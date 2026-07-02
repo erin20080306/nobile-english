@@ -296,6 +296,7 @@ function multilingualFallback(word: string, language: Exclude<LearningLanguageCo
     ko: { example: `${q}을/를 넣어서 짧은 문장을 만들어 보세요.`, zh: `試著把「${q}」放進短句裡。` },
     it: { example: `Prova a usare "${q}" in una frase breve.`, zh: `試著用「${q}」造一個短句。` },
     es: { example: `Prueba a usar "${q}" en una frase corta.`, zh: `試著用「${q}」造一個短句。` },
+    zh: { example: `試著用「${q}」造一個短句。`, zh: `試著用「${q}」造一個短句。` },
   };
 
   const nativeDef: Record<Exclude<LearningLanguageCode, "en">, string> = {
@@ -303,6 +304,7 @@ function multilingualFallback(word: string, language: Exclude<LearningLanguageCo
     ko: `'${q}'은(는) 한국어 대화에서 자주 쓰이는 표현입니다. 문맥으로 의미를 확인해 주세요.`,
     it: `"${q}" è un'espressione comune nelle conversazioni italiane. Controlla il significato nel contesto.`,
     es: `"${q}" es una palabra o expresión común en conversaciones en español. Revisa el significado según el contexto.`,
+    zh: `「${q}」是中文對話中常用的詞語，請根據上下文確認意思。`,
   };
 
   return {
