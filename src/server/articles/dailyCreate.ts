@@ -194,75 +194,84 @@ export async function createDailyArticles(
     throw new Error(`建立主題失敗：${JSON.stringify(topicError)}`);
   }
 
-  const results: DailyArticleCreateResult["results"] = [];
-  const articleIds: string[] = [];
+  // Generate and insert all five languages concurrently instead of one at a
+  // time — Gemini calls are the dominant latency here, so running them in
+  // parallel cuts total generation time roughly 5x.
+  const perLanguageResults = await Promise.all(
+    LANGUAGES.map(async (lang) => {
+      try {
+        const content = await generateArticle(lang, topic.zhTw, topic.category, newsHeadline);
 
-  for (const lang of LANGUAGES) {
-    try {
-      const content = await generateArticle(lang, topic.zhTw, topic.category, newsHeadline);
+        await supabase
+          .from("reading_articles")
+          .delete()
+          .eq("topic_id", topicData.id)
+          .eq("language_code", lang);
 
-      await supabase
-        .from("reading_articles")
-        .delete()
-        .eq("topic_id", topicData.id)
-        .eq("language_code", lang);
+        const { data: article, error: articleError } = await supabase
+          .from("reading_articles")
+          .insert({
+            topic_id: topicData.id,
+            language_code: lang,
+            title: content.title,
+            title_zh_tw: content.titleZhTw,
+            article_text: content.articleText,
+            difficulty_level: "A2",
+            estimated_reading_seconds: estimateReadingSeconds(content.articleText, lang),
+            source_type: "original_ai",
+            content_version: 1,
+            status: "published",
+            published_at: new Date().toISOString(),
+          })
+          .select()
+          .single();
 
-      const { data: article, error: articleError } = await supabase
-        .from("reading_articles")
-        .insert({
-          topic_id: topicData.id,
-          language_code: lang,
-          title: content.title,
-          title_zh_tw: content.titleZhTw,
-          article_text: content.articleText,
-          difficulty_level: "A2",
-          estimated_reading_seconds: estimateReadingSeconds(content.articleText, lang),
-          source_type: "original_ai",
-          content_version: 1,
-          status: "published",
-          published_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
+        if (articleError || !article) {
+          return { lang, success: false, error: JSON.stringify(articleError) } as const;
+        }
 
-      if (articleError || !article) {
-        results.push({ lang, success: false, error: JSON.stringify(articleError) });
-        continue;
+        const sentenceRows = content.sentences.map((sentence) => ({
+          article_id: article.id,
+          sentence_order: sentence.order,
+          sentence_text: sentence.text,
+          sentence_zh_tw: sentence.zhTw,
+          sentence_type: "body",
+          estimated_duration_ms: estimateSentenceDurationMs(sentence.text, lang),
+        }));
+        const { error: sentenceError } = await supabase
+          .from("reading_article_sentences")
+          .insert(sentenceRows);
+        if (sentenceError) throw sentenceError;
+
+        const questionRows = content.questions.map((question, index) => ({
+          article_id: article.id,
+          question_order: index + 1,
+          question_type: question.type,
+          question_text: question.question,
+          options_json: { options: question.options },
+          correct_answer_json: { answer: question.answer },
+          explanation_zh_tw: question.explanationZhTw,
+        }));
+        const { error: questionError } = await supabase
+          .from("reading_article_questions")
+          .insert(questionRows);
+        if (questionError) throw questionError;
+
+        return { lang, success: true, articleId: article.id as string, title: content.title } as const;
+      } catch (err) {
+        return { lang, success: false, error: err instanceof Error ? err.message : String(err) } as const;
       }
+    })
+  );
 
-      const sentenceRows = content.sentences.map((sentence) => ({
-        article_id: article.id,
-        sentence_order: sentence.order,
-        sentence_text: sentence.text,
-        sentence_zh_tw: sentence.zhTw,
-        sentence_type: "body",
-        estimated_duration_ms: estimateSentenceDurationMs(sentence.text, lang),
-      }));
-      const { error: sentenceError } = await supabase
-        .from("reading_article_sentences")
-        .insert(sentenceRows);
-      if (sentenceError) throw sentenceError;
-
-      const questionRows = content.questions.map((question, index) => ({
-        article_id: article.id,
-        question_order: index + 1,
-        question_type: question.type,
-        question_text: question.question,
-        options_json: { options: question.options },
-        correct_answer_json: { answer: question.answer },
-        explanation_zh_tw: question.explanationZhTw,
-      }));
-      const { error: questionError } = await supabase
-        .from("reading_article_questions")
-        .insert(questionRows);
-      if (questionError) throw questionError;
-
-      articleIds.push(article.id as string);
-      results.push({ lang, success: true, articleId: article.id as string, title: content.title });
-    } catch (err) {
-      results.push({ lang, success: false, error: err instanceof Error ? err.message : String(err) });
-    }
-  }
+  const results: DailyArticleCreateResult["results"] = perLanguageResults.map(({ lang, success, ...rest }) => ({
+    lang,
+    success,
+    ...rest,
+  }));
+  const articleIds: string[] = perLanguageResults
+    .filter((result): result is Extract<typeof result, { success: true }> => result.success)
+    .map((result) => result.articleId);
 
   await supabase
     .from("reading_article_topics")

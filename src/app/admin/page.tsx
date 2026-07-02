@@ -25,16 +25,6 @@ interface ArticleStatus {
 
 interface SystemStatus {
   supabase: "ok" | "error" | "checking";
-  openai: "ok" | "error" | "checking";
-}
-
-interface TtsCheckError {
-  error?: string;
-  message?: string;
-  providerStatus?: number;
-  providerMessage?: string;
-  model?: string;
-  fallbackModel?: string | null;
 }
 
 interface TtsProviderStatus {
@@ -49,7 +39,7 @@ export default function AdminPage() {
   const { user, ready } = useUser({ requireOnboarded: true });
 
   const [articleStatuses, setArticleStatuses] = useState<ArticleStatus[]>([]);
-  const [systemStatus, setSystemStatus] = useState<SystemStatus>({ supabase: "checking", openai: "checking" });
+  const [systemStatus, setSystemStatus] = useState<SystemStatus>({ supabase: "checking" });
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [log, setLog] = useState<{ msg: string; type: "ok" | "error" | "info" }[]>([]);
   const [articleLoading, setArticleLoading] = useState(true);
@@ -117,33 +107,12 @@ export default function AdminPage() {
   }
 
   async function checkSystem() {
-    setSystemStatus({ supabase: "checking", openai: "checking" });
+    setSystemStatus({ supabase: "checking" });
     try {
       const res = await fetch("/api/articles/today?language=en");
       setSystemStatus((s) => ({ ...s, supabase: res.status !== 500 ? "ok" : "error" }));
     } catch {
       setSystemStatus((s) => ({ ...s, supabase: "error" }));
-    }
-    try {
-      const res = await fetch("/api/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: "test", voice: "nova" }),
-      });
-      setSystemStatus((s) => ({ ...s, openai: res.ok ? "ok" : "error" }));
-      if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as TtsCheckError;
-        const detail = [
-          data.error,
-          data.providerStatus ? `OpenAI ${data.providerStatus}` : "",
-          data.providerMessage,
-          data.message,
-        ].filter(Boolean).join(" · ");
-        addLog(`OpenAI TTS 檢查失敗：${detail || res.status}`, "error");
-      }
-    } catch {
-      setSystemStatus((s) => ({ ...s, openai: "error" }));
-      addLog("OpenAI TTS 檢查失敗：無法連線到 /api/tts", "error");
     }
   }
 
@@ -391,12 +360,12 @@ export default function AdminPage() {
             <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${statusColor[envVars?.GEMINI_API_KEY ? "ok" : "error"]}`}>
               {statusIcon[envVars?.GEMINI_API_KEY ? "ok" : "error"]} Gemini AI（文章／導師）
             </span>
-            <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${statusColor[systemStatus.openai]}`}>
-              {statusIcon[systemStatus.openai]} OpenAI（僅備援語音）
+            <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${statusColor[envVars?.GNEWS_API_KEY ? "ok" : "error"]}`}>
+              {statusIcon[envVars?.GNEWS_API_KEY ? "ok" : "error"]} GNews（時事新聞來源）
             </span>
           </div>
           <p className="text-xs text-inkSoft mt-2">
-            AI 文字生成（每日文章、導師回覆）已全面改用 Gemini。OpenAI 僅在 Google／Polly 語音暫時失敗時作為語音備援。
+            AI 文字生成（每日文章、導師回覆）已全面改用 Gemini。GNews 用於抓取真實時事新聞當作文章素材，未設定時會改用一般主題。
           </p>
         </div>
 
@@ -448,7 +417,7 @@ export default function AdminPage() {
                 </button>
               </div>
               <p className="text-xs text-inkSoft mt-2">
-                此設定套用於 AI 導師語音與每日文章朗讀。OpenAI 僅在此設定的服務暫時失敗時作為備援，不受此開關影響。
+                此設定套用於 AI 導師語音與每日文章朗讀。
               </p>
             </>
           ) : (
@@ -574,12 +543,6 @@ export default function AdminPage() {
               className="py-3 px-4 rounded-xl bg-sand text-inkSoft font-bold text-sm text-left flex items-center gap-2 active:scale-95 transition"
             >
               <Zap size={16} /> Gemini / Google 後台
-            </button>
-            <button
-              onClick={() => window.open("https://platform.openai.com", "_blank")}
-              className="py-3 px-4 rounded-xl bg-sand text-inkSoft font-bold text-sm text-left flex items-center gap-2 active:scale-95 transition"
-            >
-              <Zap size={16} /> OpenAI 後台（備援）
             </button>
           </div>
         </div>
