@@ -17,7 +17,8 @@ interface WiktionaryPartOfSpeech {
 interface WiktionaryEntry {
   etymology?: string;
   language: string;
-  pos: WiktionaryPartOfSpeech[];
+  partOfSpeech: string;
+  definitions: WiktionarySense[];
 }
 
 /**
@@ -54,23 +55,22 @@ export async function queryWiktionary(word: string, language: "es" | "it"): Prom
     const examples: { text: string; translation?: string }[] = [];
     const posTags: string[] = [];
 
-    for (const pos of entry.pos) {
-      posTags.push(pos.partOfSpeech);
-      for (const sense of pos.definitions) {
-        if (sense.definition) {
-          definitions.push(sense.definition);
-        }
-        if (sense.parsedExamples && sense.parsedExamples.length > 0) {
-          for (const example of sense.parsedExamples) {
-            if (example.example) {
-              examples.push({ text: example.example, translation: example.translation });
-            }
+    posTags.push(entry.partOfSpeech);
+    
+    for (const sense of entry.definitions) {
+      if (sense.definition) {
+        definitions.push(sense.definition);
+      }
+      if (sense.parsedExamples && sense.parsedExamples.length > 0) {
+        for (const example of sense.parsedExamples) {
+          if (example.example) {
+            examples.push({ text: example.example, translation: example.translation });
           }
-        } else if (sense.examples && sense.examples.length > 0) {
-          for (const example of sense.examples) {
-            if (example) {
-              examples.push({ text: example });
-            }
+        }
+      } else if (sense.examples && sense.examples.length > 0) {
+        for (const example of sense.examples) {
+          if (example) {
+            examples.push({ text: example });
           }
         }
       }
