@@ -584,6 +584,11 @@ function buildFreeScene(targetLanguage: LearningLanguageCode = "en"): Scene {
         { en: "Cuéntame un poco más.", zh: "再多告訴我一點。" },
         { en: "Eso es muy interesante.", zh: "這很有趣。" },
       ],
+      zh: [
+        { en: "今天想做什麼？", zh: "今天想做什麼？" },
+        { en: "請再詳細說一點。", zh: "請再詳細說一點。" },
+        { en: "這很有趣。", zh: "這很有趣。" },
+      ],
     };
     const dialogue: Record<LearningLanguageCode, Scene["dialogue"]> = {
       en: [],
@@ -607,6 +612,11 @@ function buildFreeScene(targetLanguage: LearningLanguageCode = "en"): Scene {
         { speaker: "user", en: "Quiero practicar español.", zh: "我想練習西班牙文。" },
         { speaker: "tutor", en: "Perfecto. ¿Qué tema quieres practicar hoy?", zh: "很好。今天想練什麼主題呢？" },
       ],
+      zh: [
+        { speaker: "tutor", en: language.freeOpening.target, zh: language.freeOpening.zh },
+        { speaker: "user", en: "我想練習中文。", zh: "我想練習中文。" },
+        { speaker: "tutor", en: "很好。今天想練什麼主題呢？", zh: "很好。今天想練什麼主題呢？" },
+      ],
     };
     const keyWordsByLanguage: Record<LearningLanguageCode, string[]> = {
       en: ["chat", "talk", "share", "express", "practice"],
@@ -614,6 +624,7 @@ function buildFreeScene(targetLanguage: LearningLanguageCode = "en"): Scene {
       ko: ["오늘", "연습", "말하다", "주제", "자세히"],
       it: ["oggi", "praticare", "parlare", "argomento", "dettaglio"],
       es: ["hoy", "practicar", "hablar", "tema", "detalle"],
+      zh: ["今天", "練習", "說話", "主題", "詳細"],
     };
     return {
       id: "free-chat",
