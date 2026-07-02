@@ -119,8 +119,8 @@ export default function ShadowingPractice({
     setPhase("playing");
     const opts = voiceForLanguage(targetLanguage as any, 1);
     // When cloud voice is available, have the tutor say a short Chinese lead-in
-    // ("跟我讀：") before the target sentence, like a real tutor prompting you.
-    const promptText = opts.ttsVoice ? `跟我讀：${sentence}` : sentence;
+    // ("請跟我讀：") before the target sentence, like a real tutor prompting you.
+    const promptText = opts.ttsVoice ? `請跟我讀：${sentence}` : sentence;
     const r = speechService.speak(promptText, {
       ...opts,
       onEnd: () => {
@@ -272,18 +272,18 @@ export default function ShadowingPractice({
                 disabled={phase === "playing"}
                 animate={isRecording ? { scale: [1, 1.08, 1] } : { scale: 1 }}
                 transition={isRecording ? { duration: 1, repeat: Infinity, ease: "easeInOut" } : {}}
-                className={`relative flex h-24 w-24 items-center justify-center rounded-full shadow-soft transition active:scale-95 disabled:opacity-70 ${
+                className={`relative flex h-32 w-32 items-center justify-center rounded-full shadow-soft transition active:scale-95 disabled:opacity-70 ${
                   isRecording ? "bg-peachDeep text-white" : phase === "playing" ? "bg-lilac text-lilacDeep" : "bg-lilacDeep text-white"
                 }`}
                 title={isRecording ? "停止錄音" : "點擊說話"}
               >
                 {isRecording && <span className="absolute inset-0 rounded-full bg-peachDeep/60 animate-ping" />}
                 {phase === "playing" ? (
-                  <Volume2 size={34} className="relative" />
+                  <Volume2 size={44} className="relative" />
                 ) : isRecording ? (
-                  <MicOff size={34} className="relative" />
+                  <MicOff size={44} className="relative" />
                 ) : (
-                  <Mic size={34} className="relative" />
+                  <Mic size={44} className="relative" />
                 )}
               </motion.button>
               <p className="text-sm font-bold text-inkSoft">
@@ -355,6 +355,8 @@ export default function ShadowingPractice({
                 </div>
 
                 <p className="text-sm text-center font-semibold text-ink">{feedback}</p>
+
+                <p className="text-xs text-center text-inkSoft">點擊下方按鈕繼續練習</p>
 
                 <div className="flex gap-2">
                   <button
