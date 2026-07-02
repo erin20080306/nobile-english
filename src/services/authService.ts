@@ -1,5 +1,7 @@
 import type { AccountProfile, User, OnboardingProfile, UserSettings } from "@/types";
 import { storageService, KEYS } from "./storageService";
+import { cloudSyncService } from "./cloudSyncService";
+import { supabaseBrowserClient } from "./supabaseBrowserClient";
 
 const DEMO_EMAIL = "erin20080306@gmail.com";
 const MAX_BOUND_DEVICES = 1;
@@ -64,6 +66,11 @@ function bindCurrentDevice(user: User): { ok: boolean; error?: string; user?: Us
       lastDeviceSeenAt: now(),
     },
   };
+}
+
+function pushProfileIfCloud(userId: string, users: User[]) {
+  const user = users.find((u) => u.id === userId);
+  if (user) void cloudSyncService.pushProfile(userId, user);
 }
 
 function defaultSettings(userId: string): UserSettings {
@@ -163,42 +170,67 @@ export const authService = {
     return { ok: true, user: bound.user };
   },
 
-  loginWithGoogle(): { ok: boolean; error?: string; user?: User } {
-    let users = this.getUsers();
-    let demo = users.find((u) => u.email.toLowerCase() === DEMO_EMAIL);
-    if (!demo) {
-      demo = {
-        id: "demo-erin",
-        name: "Erin",
-        email: DEMO_EMAIL,
-        password: "demo",
+  // Real Google login via Supabase Auth. Triggers a full-page OAuth redirect;
+  // the actual session/account reconciliation happens in hydrateFromSupabaseSession
+  // once the user is redirected back to /auth/callback.
+  async loginWithGoogle(): Promise<{ ok: boolean; error?: string }> {
+    if (!supabaseBrowserClient) {
+      return { ok: false, error: "登入服務尚未設定" };
+    }
+    const { error } = await supabaseBrowserClient.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
+    });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  },
+
+  // Called once on /auth/callback (and defensively on app bootstrap) after a
+  // real Supabase Auth session is established. Restores this account's cloud
+  // data if it has any, or seeds the cloud account from whatever is on this
+  // device (e.g. data from local testing) the first time it ever signs in.
+  async hydrateFromSupabaseSession(supabaseUser: {
+    id: string;
+    email?: string | null;
+    user_metadata?: Record<string, unknown>;
+  }): Promise<User> {
+    const uid = supabaseUser.id;
+    cloudSyncService.setActiveUser(uid);
+
+    const cloudProfile = await cloudSyncService.pullProfile(uid);
+    await cloudSyncService.pullAll(uid);
+
+    let user: User;
+    if (cloudProfile) {
+      user = cloudProfile;
+    } else {
+      const meta = supabaseUser.user_metadata || {};
+      user = ensureProfiles({
+        id: uid,
+        name: String(meta.full_name || meta.name || "學習者"),
+        email: supabaseUser.email || "",
         provider: "google",
         level: "Beginner",
         cefrLevel: "A2",
         createdAt: now(),
-        isDemo: true,
-        onboarded: true,
-      };
-      users.push(demo);
-
-      const profile: OnboardingProfile = {
-        userId: demo.id,
-        language: "English",
-        learningGoal: "日常會話",
-        interests: ["旅遊", "職場", "日常生活", "科技"],
-        dailyGoalMinutes: 15,
-        chineseSetting: "always",
-        selfRatedLevel: "Beginner",
-      };
-      storageService.set(KEYS.onboarding, profile);
-      storageService.set(KEYS.settings, defaultSettings(demo.id));
+        isDemo: false,
+        onboarded: false,
+      });
+      if (!storageService.get(KEYS.settings, null)) {
+        storageService.set(KEYS.settings, defaultSettings(uid), { skipSync: true });
+      }
     }
-    const bound = bindCurrentDevice({ ...demo, provider: "google" });
-    if (!bound.ok || !bound.user) return { ok: false, error: bound.error };
-    users = users.map((u) => (u.id === bound.user!.id ? bound.user! : u));
-    storageService.set(KEYS.users, users);
-    storageService.set(KEYS.session, bound.user.id);
-    return { ok: true, user: bound.user };
+
+    const others = this.getUsers().filter((u) => u.id !== uid);
+    storageService.set(KEYS.users, [...others, user], { skipSync: true });
+    storageService.set(KEYS.session, uid, { skipSync: true });
+
+    if (!cloudProfile) {
+      await cloudSyncService.pushProfile(uid, user);
+      await cloudSyncService.pushAll(uid);
+    }
+
+    return user;
   },
 
   loginWithApple(appleUser: { id: string; email: string; name: string }): { ok: boolean; error?: string; user?: User } {
@@ -229,14 +261,10 @@ export const authService = {
     return { ok: true, user: bound.user };
   },
 
-  loginDemo(): User {
-    const result = this.loginWithGoogle();
-    if (result.ok && result.user) return result.user;
-    throw new Error(result.error || "登入失敗");
-  },
-
   logout() {
     storageService.remove(KEYS.session);
+    cloudSyncService.setActiveUser(null);
+    if (supabaseBrowserClient) void supabaseBrowserClient.auth.signOut();
   },
 
   setOnboarded(value: boolean) {
@@ -244,6 +272,7 @@ export const authService = {
     if (!user) return;
     const users = this.getUsers().map((u) => (u.id === user.id ? { ...u, onboarded: value } : u));
     storageService.set(KEYS.users, users);
+    pushProfileIfCloud(user.id, users);
   },
 
   updateLevel(level: User["level"], cefr: User["cefrLevel"]) {
@@ -253,6 +282,7 @@ export const authService = {
       u.id === user.id ? { ...u, level, cefrLevel: cefr } : u
     );
     storageService.set(KEYS.users, users);
+    pushProfileIfCloud(user.id, users);
   },
 
   getDeviceInfo(user?: User | null) {
@@ -282,6 +312,7 @@ export const authService = {
     });
     const users = this.getUsers().map((u) => (u.id === user.id ? next : u));
     storageService.set(KEYS.users, users);
+    pushProfileIfCloud(user.id, users);
     return { ok: true, user: next };
   },
 
@@ -293,6 +324,7 @@ export const authService = {
     const next = { ...prepared, activeProfileId: profileId };
     const users = this.getUsers().map((u) => (u.id === user.id ? next : u));
     storageService.set(KEYS.users, users);
+    pushProfileIfCloud(user.id, users);
     return { ok: true, user: next };
   },
 };

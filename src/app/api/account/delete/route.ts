@@ -52,6 +52,13 @@ export async function POST(req: NextRequest) {
       // Table might not exist, ignore
     }
 
+    // Delete cloud-synced app data (settings, saved words, stats, etc.)
+    try {
+      await supabase.from("user_app_data").delete().eq("user_id", userId);
+    } catch {
+      // Table might not exist, ignore
+    }
+
     // Delete user from auth
     await supabase.auth.admin.deleteUser(userId);
 

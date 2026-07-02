@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import AppBootstrap from "@/components/AppBootstrap";
 
 export const metadata: Metadata = {
   title: "Mobile Language｜時尚 Q 版語言學習",
@@ -24,6 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="zh-Hant">
       <body>
+        <AppBootstrap />
         <div className="app-shell">{children}</div>
       </body>
     </html>

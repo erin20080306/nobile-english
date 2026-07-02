@@ -121,7 +121,7 @@ export default function SettingsPage() {
         <div className="card flex items-center gap-3">
           <div className="h-14 w-14 rounded-3xl bg-lilac flex items-center justify-center"><UserIcon className="text-lilacDeep" /></div>
           <div className="flex-1">
-            <p className="font-extrabold text-ink">{shownUser.name}{shownUser.isDemo && <span className="chip bg-peach text-peachDeep text-xs ml-2">Google 綁定</span>}</p>
+            <p className="font-extrabold text-ink">{shownUser.name}{shownUser.provider === "google" && <span className="chip bg-mint text-mintDeep text-xs ml-2">已同步雲端</span>}</p>
             <p className="text-sm text-inkSoft">{shownUser.email}</p>
           </div>
           <LevelBadge level={shownUser.level} />
@@ -130,11 +130,19 @@ export default function SettingsPage() {
         <div className="card space-y-3">
           <p className="font-bold text-ink flex items-center gap-2"><ShieldCheck size={18} className="text-mintDeep" /> 帳號與裝置綁定</p>
           <Row label="登入方式" value={shownUser.provider === "google" ? "Google 帳號" : shownUser.provider === "apple" ? "Apple 帳號" : "帳號登入"} />
-          <Row label="綁定規則" value="一個帳號只能綁定 1 支手機" />
-          <Row label="綁定手機" value={`${shownUser.deviceName || deviceInfo.currentDeviceName} · ${deviceInfo.shortId}`} />
-          <p className="text-xs text-inkSoft leading-relaxed">
-            帳號綁定後，其他手機無法使用此帳號登入。如需換手機，請先聯絡客服。
-          </p>
+          {shownUser.provider === "google" ? (
+            <p className="text-xs text-inkSoft leading-relaxed">
+              學習資料已同步到你的 Google 帳號，換手機或重新安裝後，用同一個 Google 帳號登入即可自動恢復。
+            </p>
+          ) : (
+            <>
+              <Row label="綁定規則" value="一個帳號只能綁定 1 支手機" />
+              <Row label="綁定手機" value={`${shownUser.deviceName || deviceInfo.currentDeviceName} · ${deviceInfo.shortId}`} />
+              <p className="text-xs text-inkSoft leading-relaxed">
+                帳號綁定後，其他手機無法使用此帳號登入。如需換手機，請先聯絡客服。
+              </p>
+            </>
+          )}
         </div>
 
         <div className="card">

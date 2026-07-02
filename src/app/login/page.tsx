@@ -15,13 +15,13 @@ export default function LoginPage() {
     router.replace(user.onboarded ? "/dashboard" : "/onboarding");
   }
 
-  function handleGoogle() {
-    const res = authService.loginWithGoogle();
-    if (!res.ok || !res.user) {
+  async function handleGoogle() {
+    const res = await authService.loginWithGoogle();
+    if (!res.ok) {
       setError(res.error || "Google 登入失敗");
-      return;
     }
-    go(res.user);
+    // On success, Supabase redirects the whole page to Google, then back to
+    // /auth/callback, so there is nothing else to do here.
   }
 
   async function handleApple() {

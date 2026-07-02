@@ -7,6 +7,16 @@ function isBrowser() {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 }
 
+// Optional hook so cloudSyncService can mirror writes to Supabase for real
+// (Google-logged-in) accounts without storageService needing to know about
+// auth or network at all. Registered lazily to avoid circular imports.
+type StorageSyncHook = (key: string, value: unknown) => void;
+let syncHook: StorageSyncHook | null = null;
+
+export function setStorageSyncHook(hook: StorageSyncHook | null): void {
+  syncHook = hook;
+}
+
 export const storageService = {
   get<T>(key: string, fallback: T): T {
     if (!isBrowser()) return fallback;
@@ -19,10 +29,11 @@ export const storageService = {
     }
   },
 
-  set<T>(key: string, value: T): void {
+  set<T>(key: string, value: T, options?: { skipSync?: boolean }): void {
     if (!isBrowser()) return;
     try {
       window.localStorage.setItem(PREFIX + key, JSON.stringify(value));
+      if (!options?.skipSync) syncHook?.(key, value);
     } catch {
       /* quota or serialization error – ignore for MVP */
     }
