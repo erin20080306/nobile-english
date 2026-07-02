@@ -3,12 +3,14 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Volume2, Mic, MicOff, RotateCcw, Check, X, Keyboard } from "lucide-react";
+import { Volume2, Mic, MicOff, RotateCcw, Check, X, Keyboard, X as CloseIcon } from "lucide-react";
 import { speechService } from "@/services/speechService";
 import { getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
 import { learningService } from "@/services/learningService";
 import { storageService, KEYS } from "@/services/storageService";
+import { getSelectedTutor } from "@/components/TutorSelector";
 import AppHeader from "@/components/AppHeader";
+import type { LearningLanguageCode } from "@/types";
 
 interface ShadowingSentence {
   en: string;
@@ -26,10 +28,12 @@ export default function ShadowingPage() {
   const [useManualInput, setUseManualInput] = useState(false);
   const [scores, setScores] = useState<number[]>([]);
   const [targetLanguage, setTargetLanguage] = useState<any>("en");
+  const [tutor, setTutor] = useState(() => getSelectedTutor("en" as LearningLanguageCode));
 
   const stopListenRef = useRef<(() => void) | null>(null);
   const languageInfo = getLearningLanguage(targetLanguage);
   const speechSupported = speechService.isRecognitionSupported();
+  const tutorSpeaking = phase === "playing";
 
   useEffect(() => {
     // Load shadowing sentences from storage (from scene page) or default
@@ -43,6 +47,7 @@ export default function ShadowingPage() {
         setTargetLanguage(patternData.targetLanguage || "en");
         setSentences(allPatterns);
         setCurrentIndex(startIndex);
+        setTutor(getSelectedTutor(patternData.targetLanguage as LearningLanguageCode));
         setPhase("idle");
         
         // Auto-start playback after a short delay
@@ -53,6 +58,7 @@ export default function ShadowingPage() {
         // Default sentences for standalone access
         const lang = learningService.getCurrentLanguage();
         setTargetLanguage(lang);
+        setTutor(getSelectedTutor(lang as LearningLanguageCode));
         
         const defaultSentences: ShadowingSentence[] = [
           { en: "Hello, how are you today?", zh: "你好，今天好嗎？" },
@@ -308,26 +314,74 @@ export default function ShadowingPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] flex flex-col">
-      <AppHeader
-        title="跟讀練習"
-        subtitle={`句子 ${currentIndex + 1} / ${sentences.length}`}
-        onBack={() => router.back()}
-      />
-      
-      <div className="flex-1 px-5 py-4">
-        <div className="h-1.5 bg-sand rounded-full overflow-hidden mb-4">
-          <motion.div
-            className="h-full bg-lilacDeep rounded-full"
-            animate={{ width: `${((currentIndex + 1) / sentences.length) * 100}%` }}
-            transition={{ duration: 0.3 }}
-          />
+    <div className="fixed inset-0 z-50 flex flex-col bg-ink">
+      {/* AI tutor video-call style header */}
+      <div className={`relative h-[42vh] min-h-[280px] shrink-0 overflow-hidden transition-all duration-300 ${tutorSpeaking ? "ring-4 ring-mint/70" : ""}`}>
+        <img
+          src={tutor.photoUrl}
+          alt=""
+          onError={(e) => { e.currentTarget.src = "/assets/tutors/tutor-fallback.svg"; }}
+          className="absolute inset-0 h-full w-full scale-110 object-cover blur-lg opacity-50"
+        />
+        <motion.img
+          src={tutor.photoUrl}
+          alt={tutor.name}
+          onError={(e) => { e.currentTarget.src = "/assets/tutors/tutor-fallback.svg"; }}
+          animate={tutorSpeaking ? { scale: [1, 1.025, 1], y: [0, -3, 0] } : { scale: 1, y: 0 }}
+          transition={tutorSpeaking ? { duration: 1.15, repeat: Infinity, ease: "easeInOut" } : { duration: 0.25 }}
+          className={`relative h-full w-full object-contain object-center transition-[filter] duration-300 ${tutorSpeaking ? "drop-shadow-[0_0_24px_rgba(167,139,250,0.55)]" : ""}`}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-ink/90 via-ink/10 to-black/30" />
+
+        <button
+          onClick={() => router.back()}
+          className="absolute left-4 top-4 h-10 w-10 rounded-2xl bg-white/15 text-white flex items-center justify-center backdrop-blur active:scale-90 transition"
+        >
+          <CloseIcon size={20} />
+        </button>
+
+        <div className="absolute left-4 top-4 ml-14 flex items-center gap-2 rounded-full bg-black/35 px-3 py-1.5 text-xs font-extrabold text-white backdrop-blur">
+          <span className={`h-2 w-2 rounded-full bg-mintDeep shadow-[0_0_12px_rgba(86,211,145,0.9)] ${tutorSpeaking ? "animate-ping" : ""}`} />
+          LIVE
         </div>
 
-        <div className="rounded-3xl bg-white shadow-soft p-5 text-center mb-4">
-          <p className="text-2xl font-black text-ink leading-snug">{currentSentence.en}</p>
-          <p className="text-inkSoft mt-2">{currentSentence.zh}</p>
+        {tutorSpeaking && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="absolute right-4 top-4 flex h-10 items-center gap-1 rounded-2xl bg-white/90 px-3 shadow-softer"
+          >
+            <span className="h-3 w-1 rounded-full bg-lilacDeep animate-bounce" style={{ animationDelay: "0ms" }} />
+            <span className="h-5 w-1 rounded-full bg-lilacDeep animate-bounce" style={{ animationDelay: "120ms" }} />
+            <span className="h-4 w-1 rounded-full bg-lilacDeep animate-bounce" style={{ animationDelay: "240ms" }} />
+            <span className="h-6 w-1 rounded-full bg-peachDeep animate-bounce" style={{ animationDelay: "360ms" }} />
+          </motion.div>
+        )}
+
+        <div className="absolute left-4 right-4 bottom-4">
+          <p className="text-lg font-black text-white leading-tight drop-shadow">{tutor.name} {tutor.flag}</p>
+          <p className="text-sm font-semibold text-white/85">說出這個句子</p>
         </div>
+      </div>
+
+      {/* Content sheet */}
+      <div className="flex-1 min-h-0 overflow-y-auto rounded-t-[32px] bg-cream px-5 pt-6 pb-8 -mt-5 relative">
+        <div className="mx-auto max-w-md">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="h-1.5 bg-sand rounded-full overflow-hidden flex-1">
+              <motion.div
+                className="h-full bg-lilacDeep rounded-full"
+                animate={{ width: `${((currentIndex + 1) / sentences.length) * 100}%` }}
+                transition={{ duration: 0.3 }}
+              />
+            </div>
+            <span className="text-xs font-bold text-inkSoft">{currentIndex + 1}/{sentences.length}</span>
+          </div>
+
+          <div className="rounded-3xl bg-white shadow-soft p-5 text-center mb-4">
+            <p className="text-2xl font-black text-ink leading-snug">{currentSentence.en}</p>
+            <p className="text-inkSoft mt-2">{currentSentence.zh}</p>
+          </div>
 
         {(phase === "idle" || phase === "playing" || phase === "recording") && speechSupported && !useManualInput && (
           <div className="flex flex-col items-center gap-3 py-6">
@@ -442,6 +496,7 @@ export default function ShadowingPage() {
             </motion.div>
           )}
         </AnimatePresence>
+        </div>
       </div>
     </div>
   );
