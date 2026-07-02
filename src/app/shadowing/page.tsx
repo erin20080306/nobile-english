@@ -158,35 +158,61 @@ export default function ShadowingPage() {
 
   async function playSentence(autoRecordAfter = false) {
     setPhase("playing");
-    const opts = voiceForLanguage(targetLanguage, 1);
     
-    // Always use browser TTS for Chinese prompt to ensure it works
-    const r1 = speechService.speak("請跟我讀", {
-      lang: "zh-TW",
-      voiceKeywords: ["google 繁體中文", "microsoft huihui", "microsoft yating", "mei-jia"],
-      rate: 0.9,
-      onEnd: () => {
-        setTimeout(() => {
-          // Use cloud TTS for target sentence if available, otherwise browser TTS
-          const r2 = speechService.speak(currentSentence.en, {
-            ...opts,
-            onEnd: () => {
-              if (autoRecordAfter && speechSupported && !useManualInput) {
-                startRecording();
-              } else {
+    // Safety timeout to prevent getting stuck
+    const safetyTimeout = setTimeout(() => {
+      console.warn("playSentence safety timeout triggered");
+      setPhase("idle");
+    }, 10000); // 10 second timeout
+    
+    try {
+      // First speak Chinese prompt with browser TTS
+      const r1 = speechService.speak("請跟我讀", {
+        lang: "zh-TW",
+        voiceKeywords: ["google 繁體中文", "microsoft huihui", "microsoft yating", "mei-jia"],
+        rate: 0.9,
+        onEnd: () => {
+          // Small delay then speak target sentence
+          setTimeout(() => {
+            const opts = voiceForLanguage(targetLanguage, 1);
+            const r2 = speechService.speak(currentSentence.en, {
+              ...opts,
+              onEnd: () => {
+                clearTimeout(safetyTimeout);
+                if (autoRecordAfter && speechSupported && !useManualInput) {
+                  startRecording();
+                } else {
+                  setPhase("idle");
+                }
+              },
+              onError: (msg) => {
+                console.error("Target sentence TTS error:", msg);
+                clearTimeout(safetyTimeout);
                 setPhase("idle");
               }
-            },
-          });
-          if (!r2.ok) {
-            alert(r2.message);
-            setPhase("idle");
-          }
-        }, 300);
-      },
-    });
-    if (!r1.ok) {
-      alert(r1.message);
+            });
+            if (!r2.ok) {
+              console.error("Target sentence TTS failed:", r2.message);
+              clearTimeout(safetyTimeout);
+              setPhase("idle");
+            }
+          }, 300);
+        },
+        onError: (msg) => {
+          console.error("Chinese prompt TTS error:", msg);
+          clearTimeout(safetyTimeout);
+          setPhase("idle");
+        }
+      });
+      
+      if (!r1.ok) {
+        console.error("Chinese prompt TTS failed:", r1.message);
+        clearTimeout(safetyTimeout);
+        setPhase("idle");
+      }
+    } catch (error) {
+      console.error("playSentence error:", error);
+      clearTimeout(safetyTimeout);
       setPhase("idle");
     }
   }
