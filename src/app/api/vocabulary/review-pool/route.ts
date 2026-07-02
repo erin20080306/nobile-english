@@ -40,9 +40,16 @@ const LEVEL_TARGETS: Record<LearningLanguageCode, Record<EnglishLevel, number>> 
     "Upper-Intermediate": 6000,
     Advanced: 10000,
   },
+  zh: {
+    Beginner: 650,
+    Elementary: 1800,
+    Intermediate: 4000,
+    "Upper-Intermediate": 6000,
+    Advanced: 10000,
+  },
 };
 
-const LANGUAGES: LearningLanguageCode[] = ["en", "ja", "ko", "it", "es"];
+const LANGUAGES: LearningLanguageCode[] = ["en", "ja", "ko", "it", "es", "zh"];
 const LEVELS: EnglishLevel[] = ["Beginner", "Elementary", "Intermediate", "Upper-Intermediate", "Advanced"];
 const DEFAULT_POOL_LIMIT = 900;
 const MAX_POOL_LIMIT = 1500;
