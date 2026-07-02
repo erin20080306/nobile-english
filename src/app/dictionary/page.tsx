@@ -19,6 +19,25 @@ const LANGS: { code: LearningLanguageCode; label: string; flag: string; placehol
   { code: "es", label: "西班牙文", flag: "🇪🇸", placeholder: "Escribe una palabra española" },
 ];
 
+const CHINESE_PATTERN = /[\u4e00-\u9fff]/;
+
+function entryFromApi(word: string, lang: LearningLanguageCode, api: { word: string; phonetic?: string; ipa?: string; pos?: string; definitions: string[]; definitionsZhTw: string[]; examples: { text: string; translation?: string }[]; synonyms?: string[]; antonyms?: string[] }): Word {
+  const allowedPos = ["n.", "v.", "adj.", "adv.", "prep.", "conj.", "interj.", "pron."] as const;
+  const pos = (allowedPos as readonly string[]).includes(api.pos || "") ? (api.pos as Word["pos"]) : "n.";
+  return {
+    language: lang,
+    word: api.word || word,
+    phonetic: api.phonetic || api.ipa || "/-/",
+    pos,
+    enDef: api.definitions?.join("; ") || "",
+    zh: api.definitionsZhTw?.join("; ") || "",
+    example: api.examples?.[0]?.text || "",
+    exampleZh: api.examples?.[0]?.translation,
+    synonyms: api.synonyms,
+    antonyms: api.antonyms,
+  };
+}
+
 export default function DictionaryPage() {
   const [lang, setLang] = useState<LearningLanguageCode>("en");
   const [query, setQuery] = useState("");
@@ -26,21 +45,55 @@ export default function DictionaryPage() {
   const [notFound, setNotFound] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const currentLang = LANGS.find((l) => l.code === lang)!;
 
-  function lookup(word = query) {
-    if (!word.trim()) return;
-    const res = dictionaryService.lookup(word.trim(), lang);
-    if (res.entry) {
-      setEntry(res.entry);
+  async function lookupRemote(word: string, sourceLanguage?: "zh") {
+    try {
+      const res = await fetch("/api/dictionary-public", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ word, language: lang, sourceLanguage }),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data.entry) return null;
+      return entryFromApi(word, lang, data.entry);
+    } catch {
+      return null;
+    }
+  }
+
+  async function lookup(word = query) {
+    const trimmed = word.trim();
+    if (!trimmed) return;
+    setSuggestions([]);
+
+    const isChineseInput = CHINESE_PATTERN.test(trimmed) && lang !== "zh";
+
+    if (!isChineseInput) {
+      const res = dictionaryService.lookup(trimmed, lang);
+      if (res.entry) {
+        setEntry(res.entry);
+        setNotFound(false);
+        setSaved(vocabularyService.isSaved(res.entry.word));
+        return;
+      }
+    }
+
+    setLoading(true);
+    const remote = await lookupRemote(trimmed, isChineseInput ? "zh" : undefined);
+    setLoading(false);
+
+    if (remote) {
+      setEntry(remote);
       setNotFound(false);
-      setSaved(vocabularyService.isSaved(res.entry.word));
+      setSaved(vocabularyService.isSaved(remote.word));
     } else {
       setEntry(null);
       setNotFound(true);
     }
-    setSuggestions([]);
   }
 
   function onInput(v: string) {
@@ -102,10 +155,15 @@ export default function DictionaryPage() {
               ))}
             </div>
           )}
-          <button className="btn-primary w-full mt-3" onClick={() => lookup()}>查詢</button>
+          <button className="btn-primary w-full mt-3" onClick={() => lookup()} disabled={loading}>
+            {loading ? "查詢中..." : "查詢"}
+          </button>
+          {lang !== "zh" && (
+            <p className="text-xs text-inkSoft mt-2">也可以直接輸入中文，系統會自動翻譯後查詢。</p>
+          )}
         </div>
 
-        {notFound && (
+        {notFound && !loading && (
           <div className="card text-center text-inkSoft">
             找不到「{query}」，請確認拼寫或嘗試其他詞彙。
           </div>

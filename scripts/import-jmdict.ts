@@ -118,15 +118,18 @@ function parseEntry(entry: JMdictEntry): JMDictRow | null {
       }
     });
     
-    const sensesJson = senseArray.map(sense => ({
-      pos: sense.pos,
-      field: sense.field,
-      misc: sense.misc,
-      glosses: sense.gloss?.map(g => ({
-        text: g._text,
-        lang: g.xml_lang || "en",
-      })),
-    }));
+    const sensesJson = senseArray.map(sense => {
+      const glossArray = Array.isArray(sense.gloss) ? sense.gloss : (sense.gloss !== undefined ? [sense.gloss] : []);
+      return {
+        pos: sense.pos,
+        field: sense.field,
+        misc: sense.misc,
+        glosses: glossArray.map((g: any) => ({
+          text: typeof g === "string" ? g : g._text,
+          lang: typeof g === "string" ? "en" : (g.xml_lang || "en"),
+        })),
+      };
+    });
     
     return {
       entry_seq: entry.ent_seq,
