@@ -98,6 +98,11 @@ export const LEARNING_LANGUAGES: LearningLanguage[] = [
   },
 ];
 
+// Traditional Chinese speech recognition language code, used as the
+// secondary/alternative language for Google Cloud Speech-to-Text in the
+// "free chat with AI tutor" mode (learners may ask questions in Chinese).
+export const ZH_TW_SPEECH_LANG = "zh-TW";
+
 export function getLearningLanguage(code?: string | null): LearningLanguage {
   return LEARNING_LANGUAGES.find((lang) => lang.code === code) ?? LEARNING_LANGUAGES[0];
 }

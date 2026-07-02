@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Volume2, Mic, MicOff, Check, X, RotateCcw, Keyboard } from "lucide-react";
 import { speechService } from "@/services/speechService";
+import { voiceRecorderService } from "@/services/voiceRecorderService";
+import { transcribeAudio } from "@/services/sttClient";
 import { getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
 import { getSelectedTutor } from "@/components/TutorSelector";
 import type { LearningLanguageCode } from "@/types";
@@ -30,11 +32,10 @@ export default function ShadowingPractice({
   const [score, setScore] = useState<number | null>(null);
   const [feedback, setFeedback] = useState("");
   const [useManualInput, setUseManualInput] = useState(false);
-  const [recognitionLang, setRecognitionLang] = useState<"target" | "zh" | "auto">("auto");
 
   const stopListenRef = useRef<(() => void) | null>(null);
   const languageInfo = getLearningLanguage(targetLanguage as any);
-  const speechSupported = speechService.isRecognitionSupported();
+  const speechSupported = voiceRecorderService.isSupported();
   const [tutor] = useState(() => getSelectedTutor(targetLanguage as LearningLanguageCode));
 
   // Auto-play as soon as this component mounts. This component is only ever
@@ -203,41 +204,51 @@ export default function ShadowingPractice({
     }
   }
 
-  function startRecording() {
+  async function startRecording() {
     setPhase("recording");
     setUserTranscript("");
-    
-    const lang = recognitionLang === "target" ? languageInfo.speechLang : recognitionLang === "zh" ? "zh-TW" : "auto";
-    const stop = speechService.listen({
-      lang,
-      onResult: (text) => {
-        const transcript = text.trim();
-        if (!transcript) return;
+
+    // Shadowing always recognizes the fixed target language for this
+    // sentence (never "auto"), per the language-locking requirement.
+    const languageCode = languageInfo.speechLang;
+    const handle = await voiceRecorderService.start({
+      maxDurationMs: 15000,
+      silenceMs: 1300,
+      onStop: async (blob) => {
+        stopListenRef.current = null;
+        setPhase("evaluating");
+        const result = await transcribeAudio(blob, { languageCode });
+        if (!result.ok) {
+          setPhase("idle");
+          alert(result.message || "語音辨識失敗，請再試一次。");
+          return;
+        }
+        const transcript = (result.text || "").trim();
         setUserTranscript(transcript);
+        evaluatePronunciation(transcript);
       },
       onError: (msg) => {
+        stopListenRef.current = null;
         setPhase("idle");
         alert(msg);
       },
-      onEnd: () => {
-        stopListenRef.current = null;
-        evaluatePronunciation();
-      },
     });
-    
-    if (stop) {
-      stopListenRef.current = stop;
+
+    if (handle) {
+      stopListenRef.current = handle.stop;
+    } else {
+      setPhase("idle");
     }
   }
 
   function stopRecording() {
     stopListenRef.current?.();
-    evaluatePronunciation();
   }
 
-  function evaluatePronunciation() {
+  function evaluatePronunciation(transcriptOverride?: string) {
     setPhase("evaluating");
-    const similarity = calculateSimilarity(sentence, userTranscript);
+    const transcript = transcriptOverride ?? userTranscript;
+    const similarity = calculateSimilarity(sentence, transcript);
     setScore(similarity);
     setFeedback(getFeedbackText(similarity));
     setPhase("result");
@@ -328,18 +339,24 @@ export default function ShadowingPractice({
             <p className="text-inkSoft mt-2">{translation}</p>
           </div>
 
-          {(phase === "idle" || phase === "playing" || phase === "recording") && speechSupported && !useManualInput && (
+          {(phase === "idle" || phase === "playing" || phase === "recording" || phase === "evaluating") && speechSupported && !useManualInput && (
             <div className="flex flex-col items-center gap-3 py-6">
               <motion.button
                 onClick={() => {
                   if (phase === "recording") stopRecording();
                   else if (phase === "idle") playSentence(true);
                 }}
-                disabled={phase === "playing"}
-                animate={isRecording ? { scale: [1, 1.08, 1] } : { scale: 1 }}
-                transition={isRecording ? { duration: 1, repeat: Infinity, ease: "easeInOut" } : {}}
+                disabled={phase === "playing" || phase === "evaluating"}
+                animate={isRecording ? { scale: [1, 1.08, 1] } : phase === "evaluating" ? { rotate: 360 } : { scale: 1 }}
+                transition={
+                  isRecording
+                    ? { duration: 1, repeat: Infinity, ease: "easeInOut" }
+                    : phase === "evaluating"
+                    ? { duration: 1, repeat: Infinity, ease: "linear" }
+                    : {}
+                }
                 className={`relative flex h-32 w-32 items-center justify-center rounded-full shadow-soft transition active:scale-95 disabled:opacity-70 ${
-                  isRecording ? "bg-peachDeep text-white" : phase === "playing" ? "bg-lilac text-lilacDeep" : "bg-lilacDeep text-white"
+                  isRecording ? "bg-peachDeep text-white" : phase === "playing" || phase === "evaluating" ? "bg-lilac text-lilacDeep" : "bg-lilacDeep text-white"
                 }`}
                 title={isRecording ? "停止錄音" : "點擊說話"}
               >
@@ -353,7 +370,13 @@ export default function ShadowingPractice({
                 )}
               </motion.button>
               <p className="text-sm font-bold text-inkSoft">
-                {phase === "playing" ? "AI 示範中…" : isRecording ? "換你了！自動辨識中英文" : "點擊說話"}
+                {phase === "playing"
+                  ? "AI 示範中…"
+                  : phase === "evaluating"
+                  ? "辨識中，請稍候…"
+                  : isRecording
+                  ? `換你了！正在錄音（${languageInfo.zhName}）`
+                  : "點擊說話"}
               </p>
               {isRecording && (
                 <button onClick={stopRecording} className="btn-secondary px-4 py-2 text-sm flex items-center gap-2">

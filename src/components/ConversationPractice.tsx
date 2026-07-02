@@ -8,9 +8,11 @@ import { aiTutorService } from "@/services/aiTutorService";
 import { dictionaryService } from "@/services/dictionaryService";
 import { learningService } from "@/services/learningService";
 import { speechService } from "@/services/speechService";
+import { voiceRecorderService, type VoiceRecorderHandle } from "@/services/voiceRecorderService";
+import { transcribeAudio } from "@/services/sttClient";
 import { audioQueueService } from "@/services/audioQueueService";
 import { tutorVoiceService } from "@/services/tutorVoiceService";
-import { getLearningLanguage } from "@/data/learningLanguages";
+import { getLearningLanguage, ZH_TW_SPEECH_LANG } from "@/data/learningLanguages";
 import ClickableText from "@/components/ClickableText";
 import WordSheet from "@/components/WordSheet";
 import { getSelectedTutor } from "@/components/TutorSelector";
@@ -235,6 +237,7 @@ export default function ConversationPractice({
   const [selectedTutor] = useState(() => getSelectedTutor(targetLanguage));
   const [playingMessageIndex, setPlayingMessageIndex] = useState<number | null>(null);
   const [recognitionLang, setRecognitionLang] = useState<"target" | "zh">("target");
+  const [transcribing, setTranscribing] = useState(false);
   const tutorName = selectedTutor.name;
 
   const endRef = useRef<HTMLDivElement>(null);
@@ -465,51 +468,57 @@ export default function ConversationPractice({
     }
   }
 
-  function toggleMic() {
+  async function toggleMic() {
     if (listening) {
+      // Manually stop early; this triggers the recorder's onStop callback
+      // below, which uploads whatever was captured so far for transcription.
       stopListenRef.current?.();
-      finishVoiceInput(true);
       return;
     }
+    if (transcribing) return;
     tutorVoiceService.stop();
     tutorVoiceService.setRecording(true);
-    voiceRecognitionEndedRef.current = false;
-    voiceDraftRef.current = "";
-    voiceSubmitHandledRef.current = false;
     setVoiceDraft("");
-    const lang = recognitionLang === "zh" ? "zh-TW" : languageInfo.speechLang;
-    const stop = speechService.listen({
-      lang,
-      onResult: (text) => {
-        const transcript = text.trim();
-        if (!transcript) return;
-        voiceDraftRef.current = transcript;
-        setVoiceDraft(transcript);
-        setInput(transcript);
+    setInput("");
+    const languageCode = recognitionLang === "zh" ? ZH_TW_SPEECH_LANG : languageInfo.speechLang;
+
+    const handle = await voiceRecorderService.start({
+      maxDurationMs: 15000,
+      silenceMs: 1300,
+      onStop: async (blob) => {
+        stopListenRef.current = null;
+        setListening(false);
+        tutorVoiceService.setRecording(false);
+        setTranscribing(true);
+        const result = await transcribeAudio(blob, { languageCode });
+        setTranscribing(false);
+        if (!result.ok) {
+          flashToast(result.message || "語音辨識失敗，請再試一次。");
+          return;
+        }
+        const text = (result.text || "").trim();
+        if (!text) {
+          flashToast("沒有辨識到語音，請再試一次或改用打字回覆。");
+          return;
+        }
+        // Show recognized text for the learner to confirm/edit before
+        // pressing the existing Send button (no auto-send).
+        setVoiceDraft(text);
+        setInput(text);
       },
       onError: (msg) => {
-        voiceSubmitHandledRef.current = true;
-        voiceRecognitionEndedRef.current = true;
-        voiceDraftRef.current = "";
         stopListenRef.current = null;
-        stopKnownMicrophoneTracks();
+        setListening(false);
         tutorVoiceService.setRecording(false);
         flashToast(msg);
-        setListening(false);
-        setVoiceDraft("");
-        setInput("");
-      },
-      onEnd: () => {
-        voiceRecognitionEndedRef.current = true;
-        stopListenRef.current = null;
-        stopKnownMicrophoneTracks();
-        tutorVoiceService.setRecording(false);
-        finishVoiceInput(true);
       },
     });
-    if (stop) {
-      stopListenRef.current = stop;
+
+    if (handle) {
+      stopListenRef.current = handle.stop;
       setListening(true);
+    } else {
+      tutorVoiceService.setRecording(false);
     }
   }
 
@@ -550,7 +559,7 @@ export default function ConversationPractice({
     finishWith(userTurns, feedbacks);
   }
 
-  const recSupported = speechService.isRecognitionSupported();
+  const recSupported = voiceRecorderService.isSupported();
   const userTurnCount = msgs.filter((m) => m.role === "user").length;
 
   return (
@@ -693,28 +702,32 @@ export default function ConversationPractice({
           />
         </div>
 
-        {listening && (
+        {(listening || transcribing) && (
           <div className="rounded-[28px] bg-white p-3 shadow-softer">
             <div className="flex items-center gap-3">
               <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-peach text-peachDeep">
-                <span className="absolute h-3 w-3 rounded-full bg-peachDeep animate-ping" />
+                {listening && <span className="absolute h-3 w-3 rounded-full bg-peachDeep animate-ping" />}
                 <Mic size={18} />
               </span>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-extrabold text-ink">
-                  錄音中 · {recognitionLang === "zh" ? "中文辨識" : `${languageInfo.zhName}辨識`}
+                  {listening
+                    ? `錄音中 · ${recognitionLang === "zh" ? "中文辨識" : `${languageInfo.zhName}辨識`}`
+                    : "辨識中…"}
                 </p>
                 <p className="truncate text-xs font-semibold text-inkSoft">
-                  {voiceDraft || "辨識中…"}
+                  {listening ? "說完會自動停止，或按「結束」" : "請稍候，正在轉換語音為文字"}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={toggleMic}
-                className="rounded-2xl bg-lilacDeep px-4 py-2 text-sm font-extrabold text-white active:scale-95"
-              >
-                結束
-              </button>
+              {listening && (
+                <button
+                  type="button"
+                  onClick={toggleMic}
+                  className="rounded-2xl bg-lilacDeep px-4 py-2 text-sm font-extrabold text-white active:scale-95"
+                >
+                  結束
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -724,7 +737,7 @@ export default function ConversationPractice({
             <button
               type="button"
               onClick={() => setRecognitionLang((prev) => (prev === "zh" ? "target" : "zh"))}
-              disabled={listening || busy || finishedRef.current}
+              disabled={listening || transcribing || busy || finishedRef.current}
               title="切換語音辨識語言"
               className="h-12 shrink-0 rounded-2xl bg-cream px-2 text-xs font-extrabold text-inkSoft active:scale-90 transition disabled:opacity-50"
             >
@@ -733,7 +746,7 @@ export default function ConversationPractice({
           )}
           <button
             onClick={toggleMic}
-            disabled={busy || finishedRef.current}
+            disabled={busy || transcribing || finishedRef.current}
             title={recSupported ? `語音輸入（${recognitionLang === "zh" ? "中文" : "英文"}辨識）` : "此瀏覽器不支援語音輸入"}
             className={`h-12 w-12 rounded-2xl flex items-center justify-center active:scale-90 transition shrink-0 ${
               listening ? "bg-peachDeep text-white animate-pulse" : recSupported ? "bg-mint text-mintDeep" : "bg-cream text-inkSoft"
@@ -745,7 +758,7 @@ export default function ConversationPractice({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !listening) {
+              if (e.key === "Enter" && !listening && !transcribing) {
                 handleSend(input);
               }
             }}
@@ -753,7 +766,7 @@ export default function ConversationPractice({
             disabled={finishedRef.current}
             className="flex-1 bg-transparent outline-none text-ink min-w-0"
           />
-          <button onClick={() => !listening && handleSend(input)} disabled={busy || !input.trim() || finishedRef.current || listening} className="h-10 w-10 rounded-2xl bg-lilacDeep text-white flex items-center justify-center active:scale-90 transition disabled:opacity-50 shrink-0">
+          <button onClick={() => !listening && !transcribing && handleSend(input)} disabled={busy || !input.trim() || finishedRef.current || listening || transcribing} className="h-10 w-10 rounded-2xl bg-lilacDeep text-white flex items-center justify-center active:scale-90 transition disabled:opacity-50 shrink-0">
             <Send size={18} />
           </button>
         </div>

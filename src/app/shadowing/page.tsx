@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Volume2, Mic, MicOff, RotateCcw, Check, X, Keyboard, X as CloseIcon } from "lucide-react";
 import { speechService } from "@/services/speechService";
+import { voiceRecorderService } from "@/services/voiceRecorderService";
+import { transcribeAudio } from "@/services/sttClient";
 import { getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
 import { learningService } from "@/services/learningService";
 import { storageService, KEYS } from "@/services/storageService";
@@ -32,7 +34,7 @@ export default function ShadowingPage() {
 
   const stopListenRef = useRef<(() => void) | null>(null);
   const languageInfo = getLearningLanguage(targetLanguage);
-  const speechSupported = speechService.isRecognitionSupported();
+  const speechSupported = voiceRecorderService.isSupported();
   const tutorSpeaking = phase === "playing";
 
   useEffect(() => {
@@ -240,33 +242,43 @@ export default function ShadowingPage() {
     }
   }
 
-  function startRecording() {
+  async function startRecording() {
     console.log("Starting recording");
     setPhase("recording");
     setUserTranscript("");
-    
-    const stop = speechService.listen({
-      lang: "auto",
-      onResult: (text) => {
-        const transcript = text.trim();
-        if (!transcript) return;
+
+    // Shadowing always recognizes the fixed target language of the current
+    // sentence (never "auto" — Web Speech API has no real auto-detect and
+    // Google STT here is locked per the language-locking requirement).
+    const languageCode = languageInfo.speechLang;
+    const handle = await voiceRecorderService.start({
+      maxDurationMs: 15000,
+      silenceMs: 1300,
+      onStop: async (blob) => {
+        stopListenRef.current = null;
+        setPhase("evaluating");
+        const result = await transcribeAudio(blob, { languageCode });
+        if (!result.ok) {
+          console.error("STT error:", result.message);
+          setPhase("idle");
+          alert(result.message || "語音辨識失敗，請再試一次。");
+          return;
+        }
+        const transcript = (result.text || "").trim();
         console.log("Recognition result:", transcript);
         setUserTranscript(transcript);
+        evaluatePronunciation(transcript);
       },
       onError: (msg) => {
-        console.error("Recognition error:", msg);
+        console.error("Recording error:", msg);
+        stopListenRef.current = null;
         setPhase("idle");
         alert(msg);
       },
-      onEnd: () => {
-        console.log("Recognition ended");
-        stopListenRef.current = null;
-        evaluatePronunciation();
-      },
     });
-    
-    if (stop) {
-      stopListenRef.current = stop;
+
+    if (handle) {
+      stopListenRef.current = handle.stop;
       console.log("Recording started successfully");
     } else {
       console.error("Failed to start recording");
@@ -279,9 +291,10 @@ export default function ShadowingPage() {
     stopListenRef.current = null;
   }
 
-  function evaluatePronunciation() {
+  function evaluatePronunciation(transcriptOverride?: string) {
     setPhase("evaluating");
-    const similarity = calculateSimilarity(currentSentence.en, userTranscript);
+    const transcript = transcriptOverride ?? userTranscript;
+    const similarity = calculateSimilarity(currentSentence.en, transcript);
     setScore(similarity);
     setFeedback(getFeedbackText(similarity));
     setScores((prev) => [...prev, similarity]);
@@ -458,6 +471,19 @@ export default function ShadowingPage() {
           </div>
         )}
 
+        {phase === "evaluating" && (
+          <div className="flex flex-col items-center gap-3 py-6">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+              className="relative flex h-32 w-32 items-center justify-center rounded-full bg-lilac text-lilacDeep shadow-soft"
+            >
+              <Mic size={44} className="relative" />
+            </motion.div>
+            <p className="text-sm font-bold text-inkSoft">辨識中，請稍候…</p>
+          </div>
+        )}
+
         {(phase === "idle" || phase === "recording") && speechSupported && !useManualInput && (
           <div className="flex flex-col items-center gap-3 py-6">
             <motion.button
@@ -480,7 +506,7 @@ export default function ShadowingPage() {
               )}
             </motion.button>
             <p className="text-sm font-bold text-inkSoft">
-              {isRecording ? "換你了！自動辨識中英文" : "點擊開始跟讀"}
+              {isRecording ? `換你了！正在錄音（${languageInfo.zhName}）` : "點擊開始跟讀"}
             </p>
             {isRecording && (
               <button onClick={stopRecording} className="btn-secondary px-4 py-2 text-sm flex items-center gap-2">
