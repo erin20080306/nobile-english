@@ -111,53 +111,61 @@ export default function ShadowingPage() {
     
     if (origWords.length === 0) return 0;
     
-    let matches = 0;
+    // Calculate Levenshtein distance for word similarity scoring
+    function levenshteinDistance(a: string, b: string): number {
+      const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null));
+      
+      for (let i = 0; i <= a.length; i++) matrix[0][i] = i;
+      for (let j = 0; j <= b.length; j++) matrix[j][0] = j;
+      
+      for (let j = 1; j <= b.length; j++) {
+        for (let i = 1; i <= a.length; i++) {
+          const indicator = a[i - 1] === b[j - 1] ? 0 : 1;
+          matrix[j][i] = Math.min(
+            matrix[j][i - 1] + 1,
+            matrix[j - 1][i] + 1,
+            matrix[j - 1][i - 1] + indicator
+          );
+        }
+      }
+      return matrix[b.length][a.length];
+    }
+    
+    function wordSimilarity(word1: string, word2: string): number {
+      if (word1 === word2) return 1.0;
+      const maxLen = Math.max(word1.length, word2.length);
+      if (maxLen === 0) return 1.0;
+      const distance = levenshteinDistance(word1, word2);
+      return Math.max(0, 1 - distance / maxLen);
+    }
+    
+    let totalSimilarity = 0;
     const usedIndices = new Set<number>();
     
     for (const origWord of origWords) {
-      let bestMatch = false;
+      let bestSimilarity = 0;
+      let bestIndex = -1;
+      
       for (let i = 0; i < spokWords.length; i++) {
         if (usedIndices.has(i)) continue;
         
-        const spokWord = spokWords[i];
-        
-        if (origWord === spokWord) {
-          bestMatch = true;
-          usedIndices.add(i);
-          break;
-        }
-        
-        if (spokWord.includes(origWord) || origWord.includes(spokWord)) {
-          const longer = Math.max(origWord.length, spokWord.length);
-          const shorter = Math.min(origWord.length, spokWord.length);
-          if (shorter / longer >= 0.5) {
-            bestMatch = true;
-            usedIndices.add(i);
-            break;
-          }
-        }
-        
-        if (origWord.length <= 4 && spokWord.length <= 4) {
-          let diff = 0;
-          const maxLen = Math.max(origWord.length, spokWord.length);
-          for (let i = 0; i < maxLen; i++) {
-            if (origWord[i] !== spokWord[i]) diff++;
-          }
-          if (diff <= 1) {
-            bestMatch = true;
-            usedIndices.add(i);
-            break;
-          }
+        const similarity = wordSimilarity(origWord, spokWords[i]);
+        if (similarity > bestSimilarity) {
+          bestSimilarity = similarity;
+          bestIndex = i;
         }
       }
-      if (bestMatch) matches++;
+      
+      if (bestIndex >= 0) {
+        usedIndices.add(bestIndex);
+        totalSimilarity += bestSimilarity;
+      }
     }
     
-    const wordCountRatio = Math.min(spokWords.length / origWords.length, origWords.length / spokWords.length);
-    const similarity = (matches / origWords.length) * 100;
-    const boosted = similarity * (0.7 + 0.3 * wordCountRatio);
+    // Average similarity across all original words
+    const averageSimilarity = (totalSimilarity / origWords.length) * 100;
     
-    return Math.round(Math.min(boosted, 100));
+    return Math.round(Math.min(averageSimilarity, 100));
   }
 
   function getFeedbackText(score: number): string {
@@ -193,6 +201,8 @@ export default function ShadowingPage() {
           // Delay then speak target sentence
           setTimeout(() => {
             const opts = voiceForLanguage(targetLanguage, 1);
+            // Increase volume for shadowing practice
+            opts.volumeGain = 2.0;
             console.log("Starting target TTS with opts:", opts);
             const r2 = speechService.speak(sentenceText, {
               ...opts,
