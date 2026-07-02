@@ -256,7 +256,7 @@ export default function Dashboard() {
         <Action color="bg-lilac" icon={<MessageSquare className="text-lilacDeep" />} title="開始對話" onClick={() => router.push("/dialogue")} />
         <Action color="bg-peach" icon={<Wand2 className="text-peachDeep" />} title="自創場景" onClick={openCustomScene} />
         <Action color="bg-mint" icon={<Search className="text-mintDeep" />} title="同尾字" onClick={() => router.push("/rhyme")} />
-        <Action color="bg-sky" icon={<BookOpen className="text-skyDeep" />} title="英英字典" onClick={() => router.push("/dictionary")} />
+        <Action color="bg-sky" icon={<BookOpen className="text-skyDeep" />} title="語言字典" onClick={() => router.push("/dictionary")} />
         <Action color="bg-lilac" icon={<GraduationCap className="text-lilacDeep" />} title="測驗中心" onClick={() => router.push("/exam")} />
         <Action color="bg-peach" icon={<Trophy className="text-peachDeep" />} title="我的紀錄" onClick={() => router.push("/records")} />
       </div>
