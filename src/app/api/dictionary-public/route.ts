@@ -49,8 +49,8 @@ export async function POST(req: Request) {
         zh: "Chinese",
       };
 
-      const translationPrompt = `Translate the following Chinese word to ${languageNames[language]}. Return ONLY the translated word, no explanation: ${word}`;
-      
+      const translationPrompt = `Translate the following Chinese word or phrase to ${languageNames[language]}. Return ONLY a JSON object with this exact shape, no explanation: {"translatedWord": "the translated word"}\n\nChinese word: ${word}`;
+
       const translation = await generateJsonWithGemini<{ translatedWord: string }>({
         prompt: translationPrompt,
         temperature: 0.3,
