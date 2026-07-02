@@ -3,7 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS dictionary_cache (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  language TEXT NOT NULL CHECK (language IN ('en', 'ja', 'ko', 'it', 'es')),
+  language TEXT NOT NULL CHECK (language IN ('en', 'ja', 'ko', 'it', 'es', 'zh')),
   normalized_word TEXT NOT NULL,
   entry_json JSONB NOT NULL,
   source TEXT NOT NULL CHECK (source IN ('free_dictionary', 'jmdict', 'urimal_saem', 'wiktionary', 'merriam_webster', 'local')),

@@ -5,12 +5,14 @@ import { queryFreeDictionary } from "@/server/dictionary/freeDictionary";
 import { queryJMdict } from "@/server/dictionary/jmdict";
 import { queryUrimalSaem } from "@/server/dictionary/urimalSaem";
 import { queryWiktionary } from "@/server/dictionary/wiktionary";
+import { generateJsonWithGemini } from "@/server/gemini";
 
 export const runtime = "nodejs";
 
 interface PublicDictionaryRequest {
   word: string;
   language: LearningLanguageCode;
+  sourceLanguage?: "zh" | "en" | "ja" | "ko" | "it" | "es";
 }
 
 /**
@@ -30,12 +32,49 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing word or language" }, { status: 400 });
   }
 
-  const { word, language } = body;
+  const { word, language, sourceLanguage } = body;
+
+  let targetWord = word;
+  let usedTranslation = false;
+
+  // If source language is Chinese, translate to target language first
+  if (sourceLanguage === "zh" && language !== "zh") {
+    try {
+      const languageNames: Record<LearningLanguageCode, string> = {
+        en: "English",
+        ja: "Japanese",
+        ko: "Korean",
+        it: "Italian",
+        es: "Spanish",
+        zh: "Chinese",
+      };
+
+      const translationPrompt = `Translate the following Chinese word to ${languageNames[language]}. Return ONLY the translated word, no explanation: ${word}`;
+      
+      const translation = await generateJsonWithGemini<{ translatedWord: string }>({
+        prompt: translationPrompt,
+        temperature: 0.3,
+        maxOutputTokens: 100,
+      });
+
+      if (translation && translation.translatedWord) {
+        targetWord = translation.translatedWord.trim();
+        usedTranslation = true;
+      }
+    } catch (error) {
+      console.error("Translation error:", error);
+      // Fall back to original word if translation fails
+    }
+  }
 
   // Check cache first
-  const cached = await getCachedEntry(language, word);
+  const cached = await getCachedEntry(language, targetWord);
   if (cached) {
-    return NextResponse.json({ entry: cached, source: "cache" });
+    return NextResponse.json({ 
+      entry: { ...cached, originalQuery: word }, 
+      source: "cache",
+      translated: usedTranslation 
+    });
   }
 
   // Query appropriate external API based on language
@@ -44,24 +83,36 @@ export async function POST(req: Request) {
 
   switch (language) {
     case "en":
-      entry = await queryFreeDictionary(word);
+      entry = await queryFreeDictionary(targetWord);
       source = "free_dictionary";
       break;
     case "ja":
-      entry = await queryJMdict(word);
+      entry = await queryJMdict(targetWord);
       source = "jmdict";
       break;
     case "ko":
-      entry = await queryUrimalSaem(word);
+      entry = await queryUrimalSaem(targetWord);
       source = "urimal_saem";
       break;
     case "es":
-      entry = await queryWiktionary(word, "es");
+      entry = await queryWiktionary(targetWord, "es");
       source = "wiktionary";
       break;
     case "it":
-      entry = await queryWiktionary(word, "it");
+      entry = await queryWiktionary(targetWord, "it");
       source = "wiktionary";
+      break;
+    case "zh":
+      // For Chinese, we can use a simple response since we don't have a Chinese dictionary API yet
+      entry = {
+        word: targetWord,
+        language: "zh",
+        definitions: ["Chinese word (no external dictionary API configured)"],
+        definitionsZhTw: [targetWord],
+        examples: [],
+        source: "local",
+      };
+      source = "local";
       break;
     default:
       return NextResponse.json({ error: "Unsupported language" }, { status: 400 });
@@ -72,7 +123,11 @@ export async function POST(req: Request) {
   }
 
   // Cache the result
-  await setCachedEntry(language, word, entry, source as any);
+  await setCachedEntry(language, targetWord, entry, source as any);
 
-  return NextResponse.json({ entry, source });
+  return NextResponse.json({ 
+    entry: { ...entry, originalQuery: word }, 
+    source,
+    translated: usedTranslation 
+  });
 }

@@ -5,7 +5,7 @@ export type EnglishLevel =
   | "Upper-Intermediate"
   | "Advanced";
 
-export type LearningLanguageCode = "en" | "ja" | "ko" | "it" | "es";
+export type LearningLanguageCode = "en" | "ja" | "ko" | "it" | "es" | "zh";
 export type CEFRLevel = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
 export type ExamType = "TOEIC" | "IELTS" | "TOEFL";
 export type QuestionType =
