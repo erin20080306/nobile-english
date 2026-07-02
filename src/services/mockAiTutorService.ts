@@ -18,6 +18,7 @@ const multilingualEncouragements: Record<Exclude<LearningLanguageCode, "en">, st
   ko: ["很好！韓文表達越來越自然。", "좋아요! 繼續保持。", "很棒，下一句試著多加一個細節。"],
   it: ["很好！義大利文表達越來越自然。", "Bravo! 繼續保持。", "很棒，下一句試著多加一個細節。"],
   es: ["很好！西班牙文表達越來越自然。", "¡Muy bien! 繼續保持。", "很棒，下一句試著多加一個細節。"],
+  zh: ["很好！中文表達越來越自然。", "做得好！繼續保持。", "很棒，下一句試著多加一個細節。"],
 };
 
 function pick<T>(arr: T[], seed = 0): T {
@@ -681,6 +682,25 @@ function multilingualReply(scene: Scene, language: Exclude<LearningLanguageCode,
       ],
       better: "De forma más natural, puedes decirlo así.",
     },
+    zh: {
+      free: [
+        { en: "很好。請再詳細告訴我一點。", zh: "很好。請再詳細告訴我一點。" },
+        { en: "這個表達很自然。下一句也試著說理由。", zh: "這個表達很自然。下一句也試著說理由。" },
+      ],
+      restaurant: [
+        { en: "好的。還需要飲料嗎？", zh: "好的。還需要飲料嗎？" },
+        { en: "好的。我確認一下您的餐點。", zh: "好的。我確認一下您的餐點。" },
+      ],
+      cafe: [
+        { en: "好的。請問內用嗎？", zh: "好的。請問內用嗎？" },
+        { en: "很好。請問要什麼尺寸？", zh: "很好。請問要什麼尺寸？" },
+      ],
+      travel: [
+        { en: "沒問題。從這裡直走，在第二個轉角右轉。", zh: "沒問題。從這裡直走，在第二個轉角右轉。" },
+        { en: "很近。走路大約十分鐘。", zh: "很近。走路大約十分鐘。" },
+      ],
+      better: "說得更自然一點，可以這樣說。",
+    },
   }[language];
 
   if (isTravel || /lost|where|station|map|direction|路|駅|길|strada/i.test(lower)) return pick(bank.travel, turn);
@@ -703,6 +723,10 @@ function multilingualBetterWay(language: Exclude<LearningLanguageCode, "en">, sc
   if (language === "es") {
     if (scene.themeId === "travel") return "Disculpe, ¿puede decirme cómo llegar a la estación?";
     return "¿Puede contarme un poco más?";
+  }
+  if (language === "zh") {
+    if (scene.themeId === "travel") return "不好意思，可以告訴我怎麼去車站嗎？";
+    return "可以再多告訴我一點嗎？";
   }
   if (scene.themeId === "travel") return "Mi scusi, può dirmi come arrivare alla stazione?";
   return "Può dirmi qualcosa in più?";
