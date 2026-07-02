@@ -370,6 +370,9 @@ export default function ShadowingPage() {
             <button onClick={() => router.back()} className="btn-primary w-full">
               返回
             </button>
+            <button onClick={() => router.push("/dashboard")} className="btn-secondary w-full">
+              回首頁
+            </button>
           </div>
         </div>
       </div>

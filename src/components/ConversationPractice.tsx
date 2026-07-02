@@ -234,7 +234,7 @@ export default function ConversationPractice({
   const [persona] = useState(() => pickPersona(scene));
   const [selectedTutor] = useState(() => getSelectedTutor(targetLanguage));
   const [playingMessageIndex, setPlayingMessageIndex] = useState<number | null>(null);
-  const [recognitionLang, setRecognitionLang] = useState<"target" | "zh" | "auto">("auto");
+  const [recognitionLang, setRecognitionLang] = useState<"target" | "zh">("target");
   const tutorName = selectedTutor.name;
 
   const endRef = useRef<HTMLDivElement>(null);
@@ -477,7 +477,7 @@ export default function ConversationPractice({
     voiceDraftRef.current = "";
     voiceSubmitHandledRef.current = false;
     setVoiceDraft("");
-    const lang = recognitionLang === "target" ? languageInfo.speechLang : recognitionLang === "zh" ? "zh-TW" : "auto";
+    const lang = recognitionLang === "zh" ? "zh-TW" : languageInfo.speechLang;
     const stop = speechService.listen({
       lang,
       onResult: (text) => {
@@ -701,7 +701,9 @@ export default function ConversationPractice({
                 <Mic size={18} />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-extrabold text-ink">錄音中 · 自動辨識中英文</p>
+                <p className="text-sm font-extrabold text-ink">
+                  錄音中 · {recognitionLang === "zh" ? "中文辨識" : `${languageInfo.zhName}辨識`}
+                </p>
                 <p className="truncate text-xs font-semibold text-inkSoft">
                   {voiceDraft || "辨識中…"}
                 </p>
@@ -718,10 +720,21 @@ export default function ConversationPractice({
         )}
 
         <div className="flex items-center gap-2 bg-white rounded-3xl px-3 py-2 shadow-softer">
+          {recSupported && (
+            <button
+              type="button"
+              onClick={() => setRecognitionLang((prev) => (prev === "zh" ? "target" : "zh"))}
+              disabled={listening || busy || finishedRef.current}
+              title="切換語音辨識語言"
+              className="h-12 shrink-0 rounded-2xl bg-cream px-2 text-xs font-extrabold text-inkSoft active:scale-90 transition disabled:opacity-50"
+            >
+              {recognitionLang === "zh" ? "中文" : "英文"}
+            </button>
+          )}
           <button
             onClick={toggleMic}
             disabled={busy || finishedRef.current}
-            title={recSupported ? "語音輸入（自動辨識中英文）" : "此瀏覽器不支援語音輸入"}
+            title={recSupported ? `語音輸入（${recognitionLang === "zh" ? "中文" : "英文"}辨識）` : "此瀏覽器不支援語音輸入"}
             className={`h-12 w-12 rounded-2xl flex items-center justify-center active:scale-90 transition shrink-0 ${
               listening ? "bg-peachDeep text-white animate-pulse" : recSupported ? "bg-mint text-mintDeep" : "bg-cream text-inkSoft"
             }`}
