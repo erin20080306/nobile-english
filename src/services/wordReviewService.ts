@@ -121,6 +121,13 @@ const LEVEL_LIMITS: Record<LearningLanguageCode, Record<EnglishLevel, number>> =
     "Upper-Intermediate": 6000,
     Advanced: 10000,
   },
+  zh: {
+    Beginner: 1500,
+    Elementary: 2500,
+    Intermediate: 4000,
+    "Upper-Intermediate": 6000,
+    Advanced: 10000,
+  },
 };
 
 function nowIso() {

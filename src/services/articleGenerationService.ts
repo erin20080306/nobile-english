@@ -100,6 +100,7 @@ class ArticleGenerationService {
       ko: "Korean",
       it: "Italian",
       es: "Spanish",
+      zh: "Chinese",
     };
 
     const languageName = languageNames[options.languageCode];
@@ -471,6 +472,54 @@ ${contentGuidelines}
             options: ["menú", "café", "pedido", "cafetería"],
             answer: "menú",
             explanationZhTw: "文中說請看看菜單。",
+          },
+        ],
+      },
+      zh: {
+        title: "點咖啡",
+        titleZhTw: "在咖啡店點餐",
+        difficultyLevel: options.difficultyLevel,
+        topicCategory: options.topicCategory,
+        articleText: "歡迎來到咖啡店。您今天想點什麼？我們有很多選擇。您可以選擇熱飲或冷飲。我們的特製咖啡很受歡迎。您想試試看嗎？我們還有美味的糕點。請看看我們的菜單。我很樂意幫您決定。",
+        sentences: [
+          { order: 1, text: "歡迎來到咖啡店。", zhTw: "歡迎來到咖啡店。" },
+          { order: 2, text: "您今天想點什麼？", zhTw: "您今天想點什麼？" },
+          { order: 3, text: "我們有很多選擇。", zhTw: "我們有很多選擇。" },
+          { order: 4, text: "您可以選擇熱飲或冷飲。", zhTw: "您可以選擇熱飲或冷飲。" },
+          { order: 5, text: "我們的特製咖啡很受歡迎。", zhTw: "我們的特製咖啡很受歡迎。" },
+          { order: 6, text: "您想試試看嗎？", zhTw: "您想試試看嗎？" },
+          { order: 7, text: "我們還有美味的糕點。", zhTw: "我們還有美味的糕點。" },
+          { order: 8, text: "請看看我們的菜單。", zhTw: "請看看我們的菜單。" },
+          { order: 9, text: "我很樂意幫您決定。", zhTw: "我很樂意幫您決定。" },
+        ],
+        keyVocabulary: [
+          { surfaceText: "點餐", lemma: "點餐", reason: "Common verb for ordering" },
+          { surfaceText: "選擇", lemma: "選擇", reason: "Important noun for options" },
+          { surfaceText: "受歡迎", lemma: "受歡迎", reason: "Common adjective for popularity" },
+          { surfaceText: "美味", lemma: "美味", reason: "Essential adjective for food" },
+          { surfaceText: "菜單", lemma: "菜單", reason: "Essential noun for restaurants" },
+        ],
+        questions: [
+          {
+            type: "multiple_choice",
+            question: "在咖啡店可以選擇什麼？",
+            options: ["熱飲或冷飲", "只有熱飲", "只有冷飲", "沒有飲料"],
+            answer: "熱飲或冷飲",
+            explanationZhTw: "文中提到您可以選擇熱飲或冷飲。",
+          },
+          {
+            type: "true_false",
+            question: "特製咖啡不受歡迎。",
+            options: ["對", "錯"],
+            answer: "錯",
+            explanationZhTw: "文中說特製咖啡很受歡迎，所以這是錯的。",
+          },
+          {
+            type: "fill_in_blank",
+            question: "請看看我們的___。",
+            options: ["菜單", "咖啡", "點餐", "店"],
+            answer: "菜單",
+            explanationZhTw: "文中說請看看我們的菜單。",
           },
         ],
       },

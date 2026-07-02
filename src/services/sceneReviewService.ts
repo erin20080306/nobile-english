@@ -66,6 +66,7 @@ function buildChoiceTasks(words: string[], language: LearningLanguageCode): Scen
     ko: ["주세요", "오늘", "역", "예약"],
     it: ["grazie", "oggi", "stazione", "prenotazione"],
     es: ["gracias", "hoy", "estacion", "reserva"],
+    zh: ["請", "今天", "菜單", "車站"],
   };
   const pool = words.length >= 4 ? words : [...words, ...fallbackWords[language]];
   return pool.slice(2, 4).map((word, index) => {
