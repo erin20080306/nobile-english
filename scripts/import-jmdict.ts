@@ -85,26 +85,40 @@ function calculatePriority(entry: JMdictEntry): number {
 
 function parseEntry(entry: JMdictEntry): JMDictRow | null {
   try {
-    const kanjiElements = entry.k_ele?.map(k => k.keb) || [];
-    const readingElements = entry.r_ele?.map(r => r.reb) || [];
+    // Handle both array and single object cases
+    const kEleArray = Array.isArray(entry.k_ele) ? entry.k_ele : (entry.k_ele ? [entry.k_ele] : []);
+    const rEleArray = Array.isArray(entry.r_ele) ? entry.r_ele : (entry.r_ele ? [entry.r_ele] : []);
+    const senseArray = Array.isArray(entry.sense) ? entry.sense : (entry.sense ? [entry.sense] : []);
     
-    const readingsJson = entry.r_ele?.map(r => ({
+    const kanjiElements = kEleArray.map(k => k.keb);
+    const readingElements = rEleArray.map(r => r.reb);
+    
+    const readingsJson = rEleArray.map(r => ({
       reading: r.reb,
       restrictions: r.re_restr,
       priorities: r.re_pri,
-    })) || [];
+    }));
     
     const posTags = new Set<string>();
     const fields = new Set<string>();
     const miscInfo = new Set<string>();
     
-    entry.sense?.forEach(sense => {
-      sense.pos?.forEach(pos => posTags.add(pos));
-      sense.field?.forEach(field => fields.add(field));
-      sense.misc?.forEach(misc => miscInfo.add(misc));
+    senseArray.forEach(sense => {
+      if (sense.pos) {
+        const posArray = Array.isArray(sense.pos) ? sense.pos : [sense.pos];
+        posArray.forEach(pos => posTags.add(pos));
+      }
+      if (sense.field) {
+        const fieldArray = Array.isArray(sense.field) ? sense.field : [sense.field];
+        fieldArray.forEach(field => fields.add(field));
+      }
+      if (sense.misc) {
+        const miscArray = Array.isArray(sense.misc) ? sense.misc : [sense.misc];
+        miscArray.forEach(misc => miscInfo.add(misc));
+      }
     });
     
-    const sensesJson = entry.sense?.map(sense => ({
+    const sensesJson = senseArray.map(sense => ({
       pos: sense.pos,
       field: sense.field,
       misc: sense.misc,
@@ -112,7 +126,7 @@ function parseEntry(entry: JMdictEntry): JMDictRow | null {
         text: g._text,
         lang: g.xml_lang || "en",
       })),
-    })) || [];
+    }));
     
     return {
       entry_seq: entry.ent_seq,
@@ -140,6 +154,8 @@ async function importJMdict(xmlFilePath: string) {
     ignoreAttributes: false,
     attributeNamePrefix: "",
     textNodeName: "_text",
+    ignoreDeclaration: true,
+    processEntities: false,
   });
   
   const result = parser.parse(xmlContent);

@@ -62,6 +62,7 @@ export default function ResultsPage() {
     ko: "韓文",
     it: "義大利文",
     es: "西班牙文",
+    zh: "中文",
   }[currentLang] || "英文";
   const cheerText =
     data.total >= 85 ? "很棒！你完成今天的任務了！" :

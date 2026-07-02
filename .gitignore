@@ -35,4 +35,3 @@ next-env.d.ts
 /data/dictionary/import-progress.json
 /data/dictionary/import-report.json
 JMdict*
-scripts/*.ts
