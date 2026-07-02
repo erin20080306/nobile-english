@@ -49,6 +49,12 @@ export default function ShadowingPage() {
         setCurrentIndex(startIndex);
         setTutor(getSelectedTutor(patternData.targetLanguage as LearningLanguageCode));
         setPhase("idle");
+        
+        // Auto-start playback after sentences are loaded
+        setTimeout(() => {
+          console.log("Auto-starting playback from scene pattern");
+          playSentence(true);
+        }, 2000);
       } else {
         // Default sentences for standalone access
         const lang = learningService.getCurrentLanguage();
@@ -64,6 +70,12 @@ export default function ShadowingPage() {
         ];
         setSentences(defaultSentences);
         setPhase("idle");
+        
+        // Auto-start playback after sentences are loaded
+        setTimeout(() => {
+          console.log("Auto-starting playback from default sentences");
+          playSentence(true);
+        }, 2000);
       }
     };
 
@@ -75,20 +87,6 @@ export default function ShadowingPage() {
 
   const currentSentence = sentences[currentIndex];
   const isRecording = phase === "recording";
-  const [hasAutoStarted, setHasAutoStarted] = useState(false);
-
-  // Auto-start playback when sentences are loaded and phase is idle (only once)
-  useEffect(() => {
-    if (sentences.length > 0 && phase === "idle" && currentSentence && !hasAutoStarted) {
-      console.log("Auto-starting playback - sentences loaded, phase idle, current sentence exists");
-      setHasAutoStarted(true);
-      const timer = setTimeout(() => {
-        console.log("Executing auto-start playback");
-        playSentence(true);
-      }, 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [sentences, phase, currentSentence, hasAutoStarted]);
 
   function calculateSimilarity(original: string, spoken: string): number {
     const normalize = (text: string) => 
@@ -294,7 +292,6 @@ export default function ShadowingPage() {
       setUserTranscript("");
       setScore(null);
       setFeedback("");
-      setHasAutoStarted(false); // Reset auto-start flag for next sentence
     } else {
       setPhase("complete");
     }
