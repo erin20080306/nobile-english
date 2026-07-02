@@ -65,8 +65,11 @@ export interface LevelTestQuestion {
   id: string;
   type: QuestionType;
   question: string;
+  questionZh?: string;
   passage?: string;
+  passageZh?: string;
   options: string[];
+  optionsZh?: string[];
   answerIndex: number;
   explanation: string;
 }

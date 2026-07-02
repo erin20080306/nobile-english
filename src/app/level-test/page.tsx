@@ -58,9 +58,13 @@ export default function LevelTestPage() {
           className="mt-6 flex-1"
         >
           {q.passage && (
-            <div className="card mb-4 bg-cream text-ink leading-relaxed">{q.passage}</div>
+            <div className="card mb-4 bg-cream text-ink leading-relaxed">
+              <p className="text-ink mb-2">{q.passage}</p>
+              {q.passageZh && <p className="text-inkSoft text-sm mt-2">{q.passageZh}</p>}
+            </div>
           )}
-          <h2 className="text-xl font-extrabold text-ink mb-4">{q.question}</h2>
+          <h2 className="text-xl font-extrabold text-ink mb-2">{q.question}</h2>
+          {q.questionZh && <p className="text-inkSoft text-sm mb-4">{q.questionZh}</p>}
           <div className="space-y-3">
             {q.options.map((opt, i) => (
               <button
@@ -70,7 +74,12 @@ export default function LevelTestPage() {
                   picked === i ? "bg-lilacDeep text-white shadow-soft" : "bg-white text-ink shadow-softer"
                 }`}
               >
-                {opt}
+                <div className="flex flex-col">
+                  <span>{opt}</span>
+                  {q.optionsZh && q.optionsZh[i] && (
+                    <span className="text-sm mt-1 opacity-70">{q.optionsZh[i]}</span>
+                  )}
+                </div>
               </button>
             ))}
           </div>
