@@ -363,9 +363,12 @@ export default function AdminPage() {
             <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${statusColor[envVars?.GNEWS_API_KEY ? "ok" : "error"]}`}>
               {statusIcon[envVars?.GNEWS_API_KEY ? "ok" : "error"]} GNews（時事新聞來源）
             </span>
+            <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${statusColor[envVars?.KOREAN_DICTIONARY_API_KEY ? "ok" : "error"]}`}>
+              {statusIcon[envVars?.KOREAN_DICTIONARY_API_KEY ? "ok" : "error"]} Urimal Saem（韓文字典）
+            </span>
           </div>
           <p className="text-xs text-inkSoft mt-2">
-            AI 文字生成（每日文章、導師回覆）已全面改用 Gemini。GNews 用於抓取真實時事新聞當作文章素材，未設定時會改用一般主題。
+            AI 文字生成（每日文章、導師回覆）已全面改用 Gemini。GNews 用於抓取真實時事新聞當作文章素材，未設定時會改用一般主題。Urimal Saem 用於韓文字典查詢。
           </p>
         </div>
 

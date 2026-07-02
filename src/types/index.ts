@@ -685,3 +685,33 @@ export interface CachedReadingArticleProgress {
   is_synced: boolean;
   updated_at: string;
 }
+
+// Public Dictionary API Types
+
+export type DictionarySource = "free_dictionary" | "jmdict" | "urimal_saem" | "wiktionary" | "merriam_webster" | "cache" | "local";
+
+export interface DictionaryEntry {
+  word: string;
+  language: LearningLanguageCode;
+  phonetic?: string;
+  ipa?: string;
+  pos?: string;
+  definitions: string[];
+  definitionsZhTw: string[];
+  examples: { text: string; translation?: string }[];
+  synonyms?: string[];
+  antonyms?: string[];
+  audioUrl?: string;
+  source: DictionarySource;
+  externalUrl?: string;
+  sourceAttribution?: string;
+}
+
+export interface DictionaryCacheEntry {
+  language: LearningLanguageCode;
+  normalized_word: string;
+  entry_json: DictionaryEntry;
+  source: DictionarySource;
+  expires_at: string;
+  updated_at: string;
+}

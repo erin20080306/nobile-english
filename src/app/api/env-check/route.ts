@@ -17,6 +17,7 @@ export async function GET() {
     AWS_SECRET_ACCESS_KEY: !!process.env.AWS_SECRET_ACCESS_KEY,
     AWS_REGION: !!process.env.AWS_REGION,
     GNEWS_API_KEY: !!process.env.GNEWS_API_KEY,
+    KOREAN_DICTIONARY_API_KEY: !!process.env.KOREAN_DICTIONARY_API_KEY,
   };
   const supabaseOk = vars.NEXT_PUBLIC_SUPABASE_URL && vars.NEXT_PUBLIC_SUPABASE_ANON_KEY && vars.SUPABASE_SERVICE_ROLE_KEY;
   const googleTtsOk = vars.GOOGLE_TTS_API_KEY || vars.GOOGLE_CLOUD_SERVICE_ACCOUNT_JSON;
