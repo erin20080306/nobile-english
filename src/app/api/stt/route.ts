@@ -18,9 +18,13 @@ function pickEncoding(mimeType: string): string {
 }
 
 export async function POST(req: Request) {
-  const apiKey = process.env.GOOGLE_TTS_API_KEY;
-  if (!apiKey && !hasGoogleServiceAccount()) {
-    return NextResponse.json({ error: "Missing GOOGLE_TTS_API_KEY or GOOGLE_CLOUD_SERVICE_ACCOUNT_JSON" }, { status: 503 });
+  // Note: we intentionally do NOT use GOOGLE_TTS_API_KEY here even if set.
+  // That key is provisioned (and often API-restricted in Google Cloud
+  // Console) for Text-to-Speech only, so calling Speech-to-Text with it
+  // fails with "Requests to this API ... are blocked." Speech-to-Text
+  // always goes through the service account's OAuth token instead.
+  if (!hasGoogleServiceAccount()) {
+    return NextResponse.json({ error: "Missing GOOGLE_CLOUD_SERVICE_ACCOUNT_JSON" }, { status: 503 });
   }
 
   let audioBlob: Blob | null = null;
@@ -63,16 +67,10 @@ export async function POST(req: Request) {
       config.alternativeLanguageCodes = alternativeLanguageCodes;
     }
 
-    const url = apiKey ? `${GOOGLE_STT_URL}?key=${encodeURIComponent(apiKey)}` : GOOGLE_STT_URL;
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (!apiKey) {
-      const token = await getGoogleAccessToken();
-      headers.Authorization = `Bearer ${token}`;
-    }
-
-    const response = await fetch(url, {
+    const token = await getGoogleAccessToken();
+    const response = await fetch(GOOGLE_STT_URL, {
       method: "POST",
-      headers,
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ config, audio: { content: audioContent } }),
     });
 
