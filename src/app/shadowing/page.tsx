@@ -49,11 +49,6 @@ export default function ShadowingPage() {
         setCurrentIndex(startIndex);
         setTutor(getSelectedTutor(patternData.targetLanguage as LearningLanguageCode));
         setPhase("idle");
-        
-        // Auto-start playback after a short delay
-        setTimeout(() => {
-          playSentence(true);
-        }, 500);
       } else {
         // Default sentences for standalone access
         const lang = learningService.getCurrentLanguage();
@@ -69,11 +64,6 @@ export default function ShadowingPage() {
         ];
         setSentences(defaultSentences);
         setPhase("idle");
-        
-        // Auto-start playback after a short delay
-        setTimeout(() => {
-          playSentence(true);
-        }, 500);
       }
     };
 
@@ -85,6 +75,20 @@ export default function ShadowingPage() {
 
   const currentSentence = sentences[currentIndex];
   const isRecording = phase === "recording";
+  const [hasAutoStarted, setHasAutoStarted] = useState(false);
+
+  // Auto-start playback when sentences are loaded and phase is idle (only once)
+  useEffect(() => {
+    if (sentences.length > 0 && phase === "idle" && currentSentence && !hasAutoStarted) {
+      console.log("Auto-starting playback - sentences loaded, phase idle, current sentence exists");
+      setHasAutoStarted(true);
+      const timer = setTimeout(() => {
+        console.log("Executing auto-start playback");
+        playSentence(true);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [sentences, phase, currentSentence, hasAutoStarted]);
 
   function calculateSimilarity(original: string, spoken: string): number {
     const normalize = (text: string) => 
@@ -163,24 +167,31 @@ export default function ShadowingPage() {
     const safetyTimeout = setTimeout(() => {
       console.warn("playSentence safety timeout triggered");
       setPhase("idle");
-    }, 10000); // 10 second timeout
+    }, 15000); // 15 second timeout
     
     try {
       // First speak Chinese prompt with browser TTS
+      console.log("Starting Chinese TTS");
       const r1 = speechService.speak("請跟我讀", {
         lang: "zh-TW",
         voiceKeywords: ["google 繁體中文", "microsoft huihui", "microsoft yating", "mei-jia"],
         rate: 0.9,
         onEnd: () => {
+          console.log("Chinese TTS completed, starting target TTS");
           // Small delay then speak target sentence
           setTimeout(() => {
             const opts = voiceForLanguage(targetLanguage, 1);
+            console.log("Starting target TTS with opts:", opts);
             const r2 = speechService.speak(currentSentence.en, {
               ...opts,
               onEnd: () => {
+                console.log("Target TTS completed");
                 clearTimeout(safetyTimeout);
                 if (autoRecordAfter && speechSupported && !useManualInput) {
-                  startRecording();
+                  console.log("Auto-starting recording");
+                  setTimeout(() => {
+                    startRecording();
+                  }, 500); // Extra delay before recording
                 } else {
                   setPhase("idle");
                 }
@@ -196,7 +207,7 @@ export default function ShadowingPage() {
               clearTimeout(safetyTimeout);
               setPhase("idle");
             }
-          }, 300);
+          }, 500); // Increased delay between TTS
         },
         onError: (msg) => {
           console.error("Chinese prompt TTS error:", msg);
@@ -218,6 +229,7 @@ export default function ShadowingPage() {
   }
 
   function startRecording() {
+    console.log("Starting recording");
     setPhase("recording");
     setUserTranscript("");
     
@@ -226,13 +238,16 @@ export default function ShadowingPage() {
       onResult: (text) => {
         const transcript = text.trim();
         if (!transcript) return;
+        console.log("Recognition result:", transcript);
         setUserTranscript(transcript);
       },
       onError: (msg) => {
+        console.error("Recognition error:", msg);
         setPhase("idle");
         alert(msg);
       },
       onEnd: () => {
+        console.log("Recognition ended");
         stopListenRef.current = null;
         evaluatePronunciation();
       },
@@ -240,6 +255,10 @@ export default function ShadowingPage() {
     
     if (stop) {
       stopListenRef.current = stop;
+      console.log("Recording started successfully");
+    } else {
+      console.error("Failed to start recording");
+      setPhase("idle");
     }
   }
 
@@ -275,6 +294,7 @@ export default function ShadowingPage() {
       setUserTranscript("");
       setScore(null);
       setFeedback("");
+      setHasAutoStarted(false); // Reset auto-start flag for next sentence
     } else {
       setPhase("complete");
     }
