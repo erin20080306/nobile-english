@@ -39,6 +39,9 @@ CREATE POLICY "JMdict entries are publicly readable" ON jmdict_entries
 CREATE POLICY "Service role can manage JMdict entries" ON jmdict_entries
   FOR ALL USING (auth.role() = 'service_role');
 
+-- Drop existing trigger if it exists
+DROP TRIGGER IF EXISTS update_jmdict_entries_updated_at ON jmdict_entries;
+
 -- Updated at trigger
 CREATE TRIGGER update_jmdict_entries_updated_at BEFORE UPDATE ON jmdict_entries
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
