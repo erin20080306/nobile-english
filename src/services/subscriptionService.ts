@@ -76,9 +76,12 @@ export const subscriptionService = {
     const user = authService.getCurrentUser();
     if (typeof fetch !== "undefined" && user?.id) {
       try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 6000);
         const response = await fetch(`/api/subscriptions/status?userId=${encodeURIComponent(user.id)}`, {
           cache: "no-store",
-        });
+          signal: controller.signal,
+        }).finally(() => clearTimeout(timeout));
         if (response.ok) {
           const data = await response.json();
           return {

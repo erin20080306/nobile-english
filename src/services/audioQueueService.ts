@@ -121,6 +121,10 @@ class AudioQueueService {
       // 建立或取得 Audio element
       if (!this.audio) {
         this.audio = new Audio();
+        // Required so createMediaElementSource (used by the gain node below)
+        // doesn't "taint" cross-origin audio (e.g. Supabase Storage signed
+        // URLs) as silent. Must be set before the element ever loads a src.
+        this.audio.crossOrigin = "anonymous";
       }
 
       // 建立 AudioContext
@@ -308,6 +312,7 @@ class AudioQueueService {
       // 建立或取得 Audio element
       if (!this.audio) {
         this.audio = new Audio();
+        this.audio.crossOrigin = "anonymous";
       }
       this.ensureGainNode();
       if (this.audioContext && this.audioContext.state === "suspended") {
