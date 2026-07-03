@@ -24,6 +24,12 @@ export interface VoiceRecorderHandle {
   cancel: () => void;
 }
 
+let sharedMicrophoneStream: MediaStream | null = null;
+let microphoneReleaseTimer: number | null = null;
+let lifecycleListenersInstalled = false;
+
+const MICROPHONE_IDLE_RELEASE_MS = 5 * 60 * 1000;
+
 function pickMimeType(): string {
   const candidates = [
     "audio/webm;codecs=opus",
@@ -37,6 +43,58 @@ function pickMimeType(): string {
     }
   }
   return "";
+}
+
+function liveAudioTracks(stream: MediaStream | null): MediaStreamTrack[] {
+  return stream?.getAudioTracks().filter((track) => track.readyState === "live") ?? [];
+}
+
+function setMicrophoneTracksEnabled(enabled: boolean): void {
+  for (const track of liveAudioTracks(sharedMicrophoneStream)) {
+    track.enabled = enabled;
+  }
+}
+
+function clearMicrophoneReleaseTimer(): void {
+  if (typeof window === "undefined" || microphoneReleaseTimer === null) return;
+  window.clearTimeout(microphoneReleaseTimer);
+  microphoneReleaseTimer = null;
+}
+
+function releaseSharedMicrophone(): void {
+  clearMicrophoneReleaseTimer();
+  sharedMicrophoneStream?.getTracks().forEach((track) => track.stop());
+  sharedMicrophoneStream = null;
+}
+
+function scheduleMicrophoneRelease(): void {
+  if (typeof window === "undefined") return;
+  clearMicrophoneReleaseTimer();
+  microphoneReleaseTimer = window.setTimeout(() => {
+    releaseSharedMicrophone();
+  }, MICROPHONE_IDLE_RELEASE_MS);
+}
+
+function installLifecycleListeners(): void {
+  if (typeof window === "undefined" || lifecycleListenersInstalled) return;
+  lifecycleListenersInstalled = true;
+  window.addEventListener("pagehide", releaseSharedMicrophone);
+  window.addEventListener("beforeunload", releaseSharedMicrophone);
+}
+
+async function getReusableMicrophoneStream(): Promise<MediaStream> {
+  installLifecycleListeners();
+  clearMicrophoneReleaseTimer();
+
+  if (liveAudioTracks(sharedMicrophoneStream).length > 0) {
+    setMicrophoneTracksEnabled(true);
+    return sharedMicrophoneStream!;
+  }
+
+  releaseSharedMicrophone();
+  sharedMicrophoneStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  setMicrophoneTracksEnabled(true);
+  return sharedMicrophoneStream;
 }
 
 export const voiceRecorderService = {
@@ -65,7 +123,7 @@ export const voiceRecorderService = {
 
     let stream: MediaStream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await getReusableMicrophoneStream();
     } catch {
       onError?.("無法取得麥克風權限，請確認已允許使用麥克風。");
       return null;
@@ -84,13 +142,14 @@ export const voiceRecorderService = {
     const chunks: BlobPart[] = [];
     let stopped = false;
     let cancelled = false;
+    let releaseAfterStop = false;
 
     recorder.ondataavailable = (e) => {
       if (e.data && e.data.size > 0) chunks.push(e.data);
     };
 
     const cleanup = () => {
-      stream.getTracks().forEach((t) => t.stop());
+      setMicrophoneTracksEnabled(false);
       try {
         audioCtx?.close();
       } catch {
@@ -98,6 +157,8 @@ export const voiceRecorderService = {
       }
       clearTimeout(maxTimer);
       cancelAnimationFrame(rafId);
+      if (releaseAfterStop) releaseSharedMicrophone();
+      else scheduleMicrophoneRelease();
     };
 
     recorder.onstop = () => {
@@ -113,6 +174,7 @@ export const voiceRecorderService = {
     };
 
     recorder.onerror = () => {
+      releaseAfterStop = true;
       cleanup();
       onError?.("錄音發生錯誤，請再試一次。");
     };
@@ -165,9 +227,10 @@ export const voiceRecorderService = {
       // hard max-duration cap and manual stop button if this fails.
     }
 
-    const doStop = () => {
+    const doStop = (releaseMicrophone = false) => {
       if (stopped) return;
       stopped = true;
+      releaseAfterStop = releaseAfterStop || releaseMicrophone;
       if (recorder.state !== "inactive") recorder.stop();
     };
 
@@ -179,8 +242,12 @@ export const voiceRecorderService = {
       stop: doStop,
       cancel: () => {
         cancelled = true;
-        doStop();
+        doStop(true);
       },
     };
+  },
+
+  releaseMicrophone(): void {
+    releaseSharedMicrophone();
   },
 };

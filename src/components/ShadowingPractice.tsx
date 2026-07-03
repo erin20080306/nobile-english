@@ -136,7 +136,7 @@ export default function ShadowingPractice({
     opts.ttsInstructions = tutor.ttsInstructions;
     opts.voiceKeywords = tutor.voiceKeywords;
     // Increase volume for shadowing practice on mobile/PWA speakers.
-    opts.volumeGain = 2.6;
+    opts.volumeGain = 2.8;
 
     // Safety timeout to prevent getting stuck on "AI 示範中…" forever if
     // some TTS callback never fires (e.g. cloud TTS request hangs).
