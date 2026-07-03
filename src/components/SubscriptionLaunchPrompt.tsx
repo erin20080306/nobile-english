@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { Check, Crown, Lock, Sparkles, Volume2, X } from "lucide-react";
 import type { AccessState } from "@/services/trialAccessService";
+import { trialAccessService } from "@/services/trialAccessService";
 
 interface SubscriptionLaunchPromptProps {
   access: AccessState;
@@ -18,10 +19,13 @@ export default function SubscriptionLaunchPrompt({
   if (!access.shouldShowSubscriptionPrompt) return null;
 
   const trialActive = access.reason === "trial";
-  const title = trialActive ? `7 天試用中，剩 ${access.trial.daysLeft} 天` : "試用已結束";
-  const subtitle = trialActive
-    ? "試用可體驗核心功能；訂閱後解鎖每句 AI 導師角色語音。"
-    : "訂閱後可繼續使用 AI 導師、場景練習與完整語音。";
+  const title = "試用已結束";
+  const subtitle = "訂閱後可繼續使用 AI 導師、場景練習與完整語音。";
+
+  const handleDismiss = () => {
+    trialAccessService.dismissSubscriptionPrompt();
+    if (onContinueTrial) onContinueTrial();
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/45 px-4 pb-4 backdrop-blur-sm sm:items-center sm:pb-0">
@@ -31,17 +35,15 @@ export default function SubscriptionLaunchPrompt({
         className="w-full max-w-md overflow-hidden rounded-[30px] bg-white shadow-soft"
       >
         <div className="relative bg-gradient-to-br from-lilac via-white to-mint p-5">
-          {trialActive && onContinueTrial && (
-            <button
-              onClick={onContinueTrial}
-              className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-2xl bg-white/80 text-inkSoft shadow-softer active:scale-95"
-              aria-label="繼續試用"
-            >
-              <X size={17} />
-            </button>
-          )}
+          <button
+            onClick={handleDismiss}
+            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-2xl bg-white/80 text-inkSoft shadow-softer active:scale-95"
+            aria-label="關閉"
+          >
+            <X size={17} />
+          </button>
           <div className="flex h-12 w-12 items-center justify-center rounded-3xl bg-white text-lilacDeep shadow-softer">
-            {trialActive ? <Sparkles size={24} /> : <Lock size={24} />}
+            <Lock size={24} />
           </div>
           <h2 className="mt-4 text-2xl font-extrabold text-ink">{title}</h2>
           <p className="mt-1 text-sm font-semibold leading-relaxed text-inkSoft">{subtitle}</p>
@@ -73,14 +75,12 @@ export default function SubscriptionLaunchPrompt({
             查看訂閱方案
           </button>
 
-          {trialActive && onContinueTrial && (
-            <button
-              onClick={onContinueTrial}
-              className="w-full rounded-3xl bg-white py-3 text-sm font-extrabold text-inkSoft active:scale-[0.98]"
-            >
-              先繼續試用
-            </button>
-          )}
+          <button
+            onClick={handleDismiss}
+            className="w-full rounded-3xl bg-white py-3 text-sm font-extrabold text-inkSoft active:scale-[0.98]"
+          >
+            24小時內不再提醒
+          </button>
         </div>
       </motion.div>
     </div>

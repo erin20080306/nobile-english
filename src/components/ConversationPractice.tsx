@@ -25,7 +25,7 @@ interface Msg {
 }
 
 const MIN_PRACTICE_TURNS = 5;
-const TUTOR_PLAYBACK_READY_DELAY_MS = 300;
+const TUTOR_PLAYBACK_READY_DELAY_MS = 0;
 const TUTOR_FALLBACK_PHOTO = "/assets/tutors/tutor-fallback.svg";
 
 const SCENE_PERSONAS: Record<string, string[]> = {

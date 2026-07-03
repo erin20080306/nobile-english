@@ -21,9 +21,12 @@ export interface AccessState {
   shouldShowSubscriptionPrompt: boolean;
   tutorVoiceMode: TutorVoiceAccessMode;
   reason: "subscribed" | "trial" | "trial_expired";
+  showReason?: "limit_reached" | "cooldown_expired";
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24小時冷卻
+const PROMPT_DISMISSAL_KEY = "subscription_prompt_dismissed_at";
 let cachedState: { value: AccessState; at: number; userId: string } | null = null;
 const CACHE_MS = 60 * 1000;
 
@@ -53,7 +56,7 @@ export function getTrialInfo(user?: User | null): TrialInfo {
 }
 
 export const trialAccessService = {
-  async getAccessState(userParam?: User | null, options?: { fresh?: boolean }): Promise<AccessState> {
+  async getAccessState(userParam?: User | null, options?: { fresh?: boolean; forceShow?: boolean }): Promise<AccessState> {
     const user = userParam ?? authService.getCurrentUser();
     const userId = user?.id || "anonymous";
 
@@ -82,6 +85,10 @@ export const trialAccessService = {
     const entitlement = await subscriptionService.getEntitlement().catch(() => null);
     const isSubscribed = Boolean(entitlement?.isActive);
 
+    // 檢查冷卻機制
+    const lastDismissed = localStorage.getItem(PROMPT_DISMISSAL_KEY);
+    const isCooldownActive = lastDismissed && (Date.now() - parseInt(lastDismissed)) < COOLDOWN_MS;
+
     const state: AccessState = isSubscribed
       ? {
           isSubscribed: true,
@@ -94,20 +101,30 @@ export const trialAccessService = {
         ? {
             isSubscribed: false,
             trial,
-            shouldShowSubscriptionPrompt: true,
+            shouldShowSubscriptionPrompt: false, // 試用用戶不顯示提示
             tutorVoiceMode: "cache-only",
             reason: "trial",
           }
         : {
             isSubscribed: false,
             trial,
-            shouldShowSubscriptionPrompt: true,
+            shouldShowSubscriptionPrompt: !isCooldownActive || Boolean(options?.forceShow),
             tutorVoiceMode: "blocked",
             reason: "trial_expired",
+            showReason: options?.forceShow ? "limit_reached" : undefined,
           };
 
     cachedState = { value: state, at: Date.now(), userId };
     return state;
+  },
+
+  dismissSubscriptionPrompt() {
+    localStorage.setItem(PROMPT_DISMISSAL_KEY, Date.now().toString());
+    this.clearCache();
+  },
+
+  forceShowSubscriptionPrompt() {
+    return this.getAccessState(undefined, { fresh: true, forceShow: true });
   },
 
   clearCache() {

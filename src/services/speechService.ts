@@ -16,6 +16,7 @@ export interface SpeakOptions {
   ttsVoice?: string;
   ttsInstructions?: string;
   volumeGain?: number;
+  voiceGender?: "male" | "female";
   onStart?: () => void;
   onEnd?: () => void;
   onError?: (message: string) => void;
@@ -44,22 +45,40 @@ function loadVoices(): Promise<SpeechSynthesisVoice[]> {
   return voicesReady;
 }
 
-function pickVoice(voices: SpeechSynthesisVoice[], lang = "en-US", keywords: string[] = []) {
+function pickVoice(voices: SpeechSynthesisVoice[], lang = "en-US", keywords: string[] = [], gender?: "male" | "female") {
   const preferred = lang || "en-US";
   const prefix = preferred.slice(0, 2).toLowerCase();
   const normalizedKeywords = keywords.map((keyword) => keyword.trim().toLowerCase()).filter(Boolean);
+  
+  // Filter voices by gender if specified
+  let candidateVoices = voices;
+  if (gender) {
+    const genderKeywords = gender === "male" 
+      ? ["male", "david", "mark", "daniel", "james", "google us english male", "microsoft david", "microsoft mark"]
+      : ["female", "samantha", "ava", "zira", "karen", "google us english female", "microsoft zira", "microsoft aria"];
+    
+    candidateVoices = voices.filter((v) => 
+      genderKeywords.some((keyword) => v.name.toLowerCase().includes(keyword))
+    );
+    
+    // If no gender-specific voices found, use all voices
+    if (candidateVoices.length === 0) {
+      candidateVoices = voices;
+    }
+  }
+  
   if (normalizedKeywords.length > 0) {
-    const kwMatch = voices.find((v) => normalizedKeywords.some((keyword) => v.name.toLowerCase().includes(keyword)));
+    const kwMatch = candidateVoices.find((v) => normalizedKeywords.some((keyword) => v.name.toLowerCase().includes(keyword)));
     if (kwMatch) return kwMatch;
   }
   const local =
-    voices.find((v) => v.lang === preferred) ||
-    voices.find((v) => v.lang.toLowerCase().startsWith(prefix));
+    candidateVoices.find((v) => v.lang === preferred) ||
+    candidateVoices.find((v) => v.lang.toLowerCase().startsWith(prefix));
   if (local) return local;
   if (prefix !== "en") return undefined;
-  return voices.find((v) => v.lang.startsWith("en-GB") && preferred === "en-GB") ||
-    voices.find((v) => v.lang === "en-US") ||
-    voices.find((v) => v.lang.startsWith("en"));
+  return candidateVoices.find((v) => v.lang.startsWith("en-GB") && preferred === "en-GB") ||
+    candidateVoices.find((v) => v.lang === "en-US") ||
+    candidateVoices.find((v) => v.lang.startsWith("en"));
 }
 
 function isEnglishLang(lang = "en-US") {
@@ -119,7 +138,7 @@ function speakNow(text: string, opts?: SpeakOptions, voices = window.speechSynth
   utter.rate = opts?.rate ?? 0.95;
   utter.pitch = 1;
   utter.volume = 1;
-  const voice = pickVoice(voices, lang, opts?.voiceKeywords ?? []);
+  const voice = pickVoice(voices, lang, opts?.voiceKeywords ?? [], opts?.voiceGender);
   if (voice) utter.voice = voice;
   currentPlaybackEnd = opts?.onEnd ?? null;
   currentUtterance = utter;
@@ -336,7 +355,7 @@ export const speechService = {
           const voices = window.speechSynthesis.getVoices().length
             ? window.speechSynthesis.getVoices()
             : await loadVoices();
-          const voice = pickVoice(voices, opts.lang, opts.voiceKeywords ?? []);
+          const voice = pickVoice(voices, opts.lang, opts.voiceKeywords ?? [], opts?.voiceGender);
           if (!voice && opts.lang && !isEnglishLang(opts.lang)) {
             opts.onError?.(missingCloudVoiceMessage(opts.lang));
             opts.onEnd?.();
@@ -350,7 +369,7 @@ export const speechService = {
         const voices = window.speechSynthesis.getVoices().length
           ? window.speechSynthesis.getVoices()
           : await loadVoices();
-        const voice = pickVoice(voices, opts?.lang, opts?.voiceKeywords ?? []);
+        const voice = pickVoice(voices, opts?.lang, opts?.voiceKeywords ?? [], opts?.voiceGender);
         if (!voice && opts?.lang && !isEnglishLang(opts.lang)) {
           opts.onError?.(missingCloudVoiceMessage(opts.lang));
           opts.onEnd?.();
