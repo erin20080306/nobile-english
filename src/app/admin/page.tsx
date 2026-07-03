@@ -7,6 +7,7 @@ import {
   BookOpen, Zap, CheckCircle, AlertCircle, Clock,
   RefreshCw, Globe, Users, ArrowLeft, Settings,
   Database, Volume2, Send, ChevronRight, KeyRound, ExternalLink,
+  Cpu, BarChart3,
 } from "lucide-react";
 import { LEARNING_LANGUAGES } from "@/data/learningLanguages";
 import { useUser } from "@/hooks/useUser";
@@ -34,6 +35,21 @@ interface TtsProviderStatus {
   pollyConfigured: boolean;
 }
 
+interface GeminiModelStatus {
+  active: string;
+  defaultModel: string;
+  fallbackModel: string;
+  override: string | null;
+  supportedModels: readonly string[];
+}
+
+interface ApiUsageEntry {
+  apiName: string;
+  today: number;
+  last7Days: number;
+  last30Days: number;
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const { user, ready } = useUser({ requireOnboarded: true });
@@ -46,6 +62,10 @@ export default function AdminPage() {
   const [envVars, setEnvVars] = useState<Record<string, boolean> | null>(null);
   const [ttsProviderStatus, setTtsProviderStatus] = useState<TtsProviderStatus | null>(null);
   const [switchingProvider, setSwitchingProvider] = useState(false);
+  const [geminiModelStatus, setGeminiModelStatus] = useState<GeminiModelStatus | null>(null);
+  const [switchingModel, setSwitchingModel] = useState(false);
+  const [apiUsage, setApiUsage] = useState<ApiUsageEntry[] | null>(null);
+  const [apiUsageLoading, setApiUsageLoading] = useState(false);
 
   useEffect(() => {
     if (!ready) return;
@@ -57,8 +77,54 @@ export default function AdminPage() {
     loadArticleStatuses();
     checkEnvVars();
     loadTtsProviderStatus();
+    loadGeminiModelStatus();
+    loadApiUsage();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, user]);
+
+  async function loadGeminiModelStatus() {
+    try {
+      const res = await fetch("/api/admin/gemini-model");
+      if (res.ok) setGeminiModelStatus(await res.json());
+    } catch {
+      setGeminiModelStatus(null);
+    }
+  }
+
+  async function switchGeminiModel(model: string) {
+    setSwitchingModel(true);
+    try {
+      const res = await fetch("/api/admin/gemini-model", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setGeminiModelStatus(data);
+        addLog(`✅ Gemini 模型已切換為：${model === "auto" ? "自動（預設）" : model}`, "ok");
+      } else {
+        addLog(`❌ 切換失敗：${data.error || "未知錯誤"}`, "error");
+      }
+    } catch (e) {
+      addLog(`❌ 切換錯誤：${e instanceof Error ? e.message : String(e)}`, "error");
+    }
+    setSwitchingModel(false);
+  }
+
+  async function loadApiUsage() {
+    setApiUsageLoading(true);
+    try {
+      const res = await fetch("/api/admin/api-usage");
+      if (res.ok) {
+        const data = await res.json();
+        setApiUsage(data.usage || []);
+      }
+    } catch {
+      setApiUsage(null);
+    }
+    setApiUsageLoading(false);
+  }
 
   async function loadTtsProviderStatus() {
     try {
@@ -426,6 +492,91 @@ export default function AdminPage() {
           ) : (
             <p className="text-sm text-inkSoft">載入中...</p>
           )}
+        </div>
+
+        {/* Gemini Model Switcher */}
+        <div className="bg-white rounded-2xl p-4 shadow-softer">
+          <div className="flex items-center justify-between mb-3">
+            <p className="font-extrabold text-ink flex items-center gap-2"><Cpu size={16} /> AI 模型管理</p>
+            <button onClick={loadGeminiModelStatus} className="text-xs text-lilacDeep flex items-center gap-1 hover:underline">
+              <RefreshCw size={12} /> 重新整理
+            </button>
+          </div>
+          {geminiModelStatus ? (
+            <>
+              <p className="text-sm text-inkSoft mb-1">
+                目前使用：<span className="font-bold text-ink font-mono">{geminiModelStatus.active}</span>
+                {geminiModelStatus.override && <span className="ml-1 text-xs text-lilacDeep">（手動指定）</span>}
+              </p>
+              <p className="text-xs text-inkSoft mb-3">
+                預設模型：<span className="font-mono">{geminiModelStatus.defaultModel}</span>
+                {" "}· 超量自動改用：<span className="font-mono">{geminiModelStatus.fallbackModel}</span>
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => switchGeminiModel("auto")}
+                  disabled={switchingModel}
+                  className={`py-2.5 rounded-xl font-bold text-xs disabled:opacity-50 active:scale-95 transition ${
+                    !geminiModelStatus.override ? "bg-lilacDeep text-white" : "bg-sand text-inkSoft"
+                  }`}
+                >
+                  自動（預設 + 超量 fallback）
+                </button>
+                {geminiModelStatus.supportedModels.map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => switchGeminiModel(m)}
+                    disabled={switchingModel}
+                    className={`py-2.5 rounded-xl font-bold text-xs font-mono disabled:opacity-50 active:scale-95 transition ${
+                      geminiModelStatus.override === m ? "bg-lilacDeep text-white" : "bg-sand text-inkSoft"
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-inkSoft mt-2">
+                此設定套用於 AI 導師回覆、每日文章生成與字典 AI 查詢。當主要模型遇到超量（quota）或流量限制時，系統會自動改用較便宜的 fallback 模型重試一次；也可以在這裡手動固定指定某個模型。
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-inkSoft">載入中...</p>
+          )}
+        </div>
+
+        {/* API Call Usage */}
+        <div className="bg-white rounded-2xl p-4 shadow-softer">
+          <div className="flex items-center justify-between mb-3">
+            <p className="font-extrabold text-ink flex items-center gap-2"><BarChart3 size={16} /> API 呼叫次數</p>
+            <button onClick={loadApiUsage} className="text-xs text-lilacDeep flex items-center gap-1 hover:underline">
+              <RefreshCw size={12} className={apiUsageLoading ? "animate-spin" : ""} /> 重新整理
+            </button>
+          </div>
+          {apiUsageLoading ? (
+            <div className="flex justify-center py-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-lilacDeep" />
+            </div>
+          ) : apiUsage && apiUsage.length > 0 ? (
+            <div className="space-y-1.5">
+              <div className="grid grid-cols-4 gap-2 px-2 text-xs font-bold text-inkSoft">
+                <span className="col-span-2">API</span>
+                <span className="text-right">今日</span>
+                <span className="text-right">近30天</span>
+              </div>
+              {apiUsage.map((entry) => (
+                <div key={entry.apiName} className="grid grid-cols-4 gap-2 items-center bg-cream rounded-xl px-2 py-2">
+                  <span className="col-span-2 text-xs font-mono text-ink truncate">{entry.apiName}</span>
+                  <span className="text-right text-sm font-bold text-ink">{entry.today}</span>
+                  <span className="text-right text-sm font-bold text-lilacDeep">{entry.last30Days}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-inkSoft">尚無呼叫紀錄，或資料庫遷移尚未套用（api_usage_counters）。</p>
+          )}
+          <p className="text-xs text-inkSoft mt-2">
+            涵蓋 Gemini（依模型分別統計）、Google TTS、Amazon Polly 的呼叫次數，可用於觀察是否接近付費額度。
+          </p>
         </div>
 
         {/* Today Article Status */}

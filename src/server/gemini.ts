@@ -8,6 +8,9 @@
  * separate so a Google TTS key is never treated as permission to call Gemini.
  */
 
+import { getAppSetting } from "./settings";
+import { incrementApiUsage } from "./apiUsage";
+
 const GENERATIVE_LANGUAGE_BASE =
   "https://generativelanguage.googleapis.com/v1beta/models";
 
@@ -23,6 +26,33 @@ export function getGeminiApiKey(): string | null {
 
 export function getGeminiModel(): string {
   return process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
+}
+
+// Cheaper model used automatically when the primary model hits a quota /
+// rate-limit error, and also selectable manually from the admin panel.
+export function getGeminiFallbackModel(): string {
+  return process.env.GEMINI_FALLBACK_MODEL || "gemini-3.5-flash-lite";
+}
+
+// Models an admin can pick from in the admin panel's model switcher. Kept as
+// a hand-maintained list of models known to be available for this project.
+export const SUPPORTED_GEMINI_MODELS = [
+  "gemini-3.1-flash-lite",
+  "gemini-3.5-flash-lite",
+  "gemini-3.5-flash",
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-flash",
+] as const;
+
+export const GEMINI_MODEL_SETTING_KEY = "gemini_active_model";
+
+// Admin-selected active model override, stored via app_settings (same
+// pattern as the TTS provider override) so it can be changed from the admin
+// panel without a redeploy. Falls back to the GEMINI_MODEL env var when no
+// override has been set.
+export async function resolveActiveGeminiModel(): Promise<string> {
+  const override = await getAppSetting(GEMINI_MODEL_SETTING_KEY);
+  return override || getGeminiModel();
 }
 
 export function hasGeminiConfig(): boolean {
@@ -52,15 +82,17 @@ interface GeminiResponse {
   promptFeedback?: { blockReason?: string };
 }
 
-/**
- * Call Gemini generateContent and return the raw text output.
- * Throws when the key is missing or the API returns an error.
- */
-export async function generateWithGemini(options: GeminiGenerateOptions): Promise<string> {
-  const apiKey = getGeminiApiKey();
-  if (!apiKey) throw new Error("Missing Gemini API key");
+function isQuotaOrRateLimitError(status: number, data: GeminiResponse): boolean {
+  if (status === 429) return true;
+  const errorStatus = (data.error?.status || "").toUpperCase();
+  return errorStatus === "RESOURCE_EXHAUSTED" || errorStatus === "UNAVAILABLE";
+}
 
-  const model = options.model || getGeminiModel();
+async function callGeminiOnce(
+  apiKey: string,
+  model: string,
+  options: GeminiGenerateOptions
+): Promise<{ response: Response; data: GeminiResponse }> {
   const url = `${GENERATIVE_LANGUAGE_BASE}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
   const generationConfig: Record<string, unknown> = {
@@ -80,6 +112,40 @@ export async function generateWithGemini(options: GeminiGenerateOptions): Promis
   });
 
   const data = (await response.json().catch(() => ({}))) as GeminiResponse;
+  return { response, data };
+}
+
+/**
+ * Call Gemini generateContent and return the raw text output.
+ * Throws when the key is missing or the API returns an error.
+ *
+ * When the primary model (admin override, or GEMINI_MODEL env var) hits a
+ * quota / rate-limit error, this automatically retries once with the
+ * cheaper fallback model (see getGeminiFallbackModel) so a single busy day
+ * doesn't take the whole feature down. Every call increments a per-model
+ * usage counter (api_usage_counters) so the admin panel can show call
+ * volume before quota problems happen.
+ */
+export async function generateWithGemini(options: GeminiGenerateOptions): Promise<string> {
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error("Missing Gemini API key");
+
+  const primaryModel = options.model || (await resolveActiveGeminiModel());
+  const fallbackModel = getGeminiFallbackModel();
+
+  let { response, data } = await callGeminiOnce(apiKey, primaryModel, options);
+  let usedModel = primaryModel;
+
+  if (!response.ok && isQuotaOrRateLimitError(response.status, data) && primaryModel !== fallbackModel) {
+    console.warn(
+      `[Gemini] ${primaryModel} hit quota/rate limit (${response.status}); retrying with fallback model ${fallbackModel}`
+    );
+    ({ response, data } = await callGeminiOnce(apiKey, fallbackModel, options));
+    usedModel = fallbackModel;
+  }
+
+  void incrementApiUsage(`gemini:${usedModel}`);
+
   if (!response.ok) {
     throw new Error(
       `Gemini failed (${response.status}): ${data.error?.message || data.error?.status || "unknown error"}`

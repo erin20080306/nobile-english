@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { getAppSetting } from "../settings";
+import { incrementApiUsage } from "../apiUsage";
 import type { AudioFormat, SynthesisOutput, SynthesisRequest, TtsAssetType } from "./types";
 
 type TtsQuality = "standard" | "neural";
@@ -249,6 +250,8 @@ class GoogleTtsProvider implements TtsProvider {
     const bytes = Buffer.from(data.audioContent, "base64");
     if (!bytes.byteLength) throw new Error("Google TTS returned empty audio");
 
+    void incrementApiUsage(`tts:google-${this.quality}`);
+
     // Return raw bytes; the service returns them inline and uploads to Supabase
     // in the background so playback is not blocked by the storage round-trip.
     return {
@@ -357,6 +360,8 @@ class PollyTtsProvider implements TtsProvider {
 
     const bytes = Buffer.from(await response.arrayBuffer());
     if (!bytes.byteLength) throw new Error("Amazon Polly returned empty audio");
+
+    void incrementApiUsage(`tts:polly-${this.quality}`);
 
     // Return raw bytes; the service uploads to Supabase in the background.
     return {

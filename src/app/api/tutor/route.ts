@@ -13,7 +13,7 @@ import { getLearningLanguage } from "@/data/learningLanguages";
 import {
   generateWithGemini,
   getGeminiApiKey,
-  getGeminiModel,
+  resolveActiveGeminiModel,
   parseJsonFromModel,
 } from "@/server/gemini";
 import { getSupabaseServerClient } from "@/server/supabaseClient";
@@ -534,7 +534,7 @@ export async function POST(req: Request) {
     return failure(503, "MISSING_GEMINI_KEY", "Gemini API key is not configured.", true);
   }
 
-  const model = getGeminiModel();
+  const model = await resolveActiveGeminiModel();
   const cacheKey = buildTutorReplyCacheKey(body, persona, localState);
   const cached = await readCachedTutorReply(cacheKey, body.scene, persona);
   if (cached) {

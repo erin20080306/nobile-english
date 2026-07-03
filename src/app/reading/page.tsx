@@ -47,6 +47,14 @@ const LANG_VOICE: Record<string, string> = {
   en: "nova", ja: "nova", ko: "nova", it: "nova", es: "nova",
 };
 
+// Daily reading uses a specific, crisper-sounding female voice profile per
+// language instead of the generic gender-based default, for clearer
+// pronunciation. Falls back to gender-based selection for languages without
+// an explicit override below.
+const READING_VOICE_PROFILE_ID: Partial<Record<LearningLanguageCode, string>> = {
+  en: "vp-en-sophie",
+};
+
 type ReadingTtsAssetType = "reading_sentence" | "practice_sentence";
 
 function isPlayableAudioUrl(url?: string | null) {
@@ -188,6 +196,7 @@ export default function DailyReadingPage() {
           languageCode: selectedLanguage,
           assetType,
           voiceGender: "female",
+          voiceProfileId: READING_VOICE_PROFILE_ID[selectedLanguage],
           audioFormat: "mp3",
           cacheOnly,
         }),
