@@ -54,8 +54,10 @@ export async function POST(req: Request) {
       const translation = await generateJsonWithGemini<{ translatedWord: string }>({
         prompt: translationPrompt,
         temperature: 0.3,
-        maxOutputTokens: 100,
+        maxOutputTokens: 200,
       });
+
+      console.log(`Translation result for "${word}" to ${language}:`, translation);
 
       if (translation && translation.translatedWord) {
         targetWord = translation.translatedWord.trim();
@@ -95,6 +97,10 @@ export async function POST(req: Request) {
       if (!entry) {
         // Fallback to Wiktionary if Urimal Saem fails
         entry = await queryWiktionary(targetWord, "ko");
+        if (!entry) {
+          // Try lowercase version
+          entry = await queryWiktionary(targetWord.toLowerCase(), "ko");
+        }
         source = "wiktionary";
       } else {
         source = "urimal_saem";
@@ -102,10 +108,18 @@ export async function POST(req: Request) {
       break;
     case "es":
       entry = await queryWiktionary(targetWord, "es");
+      if (!entry) {
+        // Try lowercase version
+        entry = await queryWiktionary(targetWord.toLowerCase(), "es");
+      }
       source = "wiktionary";
       break;
     case "it":
       entry = await queryWiktionary(targetWord, "it");
+      if (!entry) {
+        // Try lowercase version
+        entry = await queryWiktionary(targetWord.toLowerCase(), "it");
+      }
       source = "wiktionary";
       break;
     case "zh":
