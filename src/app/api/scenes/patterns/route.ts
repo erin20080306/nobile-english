@@ -13,6 +13,7 @@ interface ScenePatternsRequest {
   sceneName: string;
   enName: string;
   difficulty: EnglishLevel;
+  learnerLevel?: EnglishLevel;
   keyWords: string[];
   targetLanguage?: LearningLanguageCode;
 }
@@ -27,7 +28,7 @@ function isValidPatterns(payload: unknown): payload is { patterns: ScenePattern[
   const p = payload as { patterns?: unknown };
   return (
     Array.isArray(p.patterns) &&
-    p.patterns.length >= 4 &&
+    p.patterns.length >= MIN_GENERATED_BANK_SIZE &&
     p.patterns.every(
       (item) =>
         item &&
@@ -41,25 +42,54 @@ function isValidPatterns(payload: unknown): payload is { patterns: ScenePattern[
   );
 }
 
-// Cache up to this many distinct sentence-set variants per scene/language.
-// Once this many exist, no more Gemini calls are made for that scene and a
-// variant is picked at random on every request, so learners see rotating
-// (but stable, cached) content across visits instead of an ever-growing
-// stream of new API calls.
-const MAX_VARIANTS = 3;
+const SESSION_PATTERN_COUNT = 4;
+const TARGET_BANK_SIZE = 18;
+const MIN_GENERATED_BANK_SIZE = 12;
+
+function normalizePatternKey(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s\u00c0-\u024f\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function dedupePatterns(patterns: ScenePattern[]): ScenePattern[] {
+  const seen = new Set<string>();
+  const result: ScenePattern[] = [];
+  for (const pattern of patterns) {
+    const en = pattern.en.trim();
+    const zh = pattern.zh.trim();
+    const key = normalizePatternKey(en);
+    if (!en || !zh || /_{2,}/.test(en) || seen.has(key)) continue;
+    seen.add(key);
+    result.push({ en, zh });
+  }
+  return result;
+}
+
+function selectPracticeWindow(patterns: ScenePattern[], count = SESSION_PATTERN_COUNT): ScenePattern[] {
+  const clean = dedupePatterns(patterns);
+  if (clean.length <= count) return clean;
+  const start = Math.floor(Math.random() * clean.length);
+  return Array.from({ length: count }, (_, index) => clean[(start + index) % clean.length]);
+}
 
 function buildPrompt(
   body: ScenePatternsRequest,
   targetLanguage: ReturnType<typeof getLearningLanguage>,
   existingVariants: ScenePattern[][]
 ) {
+  const learnerLevel = body.learnerLevel || body.difficulty;
   return [
     `You are creating shadowing (repeat-after-me) practice sentences for a language-learning app, for a learner studying ${targetLanguage.label} (${targetLanguage.nativeName}).`,
     `Scenario theme: "${body.themeName}". Specific scene: "${body.sceneName}" (${body.enName}).`,
-    `Difficulty level: ${body.difficulty}.`,
+    `Scene difficulty: ${body.difficulty}. Learner's current level: ${learnerLevel}.`,
     body.keyWords.length ? `Relevant vocabulary to naturally incorporate where fitting: ${body.keyWords.join(", ")}.` : "",
-    "Generate 4 to 6 sentences the learner can shadow (listen and repeat aloud) for this exact scene.",
-    "Each sentence must be a complete, short, standalone sentence in the target language (never a fragment, never containing a blank/underscore placeholder), natural and idiomatic, with length and vocabulary matched to the difficulty level.",
+    `Generate exactly ${TARGET_BANK_SIZE} varied sentences the learner can shadow (listen and repeat aloud) for this exact scene.`,
+    "Cover different angles of the scenario: opening, asking for help, clarifying details, confirming, polite responses, small problems, and closing.",
+    "Each sentence must be a complete, short, standalone sentence in the target language (never a fragment, never containing a blank/underscore placeholder), natural and idiomatic, with length and vocabulary matched to the learner's current level.",
+    "Do not make near-duplicates. The sentences should feel like a reusable practice bank, not one tiny repeated set.",
     "All Traditional Chinese translations (zh field) must be natural Traditional Chinese.",
     existingVariants.length
       ? [
@@ -75,10 +105,10 @@ function buildPrompt(
     .join("\n");
 }
 
-async function readCachedVariants(
+async function readCachedPatternBank(
   sceneId: string,
   languageCode: string
-): Promise<{ variantIndex: number; patterns: ScenePattern[] }[]> {
+): Promise<ScenePattern[]> {
   const supabase = getSupabaseServerClient();
   if (!supabase) return [];
   try {
@@ -89,18 +119,19 @@ async function readCachedVariants(
       .eq("language_code", languageCode)
       .order("variant_index", { ascending: true });
     if (error || !Array.isArray(data)) return [];
-    return data
+    return dedupePatterns(
+      data
       .filter((row) => Array.isArray(row.patterns) && row.patterns.length)
-      .map((row) => ({ variantIndex: row.variant_index as number, patterns: row.patterns as ScenePattern[] }));
+        .flatMap((row) => row.patterns as ScenePattern[])
+    );
   } catch {
     return [];
   }
 }
 
-async function writeCachedVariant(
+async function writeCachedPatternBank(
   sceneId: string,
   languageCode: string,
-  variantIndex: number,
   patterns: ScenePattern[],
   model: string
 ) {
@@ -111,7 +142,7 @@ async function writeCachedVariant(
       {
         scene_id: sceneId,
         language_code: languageCode,
-        variant_index: variantIndex,
+        variant_index: 0,
         patterns,
         source: "gemini",
         model,
@@ -121,10 +152,6 @@ async function writeCachedVariant(
   } catch {
     // Cache is optional. Missing migration or schema drift must not break the API.
   }
-}
-
-function pickRandom<T>(items: T[]): T {
-  return items[Math.floor(Math.random() * items.length)];
 }
 
 export async function POST(req: Request) {
@@ -141,35 +168,53 @@ export async function POST(req: Request) {
 
   const languageCode = body.targetLanguage || "en";
   const targetLanguage = getLearningLanguage(languageCode);
+  const learnerLevel = body.learnerLevel || body.difficulty;
+  const cacheSceneId = `${body.sceneId}::level:${learnerLevel.replace(/[^A-Za-z-]/g, "")}`;
 
-  const variants = await readCachedVariants(body.sceneId, languageCode);
-  if (variants.length >= MAX_VARIANTS) {
-    return NextResponse.json({ patterns: pickRandom(variants).patterns, source: "cache" });
+  const cachedBank = await readCachedPatternBank(cacheSceneId, languageCode);
+  if (cachedBank.length >= MIN_GENERATED_BANK_SIZE) {
+    return NextResponse.json({
+      patterns: selectPracticeWindow(cachedBank),
+      source: "cache",
+      bankSize: cachedBank.length,
+    });
   }
 
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
-    if (variants.length > 0) {
-      return NextResponse.json({ patterns: pickRandom(variants).patterns, source: "cache" });
+    if (cachedBank.length > 0) {
+      return NextResponse.json({
+        patterns: selectPracticeWindow(cachedBank),
+        source: "cache",
+        bankSize: cachedBank.length,
+      });
     }
     return NextResponse.json({ patterns: null, source: "unavailable" });
   }
 
   try {
     const raw = await generateWithGemini({
-      prompt: buildPrompt(body, targetLanguage, variants.map((v) => v.patterns)),
+      prompt: buildPrompt(body, targetLanguage, cachedBank.length ? [cachedBank] : []),
       temperature: 0.8,
-      maxOutputTokens: 1024,
+      maxOutputTokens: 4096,
       json: true,
     });
     const parsed = parseJsonFromModel<unknown>(raw);
     if (!isValidPatterns(parsed)) throw new Error("Gemini returned invalid patterns");
-    const nextVariantIndex = variants.length;
-    void writeCachedVariant(body.sceneId, languageCode, nextVariantIndex, parsed.patterns, "gemini");
-    return NextResponse.json({ patterns: parsed.patterns, source: "gemini" });
+    const generatedBank = dedupePatterns(parsed.patterns);
+    void writeCachedPatternBank(cacheSceneId, languageCode, generatedBank, "gemini");
+    return NextResponse.json({
+      patterns: selectPracticeWindow(generatedBank),
+      source: "gemini",
+      bankSize: generatedBank.length,
+    });
   } catch {
-    if (variants.length > 0) {
-      return NextResponse.json({ patterns: pickRandom(variants).patterns, source: "cache" });
+    if (cachedBank.length > 0) {
+      return NextResponse.json({
+        patterns: selectPracticeWindow(cachedBank),
+        source: "cache",
+        bankSize: cachedBank.length,
+      });
     }
     return NextResponse.json({ patterns: null, source: "unavailable" });
   }

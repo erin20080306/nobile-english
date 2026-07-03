@@ -70,6 +70,7 @@ export const KEYS = {
   sceneReviewCounter: "sceneReviewCounter",
   gardenStates: "gardenStates",
   customScenes: "customScenes",
+  customScenePlanCache: "customScenePlanCache",
   lastResult: "lastResult",
   feedbackReports: "feedbackReports",
   wordReviewMemory: "wordReviewMemory",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Wand2, Play, Volume2, Mic } from "lucide-react";
 import type { CustomScene, LearningLanguageCode } from "@/types";
@@ -8,6 +8,7 @@ import { speechService } from "@/services/speechService";
 import { voiceForLanguage } from "@/data/learningLanguages";
 import ShadowingPractice from "@/components/ShadowingPractice";
 import { LevelBadge } from "@/components/ui";
+import { pickShadowingPatternSet } from "@/services/shadowingPatternSet";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -35,7 +36,12 @@ export default function CustomScenePreview({
   secondaryAction?: { label: string; onClick: () => void };
 }) {
   const s = created.scene;
-  const studyPhrases = s.keyPatterns.slice(0, 3);
+  const patternSeed = useMemo(() => `${created.id}:${Date.now()}`, [created.id]);
+  const practicePatterns = useMemo(
+    () => pickShadowingPatternSet(s.keyPatterns, patternSeed),
+    [s.keyPatterns, patternSeed]
+  );
+  const studyPhrases = practicePatterns.slice(0, 3);
   const [studiedPhrases, setStudiedPhrases] = useState<string[]>([]);
   const [shadowingPatternIndex, setShadowingPatternIndex] = useState<number | null>(null);
   const [pronunciationScores, setPronunciationScores] = useState<Record<number, number>>({});
@@ -126,7 +132,7 @@ export default function CustomScenePreview({
 
       <Section title="重要句型">
         <div className="space-y-2">
-          {s.keyPatterns.map((p, i) => (
+          {practicePatterns.map((p, i) => (
             <div key={i}>
               {shadowingPatternIndex === i ? (
                 <ShadowingPractice

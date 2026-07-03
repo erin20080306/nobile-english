@@ -23,6 +23,7 @@ import ConversationPractice from "@/components/ConversationPractice";
 import ShadowingPractice from "@/components/ShadowingPractice";
 import SubscriptionLaunchPrompt from "@/components/SubscriptionLaunchPrompt";
 import { LevelBadge } from "@/components/ui";
+import { pickShadowingPatternSet } from "@/services/shadowingPatternSet";
 import type { DialogueResult, TutorFeedback, DialogueTranscriptLine } from "@/types";
 
 function buildTranscript(userTurns: string[], feedbacks: TutorFeedback[]): DialogueTranscriptLine[] {
@@ -82,10 +83,8 @@ export default function ScenePracticePage() {
     | { type: "dialogue" }
     | { type: "quiz" };
 
-  const settings = useMemo(() => {
-    const u = authService.getCurrentUser();
-    return u ? learningService.getSettings(u.id) : null;
-  }, []);
+  const currentUser = useMemo(() => authService.getCurrentUser(), []);
+  const settings = useMemo(() => (currentUser ? learningService.getSettings(currentUser.id) : null), [currentUser]);
   const showZh = settings ? settings.showChineseGlobal && settings.sceneChinese : true;
   const targetLanguage = scene?.targetLanguage || settings?.targetLanguage || learningService.getCurrentLanguage();
   const languageInfo = getLearningLanguage(targetLanguage);
@@ -115,6 +114,7 @@ export default function ScenePracticePage() {
         sceneName: scene.name,
         enName: scene.enName,
         difficulty: scene.difficulty,
+        learnerLevel: currentUser?.level || scene.difficulty,
         keyWords: scene.keyWords,
         targetLanguage,
       }),
@@ -134,9 +134,15 @@ export default function ScenePracticePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene?.id]);
 
+  const patternSessionSeed = useMemo(() => `${sceneId}:${Date.now()}`, [sceneId]);
   // Prefer the AI-generated set once it arrives; otherwise fall back to the
-  // scene's static local patterns immediately (no loading wait).
-  const effectiveKeyPatterns = aiPatterns && aiPatterns.length ? aiPatterns : scene?.keyPatterns || [];
+  // scene's static local patterns immediately (no loading wait). Custom scenes
+  // may store a larger pattern bank, so each visit picks a short rotating set.
+  const effectivePatternBank = aiPatterns && aiPatterns.length ? aiPatterns : scene?.keyPatterns || [];
+  const effectiveKeyPatterns =
+    scene?.themeId === "custom"
+      ? pickShadowingPatternSet(effectivePatternBank, patternSessionSeed)
+      : effectivePatternBank;
   const activeScene = scene ? { ...scene, targetLanguage, keyPatterns: effectiveKeyPatterns } : null;
 
   // Fill-in-the-blank patterns (e.g. "I'd like a ___, please.") aren't

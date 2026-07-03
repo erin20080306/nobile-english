@@ -26,7 +26,7 @@ function isValidPlan(payload: unknown): payload is ScenarioPlan {
       Array.isArray(p.keyWords) &&
       p.keyWords.length >= 3 &&
       Array.isArray(p.patterns) &&
-      p.patterns.length >= 4 &&
+      p.patterns.length >= 8 &&
       p.patterns.every(
         (item) =>
           item &&
@@ -63,7 +63,9 @@ function buildPrompt(body: GenerateCustomSceneRequest, targetLanguage: ReturnTyp
     "Design realistic, SPECIFIC content tailored to this exact situation. Do not produce generic filler content that could apply to any scenario.",
     `All target-language text (the "en" field inside patterns, tutorPrompt, sampleUser, and quiz options) must be natural, idiomatic ${targetLanguage.nativeName}, appropriate for a ${body.difficulty} learner.`,
     "All Traditional Chinese text (zh fields, learnerGoal, question, explanation, name, intro, title) must be natural Traditional Chinese.",
-    "patterns must contain 4 to 6 items. Each pattern's \"en\" field must be a complete, short, standalone sentence (never a sentence fragment and never containing a blank/underscore placeholder) that the learner can read aloud on its own for shadowing practice, with length and vocabulary matched to the learner's difficulty level.",
+    "patterns must contain 10 to 14 varied items. Each pattern's \"en\" field must be a complete, short, standalone sentence (never a sentence fragment and never containing a blank/underscore placeholder) that the learner can read aloud on its own for shadowing practice, with length and vocabulary matched to the learner's difficulty level.",
+    "The pattern bank should cover several angles of the learner's own topic: opening, stating the need, asking a question, clarifying details, confirming, reacting naturally, solving a small problem, and closing politely.",
+    "Do not repeat or closely paraphrase patterns. This should feel like a reusable shadowing bank for this learner's exact idea.",
     "stages must be ordered logically from opening to closing (4 to 6 stages), each a concrete step of this specific situation.",
     "quiz must contain exactly 3 multiple-choice questions, each with exactly 4 options, testing something specific to this scenario (vocabulary, etiquette, or the right response).",
     "Return ONLY valid JSON, no markdown fences, no prose, with this exact shape:",
@@ -98,7 +100,7 @@ export async function POST(req: Request) {
     const raw = await generateWithGemini({
       prompt: buildPrompt(body, targetLanguage),
       temperature: 0.7,
-      maxOutputTokens: 2048,
+      maxOutputTokens: 4096,
       json: true,
     });
     const parsed = parseJsonFromModel<unknown>(raw);

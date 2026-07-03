@@ -28,11 +28,63 @@ interface CustomSceneInput {
   targetLanguage?: LearningLanguageCode;
 }
 
+interface CachedScenarioPlan {
+  key: string;
+  plan: ScenarioPlan;
+  createdAt: string;
+}
+
+const CUSTOM_SCENARIO_PLAN_CACHE_LIMIT = 80;
+
+function normalizeCacheText(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s\u00c0-\u024f\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function scenarioPlanCacheKey(input: CustomSceneInput, targetLanguage: LearningLanguageCode): string {
+  return [
+    targetLanguage,
+    input.difficulty,
+    normalizeCacheText(input.situation),
+    normalizeCacheText(input.role),
+    normalizeCacheText(input.place),
+    normalizeCacheText(input.topic),
+    normalizeCacheText(input.pattern),
+  ].join("|");
+}
+
+function getCachedScenarioPlan(key: string): ScenarioPlan | null {
+  const cache = storageService.get<Record<string, CachedScenarioPlan>>(KEYS.customScenePlanCache, {});
+  return cache[key]?.plan || null;
+}
+
+function saveScenarioPlanToCache(key: string, plan: ScenarioPlan): void {
+  const cache = storageService.get<Record<string, CachedScenarioPlan>>(KEYS.customScenePlanCache, {});
+  const next: Record<string, CachedScenarioPlan> = {
+    ...cache,
+    [key]: { key, plan, createdAt: new Date().toISOString() },
+  };
+  const entries = Object.values(next)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, CUSTOM_SCENARIO_PLAN_CACHE_LIMIT);
+  storageService.set(
+    KEYS.customScenePlanCache,
+    Object.fromEntries(entries.map((entry) => [entry.key, entry]))
+  );
+}
+
 // Ask the Gemini-backed API to design scenario content tailored to the exact
 // topic the learner typed/spoke. Falls back to the local rule-based planner
 // (inferScenarioPlan) if the request fails or the response is unusable, so
 // custom scene creation always succeeds even without Gemini configured.
 async function fetchScenarioPlan(input: CustomSceneInput, targetLanguage: LearningLanguageCode): Promise<ScenarioPlan> {
+  const cacheKey = scenarioPlanCacheKey(input, targetLanguage);
+  const cached = getCachedScenarioPlan(cacheKey);
+  if (cached) return cached;
+
   try {
     const response = await fetch("/api/scenes/generate-custom", {
       method: "POST",
@@ -52,6 +104,7 @@ async function fetchScenarioPlan(input: CustomSceneInput, targetLanguage: Learni
     if (!data.plan || !Array.isArray(data.plan.stages) || data.plan.stages.length === 0) {
       throw new Error("generate-custom missing plan");
     }
+    saveScenarioPlanToCache(cacheKey, data.plan);
     return data.plan;
   } catch {
     return inferScenarioPlan(input.situation, input.place, input.role, targetLanguage);
