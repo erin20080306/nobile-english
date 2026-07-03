@@ -78,7 +78,8 @@ export const subscriptionService = {
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 6000);
-        const response = await fetch(`/api/subscriptions/status?userId=${encodeURIComponent(user.id)}`, {
+        const params = new URLSearchParams({ userId: user.id, email: user.email || "" });
+        const response = await fetch(`/api/subscriptions/status?${params.toString()}`, {
           cache: "no-store",
           signal: controller.signal,
         }).finally(() => clearTimeout(timeout));

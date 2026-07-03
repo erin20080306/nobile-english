@@ -1,12 +1,35 @@
 -- Add subscription fields to profiles table for RevenueCat integration
 -- This migration adds columns to track subscription status, platform, and entitlements
 
-do $$ begin
-  create type subscription_platform as enum ('ios', 'android', 'web', 'stripe');
-  create type subscription_status as enum ('active', 'expired', 'cancelled', 'pending', 'grace_period', 'refunded');
-exception when duplicate_object then null; end $$;
+create extension if not exists pgcrypto;
+
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'subscription_platform') then
+    create type subscription_platform as enum ('ios', 'android', 'web', 'stripe');
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'subscription_status') then
+    create type subscription_status as enum ('active', 'expired', 'cancelled', 'pending', 'grace_period', 'refunded');
+  end if;
+end
+$$;
+
+create table if not exists profiles (
+  id text primary key,
+  email text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
 
 alter table profiles
+  add column if not exists email text,
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now(),
   add column if not exists subscription_platform subscription_platform,
   add column if not exists subscription_status subscription_status,
   add column if not exists subscription_product_id text,

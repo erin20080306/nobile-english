@@ -18,6 +18,10 @@ export async function GET() {
     AWS_REGION: !!process.env.AWS_REGION,
     GNEWS_API_KEY: !!process.env.GNEWS_API_KEY,
     KOREAN_DICTIONARY_API_KEY: !!process.env.KOREAN_DICTIONARY_API_KEY,
+    PAYPAL_ENV: !!process.env.PAYPAL_ENV,
+    PAYPAL_CLIENT_ID: !!process.env.PAYPAL_CLIENT_ID,
+    PAYPAL_CLIENT_SECRET: !!process.env.PAYPAL_CLIENT_SECRET,
+    PAYPAL_WEBHOOK_ID: !!process.env.PAYPAL_WEBHOOK_ID,
   };
   const supabaseOk = vars.NEXT_PUBLIC_SUPABASE_URL && vars.NEXT_PUBLIC_SUPABASE_ANON_KEY && vars.SUPABASE_SERVICE_ROLE_KEY;
   const googleTtsOk = vars.GOOGLE_TTS_API_KEY || vars.GOOGLE_CLOUD_SERVICE_ACCOUNT_JSON;

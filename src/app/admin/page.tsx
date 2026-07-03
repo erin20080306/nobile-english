@@ -50,6 +50,19 @@ interface ApiUsageEntry {
   last30Days: number;
 }
 
+interface AdminSubscriptionStats {
+  appUsers: {
+    total: number;
+    activeToday: number;
+    activeThirtyDays: number;
+  };
+  subscribers: {
+    total: number;
+    storeOrProfile: number;
+    paypal: number;
+  };
+}
+
 function apiRequestUrl(path: string): string {
   if (typeof window === "undefined") return path;
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -92,6 +105,8 @@ export default function AdminPage() {
   const [switchingModel, setSwitchingModel] = useState(false);
   const [apiUsage, setApiUsage] = useState<ApiUsageEntry[] | null>(null);
   const [apiUsageLoading, setApiUsageLoading] = useState(false);
+  const [subscriptionStats, setSubscriptionStats] = useState<AdminSubscriptionStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
 
   useEffect(() => {
     if (!ready) return;
@@ -105,6 +120,7 @@ export default function AdminPage() {
     loadTtsProviderStatus();
     loadGeminiModelStatus();
     loadApiUsage();
+    loadSubscriptionStats();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, user]);
 
@@ -196,6 +212,22 @@ export default function AdminPage() {
 
   function addLog(msg: string, type: "ok" | "error" | "info" = "info") {
     setLog((prev) => [{ msg: `${new Date().toLocaleTimeString()} ${msg}`, type }, ...prev.slice(0, 19)]);
+  }
+
+  async function loadSubscriptionStats() {
+    setStatsLoading(true);
+    try {
+      const res = await fetchApi("/api/admin/subscription-stats", { cache: "no-store" });
+      if (res.ok) {
+        setSubscriptionStats(await readApiJson<AdminSubscriptionStats>(res));
+      } else {
+        setSubscriptionStats(null);
+      }
+    } catch {
+      setSubscriptionStats(null);
+    } finally {
+      setStatsLoading(false);
+    }
   }
 
   async function checkSystem() {
@@ -448,7 +480,7 @@ export default function AdminPage() {
         <div className="bg-white rounded-2xl p-4 shadow-softer">
           <div className="flex items-center justify-between mb-3">
             <p className="font-extrabold text-ink flex items-center gap-2"><Database size={16} /> 系統狀態</p>
-            <button onClick={() => { checkSystem(); checkEnvVars(); }} className="text-xs text-lilacDeep flex items-center gap-1 hover:underline">
+            <button onClick={() => { checkSystem(); checkEnvVars(); loadSubscriptionStats(); }} className="text-xs text-lilacDeep flex items-center gap-1 hover:underline">
               <RefreshCw size={12} /> 重新檢查
             </button>
           </div>
@@ -469,6 +501,50 @@ export default function AdminPage() {
           <p className="text-xs text-inkSoft mt-2">
             AI 文字生成（每日文章、導師回覆）已全面改用 Gemini。GNews 用於抓取真實時事新聞當作文章素材，未設定時會改用一般主題。Urimal Saem 用於韓文字典查詢。
           </p>
+        </div>
+
+        {/* App Users and Subscribers */}
+        <div className="bg-white rounded-2xl p-4 shadow-softer">
+          <div className="flex items-center justify-between mb-3">
+            <p className="font-extrabold text-ink flex items-center gap-2"><Users size={16} /> 使用者與訂閱</p>
+            <button onClick={loadSubscriptionStats} className="text-xs text-lilacDeep flex items-center gap-1 hover:underline">
+              <RefreshCw size={12} className={statsLoading ? "animate-spin" : ""} /> 重新整理
+            </button>
+          </div>
+          {statsLoading ? (
+            <div className="flex justify-center py-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-lilacDeep" />
+            </div>
+          ) : subscriptionStats ? (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-xl bg-lilacLight px-3 py-2">
+                <p className="text-xs font-bold text-lilacDeep">登入 App 使用者</p>
+                <p className="text-2xl font-extrabold text-ink">{subscriptionStats.appUsers.total}</p>
+              </div>
+              <div className="rounded-xl bg-mintLight px-3 py-2">
+                <p className="text-xs font-bold text-mintDeep">訂閱人數</p>
+                <p className="text-2xl font-extrabold text-ink">{subscriptionStats.subscribers.total}</p>
+              </div>
+              <div className="rounded-xl bg-sand px-3 py-2">
+                <p className="text-xs font-bold text-inkSoft">今日活躍</p>
+                <p className="text-lg font-extrabold text-ink">{subscriptionStats.appUsers.activeToday}</p>
+              </div>
+              <div className="rounded-xl bg-sand px-3 py-2">
+                <p className="text-xs font-bold text-inkSoft">30 天活躍</p>
+                <p className="text-lg font-extrabold text-ink">{subscriptionStats.appUsers.activeThirtyDays}</p>
+              </div>
+              <div className="rounded-xl bg-sand px-3 py-2">
+                <p className="text-xs font-bold text-inkSoft">PayPal 訂閱</p>
+                <p className="text-lg font-extrabold text-ink">{subscriptionStats.subscribers.paypal}</p>
+              </div>
+              <div className="rounded-xl bg-sand px-3 py-2">
+                <p className="text-xs font-bold text-inkSoft">商店/Profile</p>
+                <p className="text-lg font-extrabold text-ink">{subscriptionStats.subscribers.storeOrProfile}</p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm font-bold text-peachDeep">無法讀取統計資料，請確認 Supabase migration 已執行。</p>
+          )}
         </div>
 
         {/* AI Voice Provider */}

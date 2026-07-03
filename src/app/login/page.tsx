@@ -7,6 +7,8 @@ import { ShieldCheck, Apple } from "lucide-react";
 import { authService } from "@/services/authService";
 import CheerImage from "@/components/CheerImage";
 
+const SHOW_APPLE_LOGIN = false;
+
 export default function LoginPage() {
   const router = useRouter();
   const [error, setError] = useState("");
@@ -84,14 +86,16 @@ export default function LoginPage() {
           使用 Google 帳號登入
         </button>
 
-        <button
-          type="button"
-          onClick={handleApple}
-          className="w-full rounded-3xl bg-black text-white font-bold py-4 shadow-soft flex items-center justify-center gap-2 transition-colors active:scale-95"
-        >
-          <Apple size={20} />
-          使用 Apple 帳號登入
-        </button>
+        {SHOW_APPLE_LOGIN && (
+          <button
+            type="button"
+            onClick={handleApple}
+            className="w-full rounded-3xl bg-black text-white font-bold py-4 shadow-soft flex items-center justify-center gap-2 transition-colors active:scale-95"
+          >
+            <Apple size={20} />
+            使用 Apple 帳號登入
+          </button>
+        )}
 
         {error && <p className="text-peachDeep text-sm font-semibold text-center">{error}</p>}
       </div>
@@ -102,4 +106,3 @@ export default function LoginPage() {
     </motion.div>
   );
 }
-

@@ -5,7 +5,7 @@ import type { PremiumEntitlement as SubscriptionPremiumEntitlement } from '@/typ
 export interface PremiumEntitlement {
   isActive: boolean;
   expiresAt: string | null;
-  platform: 'ios' | 'android' | 'web';
+  platform: 'ios' | 'android' | 'web' | 'paypal';
   productId: string;
   willRenew: boolean;
 }
