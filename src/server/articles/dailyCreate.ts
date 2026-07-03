@@ -46,6 +46,7 @@ const LANG_NAMES: Record<string, string> = {
 };
 
 const LANGUAGES = ["en", "ja", "ko", "it", "es"] as const;
+type DailyArticleLanguage = (typeof LANGUAGES)[number];
 
 interface ArticleContent {
   title: string;
@@ -178,6 +179,39 @@ export async function createDailyArticles(
     : TOPICS[dayOfYear % TOPICS.length];
   const topicKey = getDatedTopicKey(topic.key, publishDate);
 
+  const generatedContents = await Promise.all(
+    LANGUAGES.map(async (lang) => {
+      try {
+        return {
+          lang,
+          success: true,
+          content: await generateArticle(lang, topic.zhTw, topic.category, newsHeadline),
+        } as const;
+      } catch (err) {
+        return {
+          lang,
+          success: false,
+          error: err instanceof Error ? err.message : String(err),
+        } as const;
+      }
+    })
+  );
+  const failedGenerations = generatedContents.filter((result) => !result.success);
+  if (failedGenerations.length > 0) {
+    throw new Error(
+      `文章生成失敗，已保留原本今日文章：${failedGenerations
+        .map((result) => `${result.lang}: ${result.error}`)
+        .join("；")}`
+    );
+  }
+  const generatedArticles: Array<{ lang: DailyArticleLanguage; content: ArticleContent }> =
+    generatedContents
+      .filter((result): result is Extract<(typeof generatedContents)[number], { success: true }> => result.success)
+      .map((result) => ({
+        lang: result.lang,
+        content: result.content,
+      }));
+
   await supabase.from("reading_article_topics").delete().eq("publish_date", publishDate);
 
   const { data: topicData, error: topicError } = await supabase
@@ -196,14 +230,11 @@ export async function createDailyArticles(
     throw new Error(`建立主題失敗：${JSON.stringify(topicError)}`);
   }
 
-  // Generate and insert all five languages concurrently instead of one at a
-  // time — Gemini calls are the dominant latency here, so running them in
-  // parallel cuts total generation time roughly 5x.
+  // Insert all five languages concurrently. The expensive AI generation already
+  // completed above, before replacing the currently published topic.
   const perLanguageResults = await Promise.all(
-    LANGUAGES.map(async (lang) => {
+    generatedArticles.map(async ({ lang, content }) => {
       try {
-        const content = await generateArticle(lang, topic.zhTw, topic.category, newsHeadline);
-
         await supabase
           .from("reading_articles")
           .delete()

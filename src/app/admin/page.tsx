@@ -50,6 +50,32 @@ interface ApiUsageEntry {
   last30Days: number;
 }
 
+function apiRequestUrl(path: string): string {
+  if (typeof window === "undefined") return path;
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const origin = window.location.origin;
+  return /^https?:\/\//.test(origin) ? `${origin}${normalizedPath}` : normalizedPath;
+}
+
+async function fetchApi(path: string, init?: RequestInit): Promise<Response> {
+  return fetch(apiRequestUrl(path), {
+    ...init,
+    credentials: init?.credentials ?? "same-origin",
+  });
+}
+
+async function readApiJson<T = Record<string, unknown>>(response: Response): Promise<T & { error?: string }> {
+  const text = await response.text();
+  if (!text) return {} as T & { error?: string };
+  try {
+    return JSON.parse(text) as T & { error?: string };
+  } catch {
+    return {
+      error: `伺服器回傳格式異常（HTTP ${response.status}）。可能是請求逾時，請再按一次或查看 Vercel Logs。`,
+    } as T & { error?: string };
+  }
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const { user, ready } = useUser({ requireOnboarded: true });
@@ -84,8 +110,8 @@ export default function AdminPage() {
 
   async function loadGeminiModelStatus() {
     try {
-      const res = await fetch("/api/admin/gemini-model");
-      if (res.ok) setGeminiModelStatus(await res.json());
+      const res = await fetchApi("/api/admin/gemini-model");
+      if (res.ok) setGeminiModelStatus(await readApiJson<GeminiModelStatus>(res));
     } catch {
       setGeminiModelStatus(null);
     }
@@ -94,12 +120,12 @@ export default function AdminPage() {
   async function switchGeminiModel(model: string) {
     setSwitchingModel(true);
     try {
-      const res = await fetch("/api/admin/gemini-model", {
+      const res = await fetchApi("/api/admin/gemini-model", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model }),
       });
-      const data = await res.json();
+      const data = await readApiJson<GeminiModelStatus>(res);
       if (res.ok) {
         setGeminiModelStatus(data);
         addLog(`✅ Gemini 模型已切換為：${model === "auto" ? "自動（預設）" : model}`, "ok");
@@ -115,9 +141,9 @@ export default function AdminPage() {
   async function loadApiUsage() {
     setApiUsageLoading(true);
     try {
-      const res = await fetch("/api/admin/api-usage");
+      const res = await fetchApi("/api/admin/api-usage");
       if (res.ok) {
-        const data = await res.json();
+        const data = await readApiJson<{ usage?: ApiUsageEntry[] }>(res);
         setApiUsage(data.usage || []);
       }
     } catch {
@@ -128,8 +154,8 @@ export default function AdminPage() {
 
   async function loadTtsProviderStatus() {
     try {
-      const res = await fetch("/api/admin/tts-provider");
-      if (res.ok) setTtsProviderStatus(await res.json());
+      const res = await fetchApi("/api/admin/tts-provider");
+      if (res.ok) setTtsProviderStatus(await readApiJson<TtsProviderStatus>(res));
     } catch {
       setTtsProviderStatus(null);
     }
@@ -138,12 +164,12 @@ export default function AdminPage() {
   async function switchTtsProvider(provider: "google" | "polly" | "auto") {
     setSwitchingProvider(true);
     try {
-      const res = await fetch("/api/admin/tts-provider", {
+      const res = await fetchApi("/api/admin/tts-provider", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ provider }),
       });
-      const data = await res.json();
+      const data = await readApiJson<TtsProviderStatus>(res);
       if (res.ok) {
         setTtsProviderStatus(data);
         addLog(`✅ AI 語音提供商已切換為：${provider === "auto" ? "自動" : provider}`, "ok");
@@ -158,10 +184,10 @@ export default function AdminPage() {
 
   async function checkEnvVars() {
     try {
-      const res = await fetch("/api/env-check");
+      const res = await fetchApi("/api/env-check");
       if (res.ok) {
-        const data = await res.json();
-        setEnvVars(data.vars);
+        const data = await readApiJson<{ vars?: Record<string, boolean> }>(res);
+        setEnvVars(data.vars || null);
       }
     } catch {
       setEnvVars(null);
@@ -175,7 +201,7 @@ export default function AdminPage() {
   async function checkSystem() {
     setSystemStatus({ supabase: "checking" });
     try {
-      const res = await fetch("/api/articles/today?language=en");
+      const res = await fetchApi("/api/articles/today?language=en");
       setSystemStatus((s) => ({ ...s, supabase: res.status !== 500 ? "ok" : "error" }));
     } catch {
       setSystemStatus((s) => ({ ...s, supabase: "error" }));
@@ -187,9 +213,12 @@ export default function AdminPage() {
     const statuses: ArticleStatus[] = [];
     for (const lang of LEARNING_LANGUAGES) {
       try {
-        const res = await fetch(`/api/articles/today?language=${lang.code}`);
+        const res = await fetchApi(`/api/articles/today?language=${lang.code}`);
         if (res.ok) {
-          const data = await res.json();
+          const data = await readApiJson<{
+            title?: string;
+            sentences?: Array<{ audio_url?: string }>;
+          }>(res);
           statuses.push({
             language: lang.code,
             flag: lang.flag,
@@ -214,12 +243,12 @@ export default function AdminPage() {
     setLoadingAction("generate");
     addLog("開始生成今日文章...", "info");
     try {
-      const res = await fetch("/api/articles/daily-create", {
+      const res = await fetchApi("/api/articles/daily-create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ force: true, prewarm: false, includeAudio: false }),
       });
-      const data = await res.json();
+      const data = await readApiJson(res);
       if (res.ok) {
         addLog(`✅ 文章生成完成：${JSON.stringify(data).slice(0, 80)}`, "ok");
       } else {
@@ -236,8 +265,8 @@ export default function AdminPage() {
     setLoadingAction("prewarm");
     addLog("開始預熱音檔...", "info");
     try {
-      const res = await fetch("/api/articles/prewarm", { method: "POST" });
-      const data = await res.json();
+      const res = await fetchApi("/api/articles/prewarm", { method: "POST" });
+      const data = await readApiJson(res);
       if (res.ok) {
         addLog(`✅ 預熱完成：${JSON.stringify(data).slice(0, 80)}`, "ok");
       } else {
@@ -254,8 +283,8 @@ export default function AdminPage() {
     setLoadingAction("publish");
     addLog("開始發布文章...", "info");
     try {
-      const res = await fetch("/api/articles/publish", { method: "POST" });
-      const data = await res.json();
+      const res = await fetchApi("/api/articles/publish", { method: "POST" });
+      const data = await readApiJson(res);
       if (res.ok) {
         addLog(`✅ 發布成功：${JSON.stringify(data).slice(0, 80)}`, "ok");
       } else {
@@ -270,22 +299,27 @@ export default function AdminPage() {
 
   async function runFullPipeline() {
     setLoadingAction("pipeline");
-    addLog("=== 一鍵更新今日文章（生成 + 發布，音檔可另預熱）===", "info");
+    addLog("=== 一鍵更新今日文章（生成 + 發布）===", "info");
     try {
-      const res = await fetch("/api/articles/daily-create", {
+      const res = await fetchApi("/api/articles/daily-create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ force: true, prewarm: true, includeAudio: false }),
+        body: JSON.stringify({ force: true, prewarm: false, includeAudio: false }),
       });
-      const data = await res.json();
+      const data = await readApiJson<{
+        success?: boolean;
+        skipped?: boolean;
+        articlesCreated?: number;
+        topic?: string;
+        error?: string;
+        results?: Array<{ lang: string; success: boolean; title?: string; error?: string }>;
+      }>(res);
       if (res.ok && data.success) {
         if (data.skipped) {
           addLog(`ℹ️ 今日文章已存在，跳過生成`, "info");
         } else {
           addLog(`✅ 成功更新 ${data.articlesCreated}/5 篇文章，主題：${data.topic}`, "ok");
-          if (data.prewarm?.results?.length) {
-            addLog(`✅ 詞彙預熱完成：${data.prewarm.results.length} 篇；音檔可另外按「預熱音檔」`, "ok");
-          }
+          addLog(`ℹ️ 詞彙與音檔可另外按「預熱音檔」處理`, "info");
           data.results?.forEach((r: { lang: string; success: boolean; title?: string; error?: string }) => {
             addLog(`  ${r.success ? "✅" : "❌"} ${r.lang}: ${r.title ?? r.error}`, r.success ? "ok" : "error");
           });
@@ -303,12 +337,12 @@ export default function AdminPage() {
   async function runGenerateOnly() {
     addLog("生成文章中...", "info");
     try {
-      const res = await fetch("/api/articles/daily-create", {
+      const res = await fetchApi("/api/articles/daily-create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ force: true, prewarm: false, includeAudio: false }),
       });
-      const data = await res.json();
+      const data = await readApiJson<{ skipped?: boolean; articlesCreated?: number; error?: string }>(res);
       addLog(res.ok ? `✅ ${data.skipped ? "已存在" : `生成成功（${data.articlesCreated} 篇）`}` : `❌ 失敗：${data.error}`, res.ok ? "ok" : "error");
     } catch (e) { addLog(`❌ ${e instanceof Error ? e.message : String(e)}`, "error"); }
   }
@@ -316,8 +350,8 @@ export default function AdminPage() {
   async function runPrewarmOnly() {
     addLog("預熱音檔...", "info");
     try {
-      const res = await fetch("/api/articles/prewarm", { method: "POST" });
-      const data = await res.json();
+      const res = await fetchApi("/api/articles/prewarm", { method: "POST" });
+      const data = await readApiJson<{ error?: string }>(res);
       addLog(res.ok ? `✅ 預熱成功` : `❌ 預熱失敗：${data.error}`, res.ok ? "ok" : "error");
     } catch (e) { addLog(`❌ ${e instanceof Error ? e.message : String(e)}`, "error"); }
   }
@@ -325,8 +359,8 @@ export default function AdminPage() {
   async function runPublishOnly() {
     addLog("重新發布...", "info");
     try {
-      const res = await fetch("/api/articles/daily-create", { method: "POST" });
-      const data = await res.json();
+      const res = await fetchApi("/api/articles/daily-create", { method: "POST" });
+      const data = await readApiJson<{ error?: string }>(res);
       addLog(res.ok ? `✅ 完成` : `❌ 失敗：${data.error}`, res.ok ? "ok" : "error");
     } catch (e) { addLog(`❌ ${e instanceof Error ? e.message : String(e)}`, "error"); }
   }
