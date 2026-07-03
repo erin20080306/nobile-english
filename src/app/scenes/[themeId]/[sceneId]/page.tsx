@@ -74,6 +74,7 @@ export default function ScenePracticePage() {
   const [stepIndex, setStepIndex] = useState(0);
   const [access, setAccess] = useState<AccessState | null>(null);
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(false);
+  const [aiPatterns, setAiPatterns] = useState<{ en: string; zh: string }[] | null>(null);
 
   type PreviewStep =
     | { type: "overview" }
@@ -81,12 +82,69 @@ export default function ScenePracticePage() {
     | { type: "dialogue" }
     | { type: "quiz" };
 
+  const settings = useMemo(() => {
+    const u = authService.getCurrentUser();
+    return u ? learningService.getSettings(u.id) : null;
+  }, []);
+  const showZh = settings ? settings.showChineseGlobal && settings.sceneChinese : true;
+  const targetLanguage = scene?.targetLanguage || settings?.targetLanguage || learningService.getCurrentLanguage();
+  const languageInfo = getLearningLanguage(targetLanguage);
+  const theme = scene ? sceneService.getTheme(scene.themeId) : undefined;
+  const indexInTheme = scene ? sceneService.getScenesByTheme(scene.themeId).findIndex((item) => item.id === scene.id) : -1;
+  const trialLocked = Boolean(
+    scene &&
+      trialUsageService.isLimited(access) &&
+      (scene.themeId === "custom" || !trialUsageService.canUseScene(scene, theme, indexInTheme))
+  );
+
+  // Built-in (non-custom) scenes ship with a static local pattern set, but on
+  // first load we try to fetch (and cache server-side) AI-generated shadowing
+  // sentences for this exact scene, so repeat learners get richer, less
+  // repetitive content while still only paying the Gemini cost once per
+  // scene/language (see /api/scenes/patterns). Custom scenes already get
+  // AI-generated patterns at creation time, so they're skipped here.
+  useEffect(() => {
+    if (!scene || scene.themeId === "custom") return;
+    let cancelled = false;
+    fetch("/api/scenes/patterns", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sceneId: scene.id,
+        themeName: theme?.name || scene.themeId,
+        sceneName: scene.name,
+        enName: scene.enName,
+        difficulty: scene.difficulty,
+        keyWords: scene.keyWords,
+        targetLanguage,
+      }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && Array.isArray(data?.patterns) && data.patterns.length) {
+          setAiPatterns(data.patterns);
+        }
+      })
+      .catch(() => {
+        /* keep using the scene's static local patterns */
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scene?.id]);
+
+  // Prefer the AI-generated set once it arrives; otherwise fall back to the
+  // scene's static local patterns immediately (no loading wait).
+  const effectiveKeyPatterns = aiPatterns && aiPatterns.length ? aiPatterns : scene?.keyPatterns || [];
+  const activeScene = scene ? { ...scene, targetLanguage, keyPatterns: effectiveKeyPatterns } : null;
+
   // Fill-in-the-blank patterns (e.g. "I'd like a ___, please.") aren't
   // suitable for shadowing since there's no single correct sentence to
   // read aloud, so they're skipped when building shadowing steps.
   const shadowablePatterns = useMemo(
-    () => (scene ? scene.keyPatterns.filter((p) => !/_{2,}/.test(p.en)) : []),
-    [scene]
+    () => effectiveKeyPatterns.filter((p) => !/_{2,}/.test(p.en)),
+    [effectiveKeyPatterns]
   );
 
   const steps = useMemo<PreviewStep[]>(() => {
@@ -97,22 +155,6 @@ export default function ScenePracticePage() {
     if (scene.quiz.length > 0) list.push({ type: "quiz" });
     return list;
   }, [scene, shadowablePatterns]);
-
-  const settings = useMemo(() => {
-    const u = authService.getCurrentUser();
-    return u ? learningService.getSettings(u.id) : null;
-  }, []);
-  const showZh = settings ? settings.showChineseGlobal && settings.sceneChinese : true;
-  const targetLanguage = scene?.targetLanguage || settings?.targetLanguage || learningService.getCurrentLanguage();
-  const languageInfo = getLearningLanguage(targetLanguage);
-  const activeScene = scene ? { ...scene, targetLanguage } : null;
-  const theme = scene ? sceneService.getTheme(scene.themeId) : undefined;
-  const indexInTheme = scene ? sceneService.getScenesByTheme(scene.themeId).findIndex((item) => item.id === scene.id) : -1;
-  const trialLocked = Boolean(
-    scene &&
-      trialUsageService.isLimited(access) &&
-      (scene.themeId === "custom" || !trialUsageService.canUseScene(scene, theme, indexInTheme))
-  );
 
   useEffect(() => {
     trialAccessService.getAccessState(undefined, { fresh: true }).then(setAccess).catch(() => setAccess(null));
