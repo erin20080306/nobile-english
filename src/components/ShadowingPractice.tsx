@@ -128,11 +128,9 @@ export default function ShadowingPractice({
 
   async function playSentence(autoRecordAfter = false) {
     setPhase("playing");
-    const opts = voiceForLanguage(targetLanguage as any, 1);
+    const opts = voiceForLanguage(targetLanguage as any, 1, tutor.gender);
     // Increase volume for shadowing practice
     opts.volumeGain = 2.0;
-    // Set voice gender based on selected tutor
-    opts.voiceGender = tutor.gender;
 
     // Safety timeout to prevent getting stuck on "AI 示範中…" forever if
     // some TTS callback never fires (e.g. cloud TTS request hangs).

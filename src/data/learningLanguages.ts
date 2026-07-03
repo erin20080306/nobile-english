@@ -116,7 +116,7 @@ export function languageFromLabel(label?: string | null): LearningLanguageCode {
   return "en";
 }
 
-export function voiceForLanguage(code?: LearningLanguageCode, rate = 1): SpeakOptions {
+export function voiceForLanguage(code?: LearningLanguageCode, rate = 1, voiceGender?: "male" | "female"): SpeakOptions {
   const lang = getLearningLanguage(code);
   return {
     lang: lang.speechLang,
@@ -125,5 +125,6 @@ export function voiceForLanguage(code?: LearningLanguageCode, rate = 1): SpeakOp
     ttsInstructions: lang.ttsInstructions,
     rate,
     volumeGain: 1.45,
+    voiceGender,
   };
 }
