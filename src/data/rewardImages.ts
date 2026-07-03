@@ -1,23 +1,32 @@
+import { storageService, KEYS } from "@/services/storageService";
+
+// Duck mascot reward images used across all scoring screens:
+// 抽考 (pop quiz), 場景對話練習測驗, 單字練習, and exam results.
 export const rewardImages = {
-  perfect100: "/assets/rewards/perfect-100.png",
-  randomQuiz: "/assets/rewards/random-quiz.png",
-  keepPracticingDesk: "/assets/rewards/keep-practicing-desk.png",
-  cheerUpSign: "/assets/rewards/cheer-up-sign.png",
-  excellent: "/assets/rewards/07BC4F18-27ED-4E00-9525-3E20CA3E1004.png",
-  veryGood: "/assets/rewards/0321EB45-76C3-4D8C-90A0-9FF248BF705E.png",
-  good: "/assets/rewards/C887C3E4-25B4-46D2-B3F9-9A6CD2F29F4C.png",
-  letsGo: "/assets/rewards/910BFBAB-4830-4833-9F89-C8168681206F.png",
-  keepGoing: "/assets/rewards/9FDB7250-CD4F-4008-9187-6B1B644CB90D.png",
-  almost: "/assets/rewards/10206450-C606-4FF7-8874-8C36F0C01317.png",
-  great: "/assets/rewards/8D517E3D-DD80-4703-B598-F1381D24E2BD.png",
+  perfect100A: "/assets/rewards/duck-100-a.png",
+  perfect100B: "/assets/rewards/duck-100-b.png",
+  great: "/assets/rewards/duck-great.png",
+  keepGoing: "/assets/rewards/duck-keep-going.png",
+  tryHarder: "/assets/rewards/duck-try-harder.png",
 };
 
-export function rewardImageForScore(score: number) {
-  if (score >= 98) return rewardImages.perfect100;
-  if (score >= 90) return rewardImages.veryGood;
-  if (score >= 82) return rewardImages.great;
-  if (score >= 72) return rewardImages.good;
-  if (score >= 60) return rewardImages.randomQuiz;
-  if (score >= 45) return rewardImages.keepPracticingDesk;
-  return rewardImages.cheerUpSign;
+// 100 分（全對）時，兩張「100分」圖片輪流顯示。
+function nextPerfectImage(): string {
+  const useB = storageService.get<boolean>(KEYS.perfectScoreToggle, false);
+  storageService.set(KEYS.perfectScoreToggle, !useB);
+  return useB ? rewardImages.perfect100B : rewardImages.perfect100A;
+}
+
+/**
+ * 依分數回傳對應的鴨鴨評分圖：
+ * 100 分（全對）－ 兩張 100 分圖輪流
+ * 80~99 分 － 很棒
+ * 60~79 分 － 加油
+ * 50 分以下 － 努力一下
+ */
+export function rewardImageForScore(score: number): string {
+  if (score >= 100) return nextPerfectImage();
+  if (score >= 80) return rewardImages.great;
+  if (score >= 60) return rewardImages.keepGoing;
+  return rewardImages.tryHarder;
 }

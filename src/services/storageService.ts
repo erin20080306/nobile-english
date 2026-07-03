@@ -78,4 +78,5 @@ export const KEYS = {
   trialUsage: "trialUsage",
   deviceId: "deviceId",
   shadowingPattern: "shadowingPattern",
+  perfectScoreToggle: "perfectScoreToggle",
 } as const;

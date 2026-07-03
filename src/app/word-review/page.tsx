@@ -15,6 +15,8 @@ import { getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages"
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import SubscriptionLaunchPrompt from "@/components/SubscriptionLaunchPrompt";
+import CheerImage from "@/components/CheerImage";
+import { rewardImageForScore } from "@/data/rewardImages";
 
 const countOptions = [5, 10, 15, 20, 25, 30];
 const learnedOptions = [0, 25, 50, 75, 100];
@@ -270,6 +272,7 @@ export default function WordReviewPage() {
   const [revealed, setRevealed] = useState(false);
   const [readyToFinish, setReadyToFinish] = useState(false);
   const [score, setScore] = useState<WordReviewScore | null>(null);
+  const [rewardImage, setRewardImage] = useState("");
   const [starting, setStarting] = useState(false);
   const [poolStatus, setPoolStatus] = useState("");
   const [access, setAccess] = useState<AccessState | null>(null);
@@ -369,6 +372,7 @@ export default function WordReviewPage() {
     if (!session) return;
     const result = wordReviewService.completeSession(session);
     setScore(result);
+    setRewardImage(rewardImageForScore(result.score));
     setReadyToFinish(false);
   }
 
@@ -383,6 +387,9 @@ export default function WordReviewPage() {
         <AppHeader title="單字練習完成" subtitle="這次結果已寫入學習紀錄" back={false} />
         <div className="px-5 space-y-4">
           <div className="rounded-[32px] bg-gradient-to-br from-mint via-white to-lilac p-5 shadow-soft">
+            <div className="flex justify-center mb-2">
+              <CheerImage size={140} src={rewardImage} alt="評分結果" />
+            </div>
             <p className="text-sm font-bold text-inkSoft">本次評分</p>
             <p className="mt-1 text-5xl font-black text-ink">{score.score}</p>
             <p className="mt-2 font-bold text-ink">答對 {score.correct} / {score.total} 題</p>

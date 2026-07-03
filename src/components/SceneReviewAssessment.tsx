@@ -5,12 +5,10 @@ import { motion } from "framer-motion";
 import { CheckCircle2, ClipboardCheck, Sparkles, X } from "lucide-react";
 import type { SceneReviewCheck, SceneReviewTask } from "@/types";
 import CheerImage from "@/components/CheerImage";
+import { rewardImages, rewardImageForScore } from "@/data/rewardImages";
 
 const reviewImages = {
-  intro: "/assets/rewards/random-quiz.png",
-  excellent: "/assets/rewards/perfect-100.png",
-  good: "/assets/rewards/cheer-up-sign.png",
-  practice: "/assets/rewards/keep-practicing-desk.png",
+  intro: rewardImages.keepGoing,
 };
 
 export default function SceneReviewAssessment({
@@ -22,16 +20,10 @@ export default function SceneReviewAssessment({
 }) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [resultImage, setResultImage] = useState(reviewImages.intro);
 
   const score = submitted ? scoreTasks(review.tasks, answers) : 0;
   const percent = review.tasks.length ? Math.round((score / review.tasks.length) * 100) : 0;
-  const resultImage = !submitted
-    ? reviewImages.intro
-    : percent >= 90
-    ? reviewImages.excellent
-    : percent >= 65
-    ? reviewImages.good
-    : reviewImages.practice;
 
   function answerTask(task: SceneReviewTask, value: string) {
     setAnswers((current) => ({ ...current, [task.id]: value }));
@@ -39,6 +31,8 @@ export default function SceneReviewAssessment({
 
   function submit() {
     setSubmitted(true);
+    const finalScore = review.tasks.length ? Math.round((scoreTasks(review.tasks, answers) / review.tasks.length) * 100) : 0;
+    setResultImage(rewardImageForScore(finalScore));
   }
 
   return (

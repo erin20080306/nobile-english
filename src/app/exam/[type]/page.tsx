@@ -11,6 +11,8 @@ import { authService } from "@/services/authService";
 import { examBlueprints, examSectionLabel } from "@/data/examBlueprints";
 import AppHeader from "@/components/AppHeader";
 import ScoreRing from "@/components/ScoreRing";
+import CheerImage from "@/components/CheerImage";
+import { rewardImageForScore } from "@/data/rewardImages";
 import { ProgressBar } from "@/components/ui";
 
 export default function ExamRunPage() {
@@ -30,6 +32,7 @@ export default function ExamRunPage() {
   const [answers, setAnswers] = useState<number[]>([]);
   const [picked, setPicked] = useState<number | null>(null);
   const [result, setResult] = useState<ExamResult | null>(null);
+  const [rewardImage, setRewardImage] = useState("");
 
   if (!valid) {
     return <div className="p-10 text-center text-inkSoft">未知測驗類型。<button className="block mx-auto mt-4 btn-secondary" onClick={() => router.push("/exam")}>回測驗中心</button></div>;
@@ -55,6 +58,7 @@ export default function ExamRunPage() {
         completed: true,
         minutes: 10,
       });
+      setRewardImage(rewardImageForScore(r.percent));
       setResult(r);
     }
   }
@@ -73,6 +77,7 @@ export default function ExamRunPage() {
         <AppHeader title={`${type} 成績`} subtitle="測驗結果" />
         <div className="px-5 space-y-4">
           <div className="card flex flex-col items-center">
+            <CheerImage size={160} src={rewardImage} alt={result.level} className="mb-2" />
             <ScoreRing value={result.percent} label="分數" />
             <p className="mt-2 font-extrabold text-ink">{result.level}</p>
             <p className="text-inkSoft">答對 {result.correct} / {result.total} 題</p>

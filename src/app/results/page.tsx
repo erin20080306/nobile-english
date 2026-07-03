@@ -34,12 +34,16 @@ export default function ResultsPage() {
   const [xp, setXp] = useState(0);
   const [streak, setStreak] = useState(0);
   const [showReview, setShowReview] = useState(false);
+  const [rewardImage, setRewardImage] = useState("");
 
   useEffect(() => {
     const result = storageService.get<LastResult | null>(KEYS.lastResult, null);
     setData(result);
     setShowReview(Boolean(result?.sceneReview));
-    if (result) window.setTimeout(() => soundService.play("result"), 250);
+    if (result) {
+      setRewardImage(rewardImageForScore(result.total));
+      window.setTimeout(() => soundService.play("result"), 250);
+    }
     const s = learningService.getStats();
     setXp(s.xp);
     setStreak(s.streak);
@@ -54,7 +58,7 @@ export default function ResultsPage() {
     );
   }
 
-  const stars = data.total >= 85 ? 3 : data.total >= 60 ? 2 : 1;
+  const stars = data.total >= 100 ? 3 : data.total >= 80 ? 3 : data.total >= 60 ? 2 : 1;
   const currentLang = learningService.getCurrentLanguage();
   const langName = {
     en: "英文",
@@ -65,10 +69,10 @@ export default function ResultsPage() {
     zh: "中文",
   }[currentLang] || "英文";
   const cheerText =
-    data.total >= 85 ? "很棒！你完成今天的任務了！" :
-    data.total >= 60 ? `Great job! 你的${langName}正在進步。` :
-    "加油！再練習一次會更自然。";
-  const rewardImage = rewardImageForScore(data.total);
+    data.total >= 100 ? "100分！太完美了！" :
+    data.total >= 80 ? "很棒！你完成今天的任務了！" :
+    data.total >= 60 ? `加油！你的${langName}正在進步。` :
+    "努力一下，再練習一次會更好！";
 
   return (
     <div className="min-h-[100dvh] flex flex-col px-6 pt-10 pb-8">
