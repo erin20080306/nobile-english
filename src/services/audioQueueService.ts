@@ -42,6 +42,15 @@ const PLAYBACK_GAIN = 2.0;
 
 class AudioQueueService {
   private audio: HTMLAudioElement | null = null;
+  // Second, untapped <audio> element used whenever playbackRate !== 1.
+  // Once an element is passed to AudioContext.createMediaElementSource, its
+  // native audio output pipeline is permanently replaced by the Web Audio
+  // graph. On several browsers (notably Chrome), combining that graph with
+  // a non-1 playbackRate produces crackling/garbled audio. Keeping a
+  // separate, never-tapped element for sped-up/slowed-down playback avoids
+  // touching the Web Audio graph entirely for those cases.
+  private audioPlain: HTMLAudioElement | null = null;
+  private activeAudio: HTMLAudioElement | null = null;
   private audioContext: AudioContext | null = null;
   private gainNode: GainNode | null = null;
   private state: AudioState = {
@@ -172,6 +181,28 @@ class AudioQueueService {
       
       return false;
     }
+  }
+
+  /** 取得（必要時建立）經 Web Audio GainNode 加強音量的 audio element。 */
+  private ensureBoostedAudio(): HTMLAudioElement {
+    if (!this.audio) {
+      this.audio = new Audio();
+      this.audio.crossOrigin = "anonymous";
+    }
+    return this.audio;
+  }
+
+  /**
+   * 取得（必要時建立）完全不經過 Web Audio 圖表的 audio element，
+   * 用於非 1 倍語速播放，避免雜聲/爆音。這個 element 永遠不會被傳入
+   * createMediaElementSource，因此保留瀏覽器原生的 playbackRate 處理。
+   */
+  private ensurePlainAudio(): HTMLAudioElement {
+    if (!this.audioPlain) {
+      this.audioPlain = new Audio();
+      this.audioPlain.crossOrigin = "anonymous";
+    }
+    return this.audioPlain;
   }
 
   /**
@@ -309,25 +340,37 @@ class AudioQueueService {
         }
       }
 
-      // 建立或取得 Audio element
-      if (!this.audio) {
-        this.audio = new Audio();
-        this.audio.crossOrigin = "anonymous";
+      // 建立或取得 Audio element。語速不是 1 時改用完全不經過 Web Audio
+      // 圖表的獨立 element，避免 MediaElementSource + 非 1 倍語速在部分
+      // 瀏覽器上產生雜聲/爆音（一旦 element 被 createMediaElementSource
+      // 接管，就無法再回到原生播放路徑，因此必須用另一個乾淨的 element）。
+      const useBoosted = this.state.playbackRate === 1;
+      const audio = useBoosted ? this.ensureBoostedAudio() : this.ensurePlainAudio();
+      this.activeAudio = audio;
+      // 確保另一個未使用的 element 是停止狀態，避免雙重播放
+      const other = useBoosted ? this.audioPlain : this.audio;
+      if (other) {
+        try {
+          other.pause();
+        } catch {
+          /* ignore */
+        }
       }
-      this.ensureGainNode();
-      if (this.audioContext && this.audioContext.state === "suspended") {
-        await this.audioContext.resume().catch(() => undefined);
+
+      if (useBoosted) {
+        this.ensureGainNode();
+        if (this.audioContext && this.audioContext.state === "suspended") {
+          await this.audioContext.resume().catch(() => undefined);
+        }
       }
 
       // 設定新音檔
-      this.audio.src = item.url;
-      this.audio.volume = 1;
-      this.audio.muted = false;
-      this.audio.playbackRate = this.state.playbackRate;
-      // 語速不是 1 時，瀏覽器預設的音高保持演算法（WSOLA）搭配我們的
-      // Web Audio GainNode 圖表，某些瀏覽器（特別是 Chrome）會產生雜聲
-      // /爆音。關閉 preservesPitch 改用簡單重採樣可避免這個問題。
-      this.applyPreservesPitch(this.audio, this.state.playbackRate !== 1);
+      audio.src = item.url;
+      audio.volume = 1;
+      audio.muted = false;
+      audio.playbackRate = this.state.playbackRate;
+      // 保險起見，非 1 倍語速時仍關閉 preservesPitch，簡化重採樣路徑。
+      this.applyPreservesPitch(audio, useBoosted);
 
       // 等待 canplay
       await new Promise<void>((resolve, reject) => {
@@ -335,13 +378,13 @@ class AudioQueueService {
           reject(new Error("Audio load timeout"));
         }, 10000);
 
-        this.audio!.oncanplay = () => {
+        audio.oncanplay = () => {
           clearTimeout(timeout);
           this.log("[AI_TTS] Audio canplay received");
           resolve();
         };
 
-        this.audio!.onerror = () => {
+        audio.onerror = () => {
           clearTimeout(timeout);
           this.log("[AI_TTS] playback skipped reason", {
             reason: "signed URL 失效",
@@ -349,7 +392,7 @@ class AudioQueueService {
           reject(new Error("signed URL invalid or audio load error"));
         };
 
-        this.audio!.onloadedmetadata = () => {
+        audio.onloadedmetadata = () => {
           this.log("[AI_TTS] Audio loadedmetadata received");
         };
       });
@@ -359,7 +402,7 @@ class AudioQueueService {
 
       this.log("[AI_TTS] Calling audio.play()");
       try {
-        await this.audio.play();
+        await audio.play();
       } catch (error) {
         this.log("[AI_TTS] playback skipped reason", {
           reason: "audio.play() 被拒絕",
@@ -373,12 +416,12 @@ class AudioQueueService {
 
       // 等待播放結束
       await new Promise<void>((resolve) => {
-        this.audio!.onended = () => {
+        audio.onended = () => {
           this.log("[AI_TTS] Audio ended");
           resolve();
         };
 
-        this.audio!.onerror = (e) => {
+        audio.onerror = (e: Event | string) => {
           this.log("[AI_TTS] Audio error during playback", {
             error: e,
           });
@@ -419,22 +462,24 @@ class AudioQueueService {
   stopCurrent(): void {
     this.log("[AI_TTS] Stop current");
 
-    if (this.audio) {
+    for (const audio of [this.audio, this.audioPlain]) {
+      if (!audio) continue;
       try {
         // 清除事件處理器，避免舊的 handler 對新音檔誤觸發
-        this.audio.oncanplay = null;
-        this.audio.onloadedmetadata = null;
-        this.audio.onended = null;
-        this.audio.onerror = null;
-        this.audio.pause();
-        this.audio.currentTime = 0;
-        this.audio.src = "";
+        audio.oncanplay = null;
+        audio.onloadedmetadata = null;
+        audio.onended = null;
+        audio.onerror = null;
+        audio.pause();
+        audio.currentTime = 0;
+        audio.src = "";
       } catch (error) {
         this.log("[AI_TTS] Stop current error", {
           error: error instanceof Error ? error.message : String(error),
         });
       }
     }
+    this.activeAudio = null;
 
     const stoppingItem = this.state.currentItem;
     this.setState({
@@ -508,10 +553,13 @@ class AudioQueueService {
 
     this.state.playbackRate = rate;
 
-    // 如果正在播放，即時應用新速度
-    if (this.audio && this.state.state === "playing") {
-      this.audio.playbackRate = rate;
-      this.applyPreservesPitch(this.audio, rate !== 1);
+    // 如果正在播放，即時應用新速度。注意：是否使用加強音量的 element
+    // 只在下一次 playItem 時重新判斷（呼叫端通常會重新播放當前句子），
+    // 這裡僅針對目前正在播放的 element 更新語速，避免播放中途切換
+    // element 造成中斷。
+    if (this.activeAudio && this.state.state === "playing") {
+      this.activeAudio.playbackRate = rate;
+      this.applyPreservesPitch(this.activeAudio, rate === 1);
     }
   }
 
