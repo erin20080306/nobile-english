@@ -143,6 +143,7 @@ export default function DailyReadingPage() {
   useEffect(() => {
     return () => {
       stopSpeechFallback();
+      audioQueueService.stopCurrent();
       audioQueueService.clearQueue();
       blobUrlsRef.current.forEach((u) => { try { URL.revokeObjectURL(u); } catch {} });
     };
