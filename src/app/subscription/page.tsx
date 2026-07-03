@@ -9,6 +9,24 @@ import { subscriptionService } from "@/services/subscriptionService";
 import { trialAccessService, type AccessState, TRIAL_DAYS } from "@/services/trialAccessService";
 import type { SubscriptionOffering } from "@/types/subscription";
 
+const PRELAUNCH_PROMO_CODE = "qwe811122@661012";
+const PRELAUNCH_PAYMENT_LINKS = {
+  monthly: {
+    price: 399,
+    url: "https://www.paypal.com/ncp/payment/A3ECG8WXHHAE6",
+    promoPrice: 299,
+    promoUrl: "https://www.paypal.com/ncp/payment/AXKW9C87A8GZ6",
+  },
+  yearly: {
+    price: 1290,
+    url: "https://www.paypal.com/ncp/payment/TZAPMTMDB9PAW",
+    renewalPrice: 2199,
+    renewalUrl: "https://www.paypal.com/ncp/payment/PETZYPM7UPBBJ",
+    promoPrice: 1090,
+    promoUrl: "https://www.paypal.com/ncp/payment/ZMW4ZN2KDZJ6U",
+  },
+};
+
 export default function SubscriptionPage() {
   const router = useRouter();
   const [offerings, setOfferings] = useState<SubscriptionOffering[]>([]);
@@ -16,6 +34,7 @@ export default function SubscriptionPage() {
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [access, setAccess] = useState<AccessState | null>(null);
+  const [promoCode, setPromoCode] = useState("");
 
   useEffect(() => {
     void load();
@@ -36,21 +55,24 @@ export default function SubscriptionPage() {
     }
   }
 
-  async function handlePurchase(productId: string) {
-    setPurchasing(productId);
-    try {
-      const result = await subscriptionService.purchase(productId);
-      if (result.success) {
-        trialAccessService.clearCache();
-        await load();
-      } else {
-        alert(result.error || "購買失敗，請稍後再試。");
-      }
-    } catch {
-      alert("購買流程發生錯誤，請稍後再試。");
-    } finally {
-      setPurchasing(null);
-    }
+  function isPromoApplied() {
+    return promoCode.trim().toLowerCase() === PRELAUNCH_PROMO_CODE;
+  }
+
+  function getPaymentTarget(offering: SubscriptionOffering) {
+    const payment = PRELAUNCH_PAYMENT_LINKS[offering.period];
+    const promoApplied = isPromoApplied();
+    return {
+      price: promoApplied ? payment.promoPrice : payment.price,
+      url: promoApplied ? payment.promoUrl : payment.url,
+      promoApplied,
+    };
+  }
+
+  function handlePurchase(offering: SubscriptionOffering) {
+    const target = getPaymentTarget(offering);
+    setPurchasing(offering.productId);
+    window.location.assign(target.url);
   }
 
   async function handleRestore() {
@@ -122,11 +144,29 @@ export default function SubscriptionPage() {
         </motion.div>
 
         <div className="grid gap-3">
+          <div className="rounded-[24px] bg-white p-3 shadow-softer">
+            <label htmlFor="promo-code" className="text-xs font-extrabold text-inkSoft">
+              優惠碼
+            </label>
+            <input
+              id="promo-code"
+              value={promoCode}
+              onChange={(event) => setPromoCode(event.target.value)}
+              placeholder="輸入優惠碼"
+              className="mt-1 w-full rounded-2xl bg-cream px-3 py-2 text-sm font-bold text-ink outline-none focus:ring-2 focus:ring-lilacDeep"
+            />
+            {promoCode.trim() && (
+              <p className={`mt-1 text-xs font-bold ${isPromoApplied() ? "text-mintDeep" : "text-peachDeep"}`}>
+                {isPromoApplied() ? "優惠碼已套用" : "優惠碼不符合"}
+              </p>
+            )}
+          </div>
+
           {offerings.map((offering) => (
             <motion.button
               key={offering.id}
               whileTap={{ scale: 0.98 }}
-              onClick={() => handlePurchase(offering.productId)}
+              onClick={() => handlePurchase(offering)}
               disabled={purchasing === offering.productId || isSubscribed}
               className={`w-full rounded-[28px] p-4 text-left shadow-softer transition disabled:opacity-60 ${
                 offering.isFirstYearOffer
@@ -146,13 +186,20 @@ export default function SubscriptionPage() {
                 )}
               </div>
               <div className="mt-3 flex items-end gap-2">
-                <span className="text-3xl font-extrabold">NT$ {offering.price}</span>
+                <span className="text-3xl font-extrabold">NT$ {getPaymentTarget(offering).price}</span>
                 <span className="pb-1 text-sm font-bold opacity-80">
                   / {offering.period === "monthly" ? "月" : "第一年"}
                 </span>
               </div>
+              {getPaymentTarget(offering).promoApplied && (
+                <p className="mt-1 text-xs font-semibold opacity-90">
+                  已套用優惠碼，原價 NT$ {PRELAUNCH_PAYMENT_LINKS[offering.period].price}
+                </p>
+              )}
               {offering.isFirstYearOffer && (
-                <p className="mt-1 text-xs font-semibold opacity-90">第一年平均約 NT$108 / 月，之後依商店方案續訂。</p>
+                <p className="mt-1 text-xs font-semibold opacity-90">
+                  第一年平均約 NT$108 / 月；原年費 NT$ {PRELAUNCH_PAYMENT_LINKS.yearly.renewalPrice}。
+                </p>
               )}
               <div className="mt-3 flex items-center gap-2 text-sm font-extrabold">
                 {purchasing === offering.productId ? (
@@ -212,7 +259,7 @@ export default function SubscriptionPage() {
         </div>
 
         <p className="text-center text-xs font-semibold leading-relaxed text-inkSoft">
-          訂閱與付款由 App Store / Google Play / RevenueCat 管理。你可以隨時在商店帳號中管理或取消訂閱。
+          上架前測試付款暫時導向 PayPal；正式上架後會移除這些付款連結並恢復商店訂閱流程。
         </p>
       </div>
     </div>

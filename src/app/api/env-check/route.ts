@@ -17,6 +17,9 @@ export async function GET() {
     AWS_ACCESS_KEY_ID: !!process.env.AWS_ACCESS_KEY_ID,
     AWS_SECRET_ACCESS_KEY: !!process.env.AWS_SECRET_ACCESS_KEY,
     AWS_REGION: !!process.env.AWS_REGION,
+    PAYPAL_CLIENT_ID: !!process.env.PAYPAL_CLIENT_ID,
+    PAYPAL_CLIENT_SECRET: !!process.env.PAYPAL_CLIENT_SECRET,
+    PAYPAL_WEBHOOK_ID: !!process.env.PAYPAL_WEBHOOK_ID,
   };
   const supabaseOk = vars.NEXT_PUBLIC_SUPABASE_URL && vars.NEXT_PUBLIC_SUPABASE_ANON_KEY && vars.SUPABASE_SERVICE_ROLE_KEY;
   const googleTtsOk = vars.GOOGLE_TTS_API_KEY || vars.GOOGLE_CLOUD_SERVICE_ACCOUNT_JSON;

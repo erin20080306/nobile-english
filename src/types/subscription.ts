@@ -1,4 +1,4 @@
-export type SubscriptionPlatform = "ios" | "android" | "web" | "stripe";
+export type SubscriptionPlatform = "ios" | "android" | "web" | "stripe" | "paypal";
 export type SubscriptionStatus = "active" | "expired" | "cancelled" | "pending" | "grace_period" | "refunded";
 
 export interface SubscriptionOffering {

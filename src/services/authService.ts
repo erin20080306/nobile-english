@@ -87,6 +87,22 @@ function defaultSettings(userId: string): UserSettings {
   };
 }
 
+function trackAppLogin(user: User) {
+  if (typeof fetch === "undefined") return;
+  fetch("/api/account/heartbeat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      userId: user.id,
+      email: user.email,
+      name: user.name,
+      provider: user.provider || "local",
+    }),
+  }).catch((error) => {
+    console.warn("App heartbeat failed:", error);
+  });
+}
+
 export const authService = {
   DEMO_EMAIL,
   MAX_BOUND_DEVICES,
@@ -160,6 +176,7 @@ export const authService = {
       users.map((u) => (u.id === user.id ? bound.user! : u))
     );
     storageService.set(KEYS.session, bound.user.id);
+    trackAppLogin(bound.user);
     return { ok: true, user: bound.user };
   },
 
@@ -198,6 +215,7 @@ export const authService = {
     users = users.map((u) => (u.id === bound.user!.id ? bound.user! : u));
     storageService.set(KEYS.users, users);
     storageService.set(KEYS.session, bound.user.id);
+    trackAppLogin(bound.user);
     return { ok: true, user: bound.user };
   },
 
@@ -226,6 +244,7 @@ export const authService = {
     users = users.map((u) => (u.id === bound.user!.id ? bound.user! : u));
     storageService.set(KEYS.users, users);
     storageService.set(KEYS.session, bound.user.id);
+    trackAppLogin(bound.user);
     return { ok: true, user: bound.user };
   },
 

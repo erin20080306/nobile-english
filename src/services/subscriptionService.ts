@@ -76,9 +76,8 @@ export const subscriptionService = {
     const user = authService.getCurrentUser();
     if (typeof fetch !== "undefined" && user?.id) {
       try {
-        const response = await fetch(`/api/subscriptions/status?userId=${encodeURIComponent(user.id)}`, {
-          cache: "no-store",
-        });
+        const params = new URLSearchParams({ userId: user.id, email: user.email || "" });
+        const response = await fetch(`/api/subscriptions/status?${params.toString()}`, { cache: "no-store" });
         if (response.ok) {
           const data = await response.json();
           return {
