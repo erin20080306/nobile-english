@@ -353,7 +353,7 @@ export default function ConversationPractice({
     activeMicrophoneStreamRef.current = null;
   }
 
-  async function waitForSpeechRecognitionEnd(timeoutMs = 450) {
+  async function waitForSpeechRecognitionEnd(timeoutMs = 150) {
     const startedAt = Date.now();
     while (!voiceRecognitionEndedRef.current && Date.now() - startedAt < timeoutMs) {
       await delay(50);

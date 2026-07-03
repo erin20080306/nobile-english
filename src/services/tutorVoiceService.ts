@@ -107,7 +107,7 @@ class TutorVoiceService {
     if (state.recording) {
       this.log("[AI_TTS] releasing recording before tutor playback");
       this.setRecording(false);
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 300));
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 50));
     }
 
     audioQueueService.clearQueue();

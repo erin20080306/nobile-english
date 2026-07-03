@@ -324,6 +324,10 @@ class AudioQueueService {
       this.audio.volume = 1;
       this.audio.muted = false;
       this.audio.playbackRate = this.state.playbackRate;
+      // 語速不是 1 時，瀏覽器預設的音高保持演算法（WSOLA）搭配我們的
+      // Web Audio GainNode 圖表，某些瀏覽器（特別是 Chrome）會產生雜聲
+      // /爆音。關閉 preservesPitch 改用簡單重採樣可避免這個問題。
+      this.applyPreservesPitch(this.audio, this.state.playbackRate !== 1);
 
       // 等待 canplay
       await new Promise<void>((resolve, reject) => {
@@ -472,12 +476,12 @@ class AudioQueueService {
       this.stopCurrent();
       this.setState({ state: "recording" });
     } else {
-      // 錄音結束後等待 300ms 再處理佇列
+      // 錄音結束後短暫等待再處理佇列，讓導師回覆更快開始播放
       setTimeout(() => {
         if (!this.state.recording) {
           this.processQueue();
         }
-      }, 300);
+      }, 50);
     }
   }
 
@@ -507,6 +511,26 @@ class AudioQueueService {
     // 如果正在播放，即時應用新速度
     if (this.audio && this.state.state === "playing") {
       this.audio.playbackRate = rate;
+      this.applyPreservesPitch(this.audio, rate !== 1);
+    }
+  }
+
+  /**
+   * 語速不是 1 時關閉 preservesPitch，避免部分瀏覽器（尤其 Chrome）在
+   * MediaElementSource + GainNode 音訊圖搭配非 1 倍語速時產生雜聲/爆音。
+   */
+  private applyPreservesPitch(audio: HTMLAudioElement, preserve: boolean): void {
+    try {
+      const a = audio as HTMLAudioElement & {
+        preservesPitch?: boolean;
+        webkitPreservesPitch?: boolean;
+        mozPreservesPitch?: boolean;
+      };
+      a.preservesPitch = preserve;
+      a.webkitPreservesPitch = preserve;
+      a.mozPreservesPitch = preserve;
+    } catch {
+      /* ignore unsupported browsers */
     }
   }
 
