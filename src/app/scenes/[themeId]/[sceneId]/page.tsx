@@ -81,14 +81,22 @@ export default function ScenePracticePage() {
     | { type: "dialogue" }
     | { type: "quiz" };
 
+  // Fill-in-the-blank patterns (e.g. "I'd like a ___, please.") aren't
+  // suitable for shadowing since there's no single correct sentence to
+  // read aloud, so they're skipped when building shadowing steps.
+  const shadowablePatterns = useMemo(
+    () => (scene ? scene.keyPatterns.filter((p) => !/_{2,}/.test(p.en)) : []),
+    [scene]
+  );
+
   const steps = useMemo<PreviewStep[]>(() => {
     if (!scene) return [{ type: "overview" }];
     const list: PreviewStep[] = [{ type: "overview" }];
-    scene.keyPatterns.forEach((_, index) => list.push({ type: "pattern", index }));
+    shadowablePatterns.forEach((_, index) => list.push({ type: "pattern", index }));
     list.push({ type: "dialogue" });
     if (scene.quiz.length > 0) list.push({ type: "quiz" });
     return list;
-  }, [scene]);
+  }, [scene, shadowablePatterns]);
 
   const settings = useMemo(() => {
     const u = authService.getCurrentUser();
@@ -325,13 +333,13 @@ export default function ScenePracticePage() {
 
   // Shadowing pattern steps link to standalone shadowing page
   if (currentStep.type === "pattern") {
-    const p = scene.keyPatterns[currentStep.index];
+    const p = shadowablePatterns[currentStep.index];
     // Store pattern info for the shadowing page
     storageService.set(KEYS.shadowingPattern, { 
       sentence: p.en, 
       translation: p.zh, 
       targetLanguage,
-      allPatterns: scene.keyPatterns,
+      allPatterns: shadowablePatterns,
       currentIndex: currentStep.index,
       onComplete: (score: number) => {
         setPronunciationScores((prev) => ({ ...prev, [currentStep.index]: score }));

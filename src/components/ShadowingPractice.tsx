@@ -129,6 +129,12 @@ export default function ShadowingPractice({
   async function playSentence(autoRecordAfter = false) {
     setPhase("playing");
     const opts = voiceForLanguage(targetLanguage as any, 1, tutor.gender);
+    // Use the selected tutor's own cloud voice/instructions instead of the
+    // generic per-language default, so the gender the learner picked is
+    // actually respected (e.g. male tutor => male-sounding cloud voice).
+    opts.ttsVoice = tutor.ttsVoice;
+    opts.ttsInstructions = tutor.ttsInstructions;
+    opts.voiceKeywords = tutor.voiceKeywords;
     // Increase volume for shadowing practice
     opts.volumeGain = 2.0;
 

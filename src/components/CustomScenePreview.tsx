@@ -152,18 +152,23 @@ export default function CustomScenePreview({
                       {pronunciationScores[i]}%
                     </span>
                   )}
-                  <button
-                    onClick={() => {
-                      // Unlock speech synthesis / audio synchronously in this
-                      // click so the ShadowingPractice modal can auto-play.
-                      speechService.unlockAudio();
-                      setShadowingPatternIndex(i);
-                    }}
-                    className="text-lilacDeep hover:text-lilacDeep/80 transition"
-                    title="跟讀練習"
-                  >
-                    <Mic size={16} />
-                  </button>
+                  {/* Fill-in-the-blank patterns (e.g. "I'd like a ___, please.")
+                      aren't suitable for shadowing since there's no single
+                      correct sentence to read aloud. */}
+                  {!/_{2,}/.test(p.en) && (
+                    <button
+                      onClick={() => {
+                        // Unlock speech synthesis / audio synchronously in this
+                        // click so the ShadowingPractice modal can auto-play.
+                        speechService.unlockAudio();
+                        setShadowingPatternIndex(i);
+                      }}
+                      className="text-lilacDeep hover:text-lilacDeep/80 transition"
+                      title="跟讀練習"
+                    >
+                      <Mic size={16} />
+                    </button>
+                  )}
                 </div>
               )}
             </div>

@@ -43,9 +43,17 @@ export default function ShadowingPage() {
       const patternData = storageService.get<any>(KEYS.shadowingPattern, null);
       
       if (patternData && patternData.allPatterns) {
-        // Load from scene pattern data
-        const allPatterns = patternData.allPatterns;
-        const startIndex = patternData.currentIndex || 0;
+        // Load from scene pattern data. Fill-in-the-blank patterns (e.g.
+        // "I'd like a ___, please.") aren't suitable for shadowing since
+        // there's no single correct sentence to read aloud.
+        const allPatterns: ShadowingSentence[] = patternData.allPatterns.filter(
+          (p: ShadowingSentence) => !/_{2,}/.test(p.en)
+        );
+        const originalIndex = patternData.currentIndex || 0;
+        const startIndex = Math.min(
+          originalIndex,
+          Math.max(allPatterns.length - 1, 0)
+        );
         setTargetLanguage(patternData.targetLanguage || "en");
         setSentences(allPatterns);
         setCurrentIndex(startIndex);
@@ -200,7 +208,13 @@ export default function ShadowingPage() {
           console.log("Chinese TTS completed, starting target TTS");
           // Delay then speak target sentence
           setTimeout(() => {
-            const opts = voiceForLanguage(targetLanguage, 1);
+            const opts = voiceForLanguage(targetLanguage, 1, tutor.gender);
+            // Use the selected tutor's own cloud voice/instructions instead of
+            // the generic per-language default, so the gender the learner
+            // picked is actually respected (e.g. male tutor => male voice).
+            opts.ttsVoice = tutor.ttsVoice;
+            opts.ttsInstructions = tutor.ttsInstructions;
+            opts.voiceKeywords = tutor.voiceKeywords;
             // Increase volume for shadowing practice
             opts.volumeGain = 2.0;
             console.log("Starting target TTS with opts:", opts);
