@@ -784,7 +784,7 @@ export default function DailyReadingPage() {
                 onChange={(e) => setPlaybackSpeed(parseFloat(e.target.value))}
                 className="px-2 py-1 rounded-full text-xs bg-sand text-ink"
               >
-                <option value={0.5}>0.5x</option>
+                <option value={0.65}>0.65x</option>
                 <option value={0.75}>0.75x</option>
                 <option value={0.9}>0.9x</option>
                 <option value={1.0}>1.0x</option>
