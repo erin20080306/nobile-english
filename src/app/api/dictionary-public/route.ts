@@ -139,7 +139,48 @@ export async function POST(req: Request) {
   }
 
   if (!entry) {
-    return NextResponse.json({ error: "Word not found" }, { status: 404 });
+    // Fallback: Use Gemini to translate and provide basic definition
+    if (sourceLanguage === "zh" && language !== "zh") {
+      try {
+        const languageNames: Record<LearningLanguageCode, string> = {
+          en: "English",
+          ja: "Japanese",
+          ko: "Korean",
+          it: "Italian",
+          es: "Spanish",
+          zh: "Chinese",
+        };
+
+        const fallbackPrompt = `Translate the Chinese word "${word}" to ${languageNames[language]} and provide a simple definition. Return ONLY a JSON object with this exact shape: {"translatedWord": "the translated word", "definition": "a simple definition in Chinese"}`;
+
+        const fallbackResult = await generateJsonWithGemini<{ translatedWord: string; definition: string }>({
+          prompt: fallbackPrompt,
+          temperature: 0.3,
+          maxOutputTokens: 200,
+        });
+
+        if (fallbackResult && fallbackResult.translatedWord) {
+          entry = {
+            word: fallbackResult.translatedWord,
+            language: language,
+            phonetic: "",
+            pos: "phrase",
+            definitions: [fallbackResult.definition || fallbackResult.translatedWord],
+            definitionsZhTw: [fallbackResult.definition || fallbackResult.translatedWord],
+            examples: [],
+            source: "ai_translation",
+            sourceAttribution: "AI-powered translation",
+          };
+          source = "ai_translation";
+        }
+      } catch (error) {
+        console.error("AI translation fallback error:", error);
+      }
+    }
+
+    if (!entry) {
+      return NextResponse.json({ error: "Word not found" }, { status: 404 });
+    }
   }
 
   // Cache the result

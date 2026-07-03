@@ -688,7 +688,7 @@ export interface CachedReadingArticleProgress {
 
 // Public Dictionary API Types
 
-export type DictionarySource = "free_dictionary" | "jmdict" | "urimal_saem" | "wiktionary" | "merriam_webster" | "cache" | "local";
+export type DictionarySource = "free_dictionary" | "jmdict" | "urimal_saem" | "wiktionary" | "merriam_webster" | "cache" | "local" | "ai_translation";
 
 export interface DictionaryEntry {
   word: string;
