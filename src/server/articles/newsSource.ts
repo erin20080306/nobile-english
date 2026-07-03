@@ -24,6 +24,14 @@ interface GNewsResponse {
 }
 
 const NEWS_CATEGORIES = ["world", "nation", "business", "technology", "science", "health"];
+const NEWS_SEARCH_QUERIES: Record<string, string> = {
+  world: "world OR climate OR diplomacy",
+  nation: "education OR transport OR community",
+  business: "business OR economy OR jobs",
+  technology: "technology OR science OR AI",
+  science: "science OR space OR environment",
+  health: "health OR research OR wellness",
+};
 
 // Deterministic per-day category rotation so the topic pool feels varied
 // without needing extra state.
@@ -32,25 +40,70 @@ function categoryForDate(publishDate: string): string {
   return NEWS_CATEGORIES[day % NEWS_CATEGORIES.length];
 }
 
+function daySeed(publishDate: string): number {
+  return publishDate
+    .split("")
+    .reduce((sum, char) => sum + char.charCodeAt(0), 0);
+}
+
+function taipeiDateRangeUtc(publishDate: string): { from: string; to: string } {
+  const start = new Date(`${publishDate}T00:00:00+08:00`);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return {
+    from: start.toISOString(),
+    to: end.toISOString(),
+  };
+}
+
+async function fetchGNews(
+  endpoint: "search" | "top-headlines",
+  params: Record<string, string>,
+  apiKey: string
+): Promise<GNewsArticle[]> {
+  const search = new URLSearchParams({
+    lang: "en",
+    max: "10",
+    ...params,
+    apikey: apiKey,
+  });
+  const url = `https://gnews.io/api/v4/${endpoint}?${search.toString()}`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) return [];
+
+  const data = (await res.json()) as GNewsResponse;
+  return data.articles || [];
+}
+
+function pickArticle(articles: GNewsArticle[], publishDate: string): GNewsArticle | null {
+  const usable = articles.filter((article) => article.title && (article.description || "").length > 40);
+  if (!usable.length) return articles.find((article) => article.title) || null;
+  return usable[daySeed(publishDate) % usable.length] || usable[0];
+}
+
 export async function fetchDailyNewsHeadline(publishDate: string): Promise<NewsHeadline | null> {
   const apiKey = process.env.GNEWS_API_KEY;
   if (!apiKey) return null;
 
   const category = categoryForDate(publishDate);
+  const { from, to } = taipeiDateRangeUtc(publishDate);
 
   try {
-    const url = `https://gnews.io/api/v4/top-headlines?category=${category}&lang=en&max=8&apikey=${encodeURIComponent(apiKey)}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-    if (!res.ok) return null;
-
-    const data = (await res.json()) as GNewsResponse;
-    const articles = data.articles || [];
-    if (!articles.length) return null;
-
-    // Prefer an article with a substantial description (better source material
-    // for the AI to rewrite); avoid ones that are too short or missing fields.
-    const candidate =
-      articles.find((a) => (a.description || "").length > 60 && a.title) || articles[0];
+    const searchArticles = await fetchGNews(
+      "search",
+      {
+        q: NEWS_SEARCH_QUERIES[category] || category,
+        in: "title,description",
+        from,
+        to,
+        sortby: "publishedAt",
+      },
+      apiKey
+    );
+    const headlineArticles = searchArticles.length
+      ? searchArticles
+      : await fetchGNews("top-headlines", { category, from, to }, apiKey);
+    const candidate = pickArticle(headlineArticles, publishDate);
 
     if (!candidate?.title) return null;
 

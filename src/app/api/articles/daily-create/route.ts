@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
       publishDate: typeof body.publishDate === "string" ? body.publishDate : undefined,
       prewarm: body.prewarm === true,
       includeAudio: body.includeAudio !== false,
+      force: body.force === true,
     });
 
     return NextResponse.json(result);

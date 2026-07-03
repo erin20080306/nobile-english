@@ -217,7 +217,7 @@ export default function AdminPage() {
       const res = await fetch("/api/articles/daily-create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prewarm: false, includeAudio: false }),
+        body: JSON.stringify({ force: true, prewarm: false, includeAudio: false }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -270,26 +270,21 @@ export default function AdminPage() {
 
   async function runFullPipeline() {
     setLoadingAction("pipeline");
-    addLog("=== 一鍵建立今日文章（生成 + 預熱 + 發布）===", "info");
+    addLog("=== 一鍵更新今日文章（生成 + 發布，音檔可另預熱）===", "info");
     try {
       const res = await fetch("/api/articles/daily-create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prewarm: true, includeAudio: true }),
+        body: JSON.stringify({ force: true, prewarm: true, includeAudio: false }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
         if (data.skipped) {
           addLog(`ℹ️ 今日文章已存在，跳過生成`, "info");
         } else {
-          addLog(`✅ 成功建立 ${data.articlesCreated}/5 篇文章，主題：${data.topic}`, "ok");
+          addLog(`✅ 成功更新 ${data.articlesCreated}/5 篇文章，主題：${data.topic}`, "ok");
           if (data.prewarm?.results?.length) {
-            const audioReady = data.prewarm.results.reduce(
-              (sum: number, item: { audioCreated?: number; audioCached?: number }) =>
-                sum + (item.audioCreated ?? 0) + (item.audioCached ?? 0),
-              0
-            );
-            addLog(`✅ 預熱完成：${data.prewarm.results.length} 篇，音檔 ${audioReady} 筆`, "ok");
+            addLog(`✅ 詞彙預熱完成：${data.prewarm.results.length} 篇；音檔可另外按「預熱音檔」`, "ok");
           }
           data.results?.forEach((r: { lang: string; success: boolean; title?: string; error?: string }) => {
             addLog(`  ${r.success ? "✅" : "❌"} ${r.lang}: ${r.title ?? r.error}`, r.success ? "ok" : "error");
@@ -308,7 +303,11 @@ export default function AdminPage() {
   async function runGenerateOnly() {
     addLog("生成文章中...", "info");
     try {
-      const res = await fetch("/api/articles/daily-create", { method: "POST" });
+      const res = await fetch("/api/articles/daily-create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ force: true, prewarm: false, includeAudio: false }),
+      });
       const data = await res.json();
       addLog(res.ok ? `✅ ${data.skipped ? "已存在" : `生成成功（${data.articlesCreated} 篇）`}` : `❌ 失敗：${data.error}`, res.ok ? "ok" : "error");
     } catch (e) { addLog(`❌ ${e instanceof Error ? e.message : String(e)}`, "error"); }
@@ -631,7 +630,7 @@ export default function AdminPage() {
             {loadingAction === "pipeline" ? (
               <><RefreshCw size={18} className="animate-spin" /> 執行中...</>
             ) : (
-              <><Send size={18} /> 一鍵完整流程（生成 → 預熱 → 發布）</>
+              <><Send size={18} /> 一鍵更新今日文章（生成 → 發布）</>
             )}
           </button>
 
@@ -645,7 +644,7 @@ export default function AdminPage() {
               {loadingAction === "generate"
                 ? <RefreshCw size={18} className="animate-spin" />
                 : <Globe size={18} />}
-              <span>生成文章</span>
+              <span>重新生成</span>
             </button>
             <button
               onClick={runPrewarm}

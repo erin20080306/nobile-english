@@ -64,6 +64,7 @@ interface ArticleContent {
 export interface DailyArticleCreateResult {
   success: boolean;
   skipped?: boolean;
+  forced?: boolean;
   date: string;
   topic: string;
   topicId?: string;
@@ -127,11 +128,12 @@ async function prewarmCreatedArticles(
 
 export async function createDailyArticles(
   supabase: SupabaseClient,
-  options: { publishDate?: string; prewarm?: boolean; includeAudio?: boolean } = {}
+  options: { publishDate?: string; prewarm?: boolean; includeAudio?: boolean; force?: boolean } = {}
 ): Promise<DailyArticleCreateResult> {
   const publishDate = options.publishDate || getTaipeiDateString();
   const shouldPrewarm = options.prewarm ?? false;
   const includeAudio = options.includeAudio ?? true;
+  const force = options.force ?? false;
 
   const { data: existingTopic, error: existingTopicError } = await supabase
     .from("reading_article_topics")
@@ -144,7 +146,7 @@ export async function createDailyArticles(
     throw existingTopicError;
   }
 
-  if (existingTopic) {
+  if (existingTopic && !force) {
     let prewarm: DailyArticleCreateResult["prewarm"];
     if (shouldPrewarm) {
       const { data: existingArticles } = await supabase
@@ -288,6 +290,7 @@ export async function createDailyArticles(
 
   return {
     success: true,
+    forced: force,
     date: publishDate,
     topic: topic.zhTw,
     topicId: topicData.id as string,

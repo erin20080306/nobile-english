@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
     const result = await createDailyArticles(supabase, {
       publishDate: getTaipeiDateString(),
       prewarm: true,
-      includeAudio: true,
+      includeAudio: false,
     });
 
     return NextResponse.json({
