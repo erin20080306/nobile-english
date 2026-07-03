@@ -132,15 +132,16 @@ export default function WordSheet({
             exit={{ y: 320 }}
             transition={{ type: "spring", damping: 26, stiffness: 280 }}
           >
-            <div className="flex justify-center mb-3">
+            <div className="relative flex h-10 items-start justify-center mb-3">
               <div className="h-1.5 w-12 rounded-full bg-lilac" />
+              <button
+                onClick={onClose}
+                className="absolute right-0 top-0 h-10 w-10 rounded-2xl bg-cream flex items-center justify-center active:scale-95 transition"
+                aria-label="關閉單字卡"
+              >
+                <X size={20} className="text-inkSoft" />
+              </button>
             </div>
-            <button
-              onClick={onClose}
-              className="absolute right-4 top-4 h-9 w-9 rounded-2xl bg-cream flex items-center justify-center"
-            >
-              <X size={18} className="text-inkSoft" />
-            </button>
 
             {!entry ? (
               <div className="py-8 text-center text-inkSoft">
