@@ -29,8 +29,10 @@ const cafeScenes: SceneSpec[] = [
     name: "點咖啡", enName: "Ordering Coffee", difficulty: "Beginner",
     words: ["coffee", "order", "size", "menu", "please"],
     patterns: [
-      { en: "I'd like a ___, please.", zh: "我想要一杯 ___，謝謝。" },
+      { en: "I'd like a latte, please.", zh: "我想要一杯拿鐵，謝謝。" },
       { en: "Can I get a large latte?", zh: "可以給我一杯大杯拿鐵嗎？" },
+      { en: "Is this coffee hot or iced?", zh: "這杯咖啡是熱的還是冰的？" },
+      { en: "Could I get that to go?", zh: "可以幫我做成外帶嗎？" },
     ],
     dialogue: [
       { speaker: "tutor", en: "Hi! What can I get for you today?", zh: "嗨！今天想點什麼？" },
@@ -50,6 +52,8 @@ const cafeScenes: SceneSpec[] = [
     patterns: [
       { en: "Can I have less sugar?", zh: "可以少糖嗎？" },
       { en: "Half sugar and less ice, please.", zh: "半糖少冰，謝謝。" },
+      { en: "No ice, please.", zh: "去冰，謝謝。" },
+      { en: "Could you make it less sweet?", zh: "可以做得不要那麼甜嗎？" },
     ],
     dialogue: [
       { speaker: "tutor", en: "How sweet would you like it?", zh: "甜度要多少？" },
@@ -69,6 +73,8 @@ const cafeScenes: SceneSpec[] = [
     patterns: [
       { en: "I'd like this to go.", zh: "我要外帶。" },
       { en: "Could you put it in a bag?", zh: "可以幫我裝袋嗎？" },
+      { en: "Is my order ready yet?", zh: "我的餐點好了嗎？" },
+      { en: "Can I get a receipt, please?", zh: "可以給我收據嗎？" },
     ],
     dialogue: [
       { speaker: "tutor", en: "Will that be for here or to go?", zh: "內用還是外帶？" },
@@ -87,6 +93,8 @@ const cafeScenes: SceneSpec[] = [
     patterns: [
       { en: "I'd like to make a reservation.", zh: "我想要訂位。" },
       { en: "A table for two at seven.", zh: "七點兩位。" },
+      { en: "Do you have any tables available tonight?", zh: "今晚還有位子嗎？" },
+      { en: "Could we sit near the window?", zh: "我們可以坐靠窗的位子嗎？" },
     ],
     dialogue: [
       { speaker: "tutor", en: "Thank you for calling. How can I help?", zh: "謝謝來電，需要什麼協助？" },
@@ -106,6 +114,8 @@ const cafeScenes: SceneSpec[] = [
     patterns: [
       { en: "What do you recommend?", zh: "你推薦什麼？" },
       { en: "What's today's special?", zh: "今天的特餐是什麼？" },
+      { en: "Could I see the menu, please?", zh: "可以給我看菜單嗎？" },
+      { en: "Does this dish contain any nuts?", zh: "這道菜含堅果嗎？" },
     ],
     dialogue: [
       { speaker: "tutor", en: "Here's the menu. Take your time.", zh: "這是菜單，慢慢看。" },
@@ -124,6 +134,8 @@ const cafeScenes: SceneSpec[] = [
     patterns: [
       { en: "I'll have the steak.", zh: "我要牛排。" },
       { en: "How would you like it cooked?", zh: "要幾分熟？" },
+      { en: "I'd like it medium, please.", zh: "我要五分熟，謝謝。" },
+      { en: "Could I get that with a side salad?", zh: "可以幫我加點一份沙拉配菜嗎？" },
     ],
     dialogue: [
       { speaker: "tutor", en: "Are you ready to order?", zh: "可以點餐了嗎？" },
@@ -142,6 +154,8 @@ const cafeScenes: SceneSpec[] = [
     patterns: [
       { en: "Does this contain nuts?", zh: "這個含有堅果嗎？" },
       { en: "I have a nut allergy.", zh: "我對堅果過敏。" },
+      { en: "Could you check with the kitchen, please?", zh: "可以幫我問一下廚房嗎？" },
+      { en: "Is there a dairy-free option?", zh: "有不含乳製品的選擇嗎？" },
     ],
     dialogue: [
       { speaker: "tutor", en: "Are you ready to order?", zh: "可以點餐了嗎？" },
@@ -160,6 +174,8 @@ const cafeScenes: SceneSpec[] = [
     patterns: [
       { en: "Can I have the bill, please?", zh: "可以給我帳單嗎？" },
       { en: "Can I pay by card?", zh: "可以刷卡嗎？" },
+      { en: "Do you accept credit cards?", zh: "你們接受信用卡嗎？" },
+      { en: "Could I get a receipt, please?", zh: "可以給我收據嗎？" },
     ],
     dialogue: [
       { speaker: "user", en: "Can I have the bill, please?", zh: "可以給我帳單嗎？" },
@@ -178,6 +194,8 @@ const cafeScenes: SceneSpec[] = [
     patterns: [
       { en: "Excuse me, this is cold.", zh: "不好意思，這個是冷的。" },
       { en: "I think there's a mistake with my order.", zh: "我的餐點好像送錯了。" },
+      { en: "This isn't what I ordered.", zh: "這不是我點的餐點。" },
+      { en: "Could you bring me a new one, please?", zh: "可以幫我換一份新的嗎？" },
     ],
     dialogue: [
       { speaker: "user", en: "Excuse me, my soup is cold.", zh: "不好意思，我的湯是冷的。" },
@@ -194,8 +212,10 @@ const cafeScenes: SceneSpec[] = [
     name: "推薦餐點", enName: "Recommending Dishes", difficulty: "Intermediate",
     words: ["recommend", "favorite", "try", "delicious", "popular"],
     patterns: [
-      { en: "You should try the ___.", zh: "你應該試試 ___。" },
+      { en: "You should try the salmon.", zh: "你應該試試鮭魚。" },
       { en: "It's one of our best sellers.", zh: "這是我們的招牌之一。" },
+      { en: "What would you recommend for dessert?", zh: "甜點你推薦什麼？" },
+      { en: "That sounds delicious. I'll take it.", zh: "聽起來很美味，我要這個。" },
     ],
     dialogue: [
       { speaker: "tutor", en: "Have you decided?", zh: "決定好了嗎？" },
@@ -223,17 +243,131 @@ const themeWordBank: Record<string, string[]> = {
   exam: ["question", "answer", "reading", "listening", "grammar", "vocabulary", "score", "passage", "choice", "practice"],
 };
 
+// Each theme's full pool of shadowable sentences. Individual scenes within a
+// theme only show a rotating 4-sentence window of this pool (see
+// pickRotatingPatterns/buildScenes below) so scenes in the same theme don't
+// all repeat the exact same four sentences.
 const themePatterns: Record<string, { en: string; zh: string }[]> = {
-  daily: [{ en: "How's it going?", zh: "最近好嗎？" }, { en: "What are you up to today?", zh: "你今天要做什麼？" }],
-  travel: [{ en: "How do I get to ___?", zh: "我要怎麼去 ___？" }, { en: "Is it far from here?", zh: "離這裡遠嗎？" }],
-  airport: [{ en: "Where is the boarding gate?", zh: "登機門在哪裡？" }, { en: "I'd like to check in.", zh: "我想要報到。" }],
-  shopping: [{ en: "How much is this?", zh: "這個多少錢？" }, { en: "Can I try it on?", zh: "我可以試穿嗎？" }],
-  work: [{ en: "Let's go over the agenda.", zh: "我們來看一下議程。" }, { en: "Could you send me the report?", zh: "可以把報告寄給我嗎？" }],
-  interview: [{ en: "Tell me about yourself.", zh: "請自我介紹。" }, { en: "What are your strengths?", zh: "你的優勢是什麼？" }],
-  social: [{ en: "What do you do for fun?", zh: "你平常喜歡做什麼？" }, { en: "Want to hang out this weekend?", zh: "這週末要不要出來？" }],
-  phone: [{ en: "Can I leave a message?", zh: "我可以留言嗎？" }, { en: "Could you hold on a second?", zh: "可以稍等一下嗎？" }],
-  exam: [{ en: "Choose the best answer.", zh: "選出最佳答案。" }, { en: "According to the passage, ...", zh: "根據文章，…" }],
+  daily: [
+    { en: "How's it going?", zh: "最近好嗎？" },
+    { en: "What are you up to today?", zh: "你今天要做什麼？" },
+    { en: "Nice to see you again.", zh: "很高興再見到你。" },
+    { en: "Have a great day!", zh: "祝你有美好的一天！" },
+    { en: "Long time no see!", zh: "好久不見！" },
+    { en: "What's new with you?", zh: "你最近有什麼新鮮事？" },
+    { en: "See you later!", zh: "待會見！" },
+    { en: "Take care of yourself.", zh: "照顧好自己。" },
+    { en: "It's nice out today.", zh: "今天天氣真好。" },
+    { en: "Let's catch up soon.", zh: "我們找時間聚聚吧。" },
+  ],
+  travel: [
+    { en: "How do I get to the station?", zh: "我要怎麼去車站？" },
+    { en: "Is it far from here?", zh: "離這裡遠嗎？" },
+    { en: "Could you show me on the map?", zh: "可以在地圖上指給我看嗎？" },
+    { en: "Which bus goes downtown?", zh: "哪一班公車去市中心？" },
+    { en: "How long does it take to get there?", zh: "到那裡要多久？" },
+    { en: "Is there a train station nearby?", zh: "附近有火車站嗎？" },
+    { en: "Can you recommend a good place to visit?", zh: "你可以推薦一個好去處嗎？" },
+    { en: "Where can I buy a ticket?", zh: "我可以在哪裡買票？" },
+    { en: "Does this bus stop at the museum?", zh: "這班公車有停博物館嗎？" },
+    { en: "Thank you for your help.", zh: "謝謝你的幫忙。" },
+  ],
+  airport: [
+    { en: "Where is the boarding gate?", zh: "登機門在哪裡？" },
+    { en: "I'd like to check in.", zh: "我想要報到。" },
+    { en: "Could I have a window seat?", zh: "可以給我靠窗的座位嗎？" },
+    { en: "What time does boarding start?", zh: "什麼時候開始登機？" },
+    { en: "Do I need to show my passport?", zh: "我需要出示護照嗎？" },
+    { en: "How much luggage can I check?", zh: "我可以託運多少行李？" },
+    { en: "Is this the line for security?", zh: "這是安檢的隊伍嗎？" },
+    { en: "Where can I find a luggage cart?", zh: "哪裡可以找到行李推車？" },
+    { en: "Is my flight on time?", zh: "我的班機準時嗎？" },
+    { en: "Thank you for your assistance.", zh: "謝謝你的協助。" },
+  ],
+  shopping: [
+    { en: "How much is this?", zh: "這個多少錢？" },
+    { en: "Can I try it on?", zh: "我可以試穿嗎？" },
+    { en: "Do you have a smaller size?", zh: "有比較小的尺寸嗎？" },
+    { en: "Can I pay by card?", zh: "可以刷卡嗎？" },
+    { en: "Is this on sale?", zh: "這個有特價嗎？" },
+    { en: "Do you have this in another color?", zh: "這個有其他顏色嗎？" },
+    { en: "Can I get a refund?", zh: "我可以退款嗎？" },
+    { en: "Where is the fitting room?", zh: "試衣間在哪裡？" },
+    { en: "Could I have a bag, please?", zh: "可以給我一個袋子嗎？" },
+    { en: "Thank you for your help.", zh: "謝謝你的幫忙。" },
+  ],
+  work: [
+    { en: "Let's go over the agenda.", zh: "我們來看一下議程。" },
+    { en: "Could you send me the report?", zh: "可以把報告寄給我嗎？" },
+    { en: "Can we push the deadline back?", zh: "可以延後截止日嗎？" },
+    { en: "I'll follow up by email.", zh: "我會用電子郵件跟進。" },
+    { en: "Let's schedule a follow-up meeting.", zh: "我們安排一個後續會議吧。" },
+    { en: "Could you clarify this point?", zh: "可以說明一下這一點嗎？" },
+    { en: "I'll have that ready by tomorrow.", zh: "我明天前會準備好。" },
+    { en: "Let's take a short break.", zh: "我們稍微休息一下吧。" },
+    { en: "Thanks for your hard work.", zh: "謝謝你的辛勞。" },
+    { en: "Please keep me updated.", zh: "請隨時讓我知道進度。" },
+  ],
+  interview: [
+    { en: "Tell me about yourself.", zh: "請自我介紹。" },
+    { en: "What are your strengths?", zh: "你的優勢是什麼？" },
+    { en: "Why do you want this job?", zh: "你為什麼想要這份工作？" },
+    { en: "Do you have any questions for me?", zh: "你有什麼問題要問我嗎？" },
+    { en: "What is your greatest weakness?", zh: "你最大的缺點是什麼？" },
+    { en: "Why should we hire you?", zh: "我們為什麼應該僱用你？" },
+    { en: "Where do you see yourself in five years?", zh: "你五年後想成為什麼樣子？" },
+    { en: "Can you describe your work experience?", zh: "可以描述一下你的工作經驗嗎？" },
+    { en: "What motivates you at work?", zh: "什麼激勵你努力工作？" },
+    { en: "Thank you for this opportunity.", zh: "謝謝你給我這個機會。" },
+  ],
+  social: [
+    { en: "What do you do for fun?", zh: "你平常喜歡做什麼？" },
+    { en: "Want to hang out this weekend?", zh: "這週末要不要出來？" },
+    { en: "How do you know each other?", zh: "你們怎麼認識的？" },
+    { en: "Let's keep in touch.", zh: "我們保持聯絡吧。" },
+    { en: "What kind of music do you like?", zh: "你喜歡什麼樣的音樂？" },
+    { en: "Have you seen any good movies lately?", zh: "你最近有看什麼好電影嗎？" },
+    { en: "Let's grab lunch sometime.", zh: "我們找時間一起吃午餐吧。" },
+    { en: "It was great meeting you.", zh: "很高興認識你。" },
+    { en: "Do you want to join us?", zh: "你想加入我們嗎？" },
+    { en: "Have a wonderful weekend.", zh: "祝你有美好的週末。" },
+  ],
+  phone: [
+    { en: "Can I leave a message?", zh: "我可以留言嗎？" },
+    { en: "Could you hold on a second?", zh: "可以稍等一下嗎？" },
+    { en: "Could you repeat that, please?", zh: "可以再說一次嗎？" },
+    { en: "I'll call back later.", zh: "我晚點會再打來。" },
+    { en: "May I ask who's calling?", zh: "請問是哪位來電？" },
+    { en: "Could you spell your name, please?", zh: "可以拼一下你的名字嗎？" },
+    { en: "I'm sorry, the line is busy.", zh: "不好意思，線路忙線中。" },
+    { en: "Thank you for calling.", zh: "謝謝你的來電。" },
+    { en: "Let me transfer your call.", zh: "我幫你轉接電話。" },
+    { en: "Have a nice day.", zh: "祝你有美好的一天。" },
+  ],
+  exam: [
+    { en: "Choose the best answer.", zh: "選出最佳答案。" },
+    { en: "Read the question carefully.", zh: "仔細讀題。" },
+    { en: "Check each option before deciding.", zh: "決定前先檢查每個選項。" },
+    { en: "Manage your time wisely.", zh: "妥善管理你的時間。" },
+    { en: "Underline the key words.", zh: "把關鍵字劃線。" },
+    { en: "Eliminate the wrong choices first.", zh: "先刪除錯誤的選項。" },
+    { en: "Review your answers before submitting.", zh: "提交前檢查你的答案。" },
+    { en: "Stay calm during the test.", zh: "考試時保持冷靜。" },
+    { en: "Practice makes perfect.", zh: "熟能生巧。" },
+    { en: "Focus on one question at a time.", zh: "一次專注一題。" },
+  ],
 };
+
+// Picks a rotating 4-sentence window from a theme's full pattern pool, offset
+// by the scene's index within its theme, so consecutive scenes shift through
+// different (overlapping) sentences instead of every scene in a theme
+// showing the exact same fixed set.
+function pickRotatingPatterns(pool: { en: string; zh: string }[], sceneIndex: number): { en: string; zh: string }[] {
+  const windowSize = Math.min(4, pool.length);
+  const step = 2;
+  const start = (sceneIndex * step) % pool.length;
+  return Array.from({ length: windowSize }, (_, k) => pool[(start + k) % pool.length]);
+}
 
 function buildDialogue(themeId: string, name: string): DialogueLine[] {
   switch (themeId) {
@@ -409,8 +543,8 @@ function buildDialogue(themeId: string, name: string): DialogueLine[] {
   }
 }
 
-function buildQuiz(themeId: string): QuizItem[] {
-  const p = themePatterns[themeId] || themePatterns.daily;
+function buildQuiz(patterns: { en: string; zh: string }[]): QuizItem[] {
+  const p = patterns.length >= 2 ? patterns : themePatterns.daily;
   return [
     { question: "下列哪一句適合此情境？", options: ["Random words.", p[0].en, "No talk here.", "Go away now."], answerIndex: 1, explanation: "句型：" + p[0].zh },
     { question: "「" + p[1].zh + "」的英文是？", options: [p[1].en, "I am fine thanks.", "Where is bank?", "See you later."], answerIndex: 0, explanation: "正確句型為 " + p[1].en },
@@ -747,7 +881,9 @@ function buildScenes(): Scene[] {
   });
   // other themes (contextual builder)
   Object.entries(otherThemeScenes).forEach(([themeId, specs]) => {
+    const pool = themePatterns[themeId] || themePatterns.daily;
     specs.forEach((sp, i) => {
+      const patterns = pickRotatingPatterns(pool, i);
       all.push({
         id: `${themeId}-${i + 1}`,
         themeId,
@@ -758,9 +894,9 @@ function buildScenes(): Scene[] {
         minutes: 8 + (i % 4) * 2,
         goals: [`能完成「${sp.name}」對話`, "掌握關鍵單字與句型", "提升口說自然度"],
         keyWords: (themeWordBank[themeId] || themeWordBank.daily).slice(0, 6),
-        keyPatterns: themePatterns[themeId] || themePatterns.daily,
+        keyPatterns: patterns,
         dialogue: ensurePracticeDialogue(themeId, buildDialogue(themeId, sp.name)),
-        quiz: buildQuiz(themeId),
+        quiz: buildQuiz(patterns),
       });
     });
   });

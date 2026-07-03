@@ -431,6 +431,15 @@ function localizedDefaultStages(situation: string, targetLanguage: LearningLangu
 }
 
 function localizedDefaultPatterns(targetLanguage: LearningLanguageCode) {
+  if (targetLanguage === "en") {
+    return [
+      { en: "Hi, I'd like to explain what I need.", zh: "你好，我想說明一下我的需求。" },
+      { en: "Could you tell me a little more about this?", zh: "可以再多告訴我一點嗎？" },
+      { en: "What should I do next?", zh: "我接下來該做什麼？" },
+      { en: "Could I confirm one thing?", zh: "我可以確認一件事嗎？" },
+      { en: "Thank you, this has been very helpful.", zh: "謝謝你，這對我很有幫助。" },
+    ];
+  }
   if (targetLanguage === "ja") {
     return [
       { en: "少し相談したいです。", zh: "我想稍微諮詢一下。" },
