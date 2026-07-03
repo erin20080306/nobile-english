@@ -215,8 +215,8 @@ export default function ShadowingPage() {
             opts.ttsVoice = tutor.ttsVoice;
             opts.ttsInstructions = tutor.ttsInstructions;
             opts.voiceKeywords = tutor.voiceKeywords;
-            // Increase volume for shadowing practice
-            opts.volumeGain = 2.0;
+            // Increase volume for shadowing practice on mobile/PWA speakers.
+            opts.volumeGain = 2.6;
             console.log("Starting target TTS with opts:", opts);
             const r2 = speechService.speak(sentenceText, {
               ...opts,

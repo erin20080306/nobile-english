@@ -8,6 +8,7 @@ let currentAudioContext: AudioContext | null = null;
 let currentPlaybackEnd: (() => void) | null = null;
 const ttsBlobCache = new Map<string, Blob>();
 const TTS_CACHE_LIMIT = 24;
+const MAX_AUDIO_VOLUME_GAIN = 3;
 
 export interface SpeakOptions {
   rate?: number;
@@ -245,7 +246,7 @@ async function playWithGain(audio: HTMLAudioElement, gainValue: number, cleanup:
     const context = new AudioContextCtor();
     const source = context.createMediaElementSource(audio);
     const gain = context.createGain();
-    gain.gain.value = Math.max(1, Math.min(2, gainValue));
+    gain.gain.value = Math.max(1, Math.min(MAX_AUDIO_VOLUME_GAIN, gainValue));
     source.connect(gain);
     gain.connect(context.destination);
     currentAudioContext = context;
