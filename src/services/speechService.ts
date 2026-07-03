@@ -325,6 +325,15 @@ export const speechService = {
         source.buffer = buffer;
         source.connect(ctx.destination);
         source.start(0);
+        // This context is only needed momentarily to unlock the audio
+        // pipeline. Leaving it open leaks AudioContexts across repeated
+        // calls (e.g. every shadowing sentence/page navigation) and can
+        // exhaust the browser's concurrent-AudioContext limit (notably on
+        // Safari/iOS), causing later playWithGain() calls elsewhere to
+        // fail and silently fall back to unboosted (quieter) playback.
+        window.setTimeout(() => {
+          void ctx.close().catch(() => undefined);
+        }, 500);
       }
     } catch {
       /* ignore */

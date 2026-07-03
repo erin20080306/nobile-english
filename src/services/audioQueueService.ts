@@ -376,8 +376,11 @@ class AudioQueueService {
       audio.volume = 1;
       audio.muted = false;
       audio.playbackRate = this.state.playbackRate;
-      // 保險起見，非 1 倍語速時仍關閉 preservesPitch，簡化重採樣路徑。
-      this.applyPreservesPitch(audio, useBoosted);
+      // 非 1 倍語速一律使用未經 Web Audio 圖表處理的獨立 element（見上方
+      // useBoosted 判斷），因此不會有 MediaElementSource + GainNode 造成
+      // 雜聲的風險，這裡改為一律保留原音高，避免語速變慢/變快時聲音被
+      // 降調/升調而聽起來變質、失真。
+      this.applyPreservesPitch(audio, true);
 
       // 等待 canplay
       await new Promise<void>((resolve, reject) => {
@@ -566,7 +569,7 @@ class AudioQueueService {
     // element 造成中斷。
     if (this.activeAudio && this.state.state === "playing") {
       this.activeAudio.playbackRate = rate;
-      this.applyPreservesPitch(this.activeAudio, rate === 1);
+      this.applyPreservesPitch(this.activeAudio, true);
     }
   }
 
