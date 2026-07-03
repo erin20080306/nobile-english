@@ -23,6 +23,10 @@ interface AudioQueueItem {
   url: string;
   text?: string;
   priority: number;
+  /** Optional per-item volume boost (Web Audio GainNode value). Falls back
+   * to PLAYBACK_GAIN when not provided. Only applies at 1x playback rate,
+   * where the boosted (Web Audio-tapped) audio element is used. */
+  gain?: number;
   onStart?: () => void;
   onEnd?: () => void;
   onError?: (error: Error) => void;
@@ -359,6 +363,9 @@ class AudioQueueService {
 
       if (useBoosted) {
         this.ensureGainNode();
+        if (this.gainNode) {
+          this.gainNode.gain.value = item.gain ?? PLAYBACK_GAIN;
+        }
         if (this.audioContext && this.audioContext.state === "suspended") {
           await this.audioContext.resume().catch(() => undefined);
         }

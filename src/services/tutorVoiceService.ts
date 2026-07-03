@@ -14,6 +14,10 @@ import { getTutorById } from "@/data/tutors";
 import { getTutorVoiceProfileId } from "@/data/tutorVoiceProfiles";
 import type { LearningLanguageCode, TutorFeedback } from "@/types";
 
+// AI 導師對話語音的音量增益，高於一般朗讀內容（audioQueueService 的
+// 預設 PLAYBACK_GAIN），讓對話練習中導師的聲音更明顯、更容易聽清楚。
+const TUTOR_VOICE_GAIN = 3.2;
+
 type TutorAudioAssetType =
   | "practice_sentence"
   | "tutor_reply"
@@ -287,6 +291,8 @@ class TutorVoiceService {
       url,
       text,
       priority,
+      // AI 導師對話語音要更大聲，提高音量增益（高於一般朗讀的預設值）。
+      gain: TUTOR_VOICE_GAIN,
       onStart: () => {
         this.isPlaying = true;
         options.onSpeakStart?.();
