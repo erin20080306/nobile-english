@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { createHash } from "crypto";
 import type { EnglishLevel, LearningLanguageCode } from "@/types";
 import { getLearningLanguage } from "@/data/learningLanguages";
 import { generateWithGemini, getGeminiApiKey, parseJsonFromModel } from "@/server/gemini";
+import { getSupabaseServerClient } from "@/server/supabaseClient";
 import { inferScenarioPlan, type ScenarioPlan } from "@/services/sceneService";
 
 export const runtime = "nodejs";
@@ -15,6 +17,41 @@ interface GenerateCustomSceneRequest {
   topic: string;
   pattern: string;
   targetLanguage?: LearningLanguageCode;
+}
+
+function normalizeCacheText(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s\u00c0-\u024f\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function mayUseSharedCache(body: GenerateCustomSceneRequest): boolean {
+  const combined = [body.situation, body.role, body.place, body.topic, body.pattern]
+    .filter(Boolean)
+    .join(" ");
+
+  if (combined.length > 220) return false;
+  if (/https?:\/\/|www\.|@/.test(combined)) return false;
+  if (/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(combined)) return false;
+  if (/(line|ig|instagram|facebook|電話|手機|地址|身分證|護照|email|信箱|住址|公司統編)/i.test(combined)) return false;
+  if (/\d[\d\s()+-]{6,}\d/.test(combined)) return false;
+
+  return true;
+}
+
+function buildSharedCacheKey(body: GenerateCustomSceneRequest, targetLanguageCode: LearningLanguageCode): string {
+  const normalized = [
+    targetLanguageCode,
+    body.difficulty,
+    normalizeCacheText(body.situation),
+    normalizeCacheText(body.role),
+    normalizeCacheText(body.place),
+    normalizeCacheText(body.topic),
+    normalizeCacheText(body.pattern),
+  ].join("|");
+  return createHash("sha256").update(normalized).digest("hex");
 }
 
 function isValidPlan(payload: unknown): payload is ScenarioPlan {
@@ -49,6 +86,56 @@ function isValidPlan(payload: unknown): payload is ScenarioPlan {
           Number.isInteger(q.answerIndex)
       )
   );
+}
+
+async function readSharedCachedPlan(cacheKey: string): Promise<ScenarioPlan | null> {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from("custom_scene_plan_cache")
+      .select("plan")
+      .eq("cache_key", cacheKey)
+      .maybeSingle();
+    if (error || !isValidPlan(data?.plan)) return null;
+
+    void supabase
+      .from("custom_scene_plan_cache")
+      .update({ last_used_at: new Date().toISOString() })
+      .eq("cache_key", cacheKey);
+
+    return data.plan;
+  } catch {
+    return null;
+  }
+}
+
+async function writeSharedCachedPlan(
+  cacheKey: string,
+  languageCode: LearningLanguageCode,
+  difficulty: EnglishLevel,
+  plan: ScenarioPlan
+): Promise<void> {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) return;
+
+  try {
+    await supabase.from("custom_scene_plan_cache").upsert(
+      {
+        cache_key: cacheKey,
+        language_code: languageCode,
+        difficulty_level: difficulty,
+        plan,
+        source: "gemini",
+        model: "gemini",
+        last_used_at: new Date().toISOString(),
+      },
+      { onConflict: "cache_key" }
+    );
+  } catch {
+    // Shared cache is optional. Missing migration must not break scene creation.
+  }
 }
 
 function buildPrompt(body: GenerateCustomSceneRequest, targetLanguage: ReturnType<typeof getLearningLanguage>) {
@@ -90,6 +177,15 @@ export async function POST(req: Request) {
   const targetLanguageCode = body.targetLanguage || "en";
   const targetLanguage = getLearningLanguage(targetLanguageCode);
   const fallbackPlan = () => inferScenarioPlan(body.situation, body.place, body.role, targetLanguageCode);
+  const canUseSharedCache = mayUseSharedCache(body);
+  const sharedCacheKey = canUseSharedCache ? buildSharedCacheKey(body, targetLanguageCode) : null;
+
+  if (sharedCacheKey) {
+    const cachedPlan = await readSharedCachedPlan(sharedCacheKey);
+    if (cachedPlan) {
+      return NextResponse.json({ plan: cachedPlan, source: "shared-cache" });
+    }
+  }
 
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
@@ -105,6 +201,9 @@ export async function POST(req: Request) {
     });
     const parsed = parseJsonFromModel<unknown>(raw);
     if (!isValidPlan(parsed)) throw new Error("Gemini returned an invalid scenario plan");
+    if (sharedCacheKey) {
+      void writeSharedCachedPlan(sharedCacheKey, targetLanguageCode, body.difficulty, parsed);
+    }
     return NextResponse.json({ plan: parsed, source: "gemini" });
   } catch {
     return NextResponse.json({ plan: fallbackPlan(), source: "fallback" });
