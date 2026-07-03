@@ -1,4 +1,5 @@
 import type { DictionaryEntry, LearningLanguageCode } from "@/types";
+import { incrementApiUsage } from "@/server/apiUsage";
 
 const URIMAL_SAEM_API_URL = "https://opendict.korean.go.kr/api/search";
 const API_KEY = process.env.KOREAN_DICTIONARY_API_KEY;
@@ -37,6 +38,7 @@ export async function queryUrimalSaem(word: string): Promise<DictionaryEntry | n
     url.searchParams.append("req_type", "json");
     url.searchParams.append("method", "WORD_INFO");
 
+    void incrementApiUsage("dictionary:urimal-saem");
     const response = await fetch(url.toString());
 
     if (!response.ok) {

@@ -101,6 +101,7 @@ async function callGeminiOnce(
   };
   if (options.json) generationConfig.responseMimeType = "application/json";
 
+  void incrementApiUsage(`gemini:${model}`);
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -134,17 +135,13 @@ export async function generateWithGemini(options: GeminiGenerateOptions): Promis
   const fallbackModel = getGeminiFallbackModel();
 
   let { response, data } = await callGeminiOnce(apiKey, primaryModel, options);
-  let usedModel = primaryModel;
 
   if (!response.ok && isQuotaOrRateLimitError(response.status, data) && primaryModel !== fallbackModel) {
     console.warn(
       `[Gemini] ${primaryModel} hit quota/rate limit (${response.status}); retrying with fallback model ${fallbackModel}`
     );
     ({ response, data } = await callGeminiOnce(apiKey, fallbackModel, options));
-    usedModel = fallbackModel;
   }
-
-  void incrementApiUsage(`gemini:${usedModel}`);
 
   if (!response.ok) {
     throw new Error(

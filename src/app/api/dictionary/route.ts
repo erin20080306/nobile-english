@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { LearningLanguageCode, Word } from "@/types";
 import { getLearningLanguage } from "@/data/learningLanguages";
+import { incrementApiUsage } from "@/server/apiUsage";
 
 export const runtime = "nodejs";
 
@@ -91,6 +92,7 @@ function buildPrompt(body: DictionaryAiRequest) {
 async function askOpenAi(body: DictionaryAiRequest): Promise<Word | null> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
+  void incrementApiUsage("dictionary:openai");
   const response = await fetch(OPENAI_RESPONSES_URL, {
     method: "POST",
     headers: {
@@ -120,6 +122,7 @@ async function askGemini(body: DictionaryAiRequest): Promise<Word | null> {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   if (!apiKey) return null;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  void incrementApiUsage(`gemini:${GEMINI_MODEL}`);
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

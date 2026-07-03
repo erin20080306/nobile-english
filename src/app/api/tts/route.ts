@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { incrementApiUsage } from "@/server/apiUsage";
 
 export const runtime = "nodejs";
 
@@ -55,6 +56,7 @@ async function requestSpeech({
     speed: clampSpeed(speed),
   };
   if (instructions && model.includes("gpt-4o")) body.instructions = instructions.slice(0, 600);
+  void incrementApiUsage(`tts:openai-${model}`);
   return fetch(OPENAI_SPEECH_URL, {
     method: "POST",
     headers: {

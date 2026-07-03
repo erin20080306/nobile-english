@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getGoogleAccessToken, hasGoogleServiceAccount } from "@/server/google/auth";
+import { incrementApiUsage } from "@/server/apiUsage";
 
 export const runtime = "nodejs";
 
@@ -68,6 +69,7 @@ export async function POST(req: Request) {
     }
 
     const token = await getGoogleAccessToken();
+    void incrementApiUsage("stt:google");
     const response = await fetch(GOOGLE_STT_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },

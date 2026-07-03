@@ -1,4 +1,5 @@
 import type { DictionaryEntry, LearningLanguageCode } from "@/types";
+import { incrementApiUsage } from "@/server/apiUsage";
 
 const FREE_DICTIONARY_API_URL = "https://api.dictionaryapi.dev/api/v2/entries/en/";
 
@@ -31,6 +32,7 @@ interface FreeDictionaryEntry {
  */
 export async function queryFreeDictionary(word: string): Promise<DictionaryEntry | null> {
   try {
+    void incrementApiUsage("dictionary:free-dictionary");
     const response = await fetch(`${FREE_DICTIONARY_API_URL}${encodeURIComponent(word)}`);
     
     if (!response.ok) {

@@ -1,4 +1,5 @@
 import type { DictionaryEntry, LearningLanguageCode } from "@/types";
+import { incrementApiUsage } from "@/server/apiUsage";
 
 const WIKTIONARY_API_URL = "https://en.wiktionary.org/api/rest_v1/page/definition/";
 
@@ -29,6 +30,7 @@ interface WiktionaryEntry {
  */
 export async function queryWiktionary(word: string, language: "es" | "it" | "ko"): Promise<DictionaryEntry | null> {
   try {
+    void incrementApiUsage("dictionary:wiktionary");
     const response = await fetch(`${WIKTIONARY_API_URL}${encodeURIComponent(word)}`);
     
     if (!response.ok) {

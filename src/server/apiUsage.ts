@@ -30,6 +30,27 @@ export interface ApiUsageSummary {
   last30Days: number;
 }
 
+const TRACKED_API_NAMES = [
+  "gemini:gemini-3.1-flash-lite",
+  "gemini:gemini-3.5-flash-lite",
+  "gemini:gemini-3.5-flash",
+  "gemini:gemini-2.5-flash-lite",
+  "gemini:gemini-2.5-flash",
+  "tts:google-standard",
+  "tts:google-premium",
+  "tts:polly-standard",
+  "tts:polly-neural",
+  "tts:openai-gpt-4o-mini-tts",
+  "tts:openai-tts-1",
+  "stt:google",
+  "gnews:search",
+  "gnews:top-headlines",
+  "dictionary:free-dictionary",
+  "dictionary:wiktionary",
+  "dictionary:urimal-saem",
+  "dictionary:openai",
+];
+
 function isoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
@@ -54,7 +75,9 @@ export async function getApiUsageSummary(): Promise<ApiUsageSummary[]> {
     if (error) throw error;
 
     const sevenDaysAgoStr = isoDate(sevenDaysAgo);
-    const map = new Map<string, ApiUsageSummary>();
+    const map = new Map<string, ApiUsageSummary>(
+      TRACKED_API_NAMES.map((apiName) => [apiName, { apiName, today: 0, last7Days: 0, last30Days: 0 }])
+    );
     for (const row of (data || []) as Array<{ api_name: string; usage_date: string; count: number }>) {
       const name = row.api_name;
       if (!map.has(name)) map.set(name, { apiName: name, today: 0, last7Days: 0, last30Days: 0 });

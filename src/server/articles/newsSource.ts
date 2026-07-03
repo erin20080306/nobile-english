@@ -2,6 +2,8 @@
 // daily reading article. If GNEWS_API_KEY is missing or the request fails,
 // callers should fall back to the fixed evergreen topic pool.
 
+import { incrementApiUsage } from "@/server/apiUsage";
+
 export interface NewsHeadline {
   title: string;
   description: string;
@@ -68,6 +70,7 @@ async function fetchGNews(
     apikey: apiKey,
   });
   const url = `https://gnews.io/api/v4/${endpoint}?${search.toString()}`;
+  void incrementApiUsage(`gnews:${endpoint}`);
   const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
   if (!res.ok) return [];
 
