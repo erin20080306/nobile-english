@@ -117,6 +117,19 @@ export default function DailyReadingPage() {
 
   useEffect(() => {
     audioQueueService.setPlaybackRate(playbackSpeed);
+    // 如果正在播放，重新載入當前句子以應用新語速
+    if (playing && article) {
+      const wasPlaying = playing;
+      setPlaying(false);
+      audioQueueService.stopCurrent();
+      audioQueueService.clearQueue();
+      // 短暫延遲後重新播放當前句子
+      setTimeout(() => {
+        if (wasPlaying) {
+          void playSpecificSentence(currentSentenceIndex);
+        }
+      }, 100);
+    }
   }, [playbackSpeed]);
 
   useEffect(() => {
