@@ -767,9 +767,8 @@ function BuddyFarmStage({
       </div>
 
       <button
-        onClick={() => canChange && onPreviewChange((previewIndex - 1 + THEME_CHARACTERS.length) % THEME_CHARACTERS.length)}
-        disabled={!canChange}
-        className="absolute left-2 top-1/2 -translate-y-1/2 z-50 h-8 w-8 rounded-full bg-white/90 shadow-softer flex items-center justify-center text-ink disabled:opacity-40 disabled:cursor-not-allowed"
+        onClick={() => onPreviewChange((previewIndex - 1 + THEME_CHARACTERS.length) % THEME_CHARACTERS.length)}
+        className="absolute left-2 top-1/2 -translate-y-1/2 z-50 h-8 w-8 rounded-full bg-white/90 shadow-softer flex items-center justify-center text-ink active:scale-95 transition"
       >
         <ArrowRight size={16} className="rotate-180" />
       </button>
@@ -791,9 +790,8 @@ function BuddyFarmStage({
       </div>
 
       <button
-        onClick={() => canChange && onPreviewChange((previewIndex + 1) % THEME_CHARACTERS.length)}
-        disabled={!canChange}
-        className="absolute right-2 top-1/2 -translate-y-1/2 z-50 h-8 w-8 rounded-full bg-white/90 shadow-softer flex items-center justify-center text-ink disabled:opacity-40 disabled:cursor-not-allowed"
+        onClick={() => onPreviewChange((previewIndex + 1) % THEME_CHARACTERS.length)}
+        className="absolute right-2 top-1/2 -translate-y-1/2 z-50 h-8 w-8 rounded-full bg-white/90 shadow-softer flex items-center justify-center text-ink active:scale-95 transition"
       >
         <ArrowRight size={16} />
       </button>
@@ -811,13 +809,12 @@ function BuddyFarmStage({
           {THEME_CHARACTERS.map((_, index) => (
             <button
               key={index}
-              onClick={() => canChange && onPreviewChange(index)}
-              disabled={!canChange}
+              onClick={() => onPreviewChange(index)}
               className={`h-1.5 w-1.5 rounded-full transition ${
                 index === previewIndex
                   ? "bg-lilacDeep w-4"
                   : "bg-white/60"
-              } disabled:opacity-40 disabled:cursor-not-allowed`}
+              }`}
             />
           ))}
         </div>
