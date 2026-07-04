@@ -33,24 +33,29 @@ const dailySentences = [
 
 const recByLevel: Record<EnglishLevel, { id: string; label: string }[]> = {
   Beginner: [
-    { id: "daily-1", label: "打招呼" }, { id: "cafe-1", label: "咖啡廳點餐" },
-    { id: "shopping-1", label: "購物詢價" }, { id: "airport-4", label: "機場英文" },
+    { id: "level-a1-1", label: "打招呼" },
+    { id: "level-a1-2", label: "點飲料" },
+    { id: "level-a1-3", label: "買東西" },
   ],
   Elementary: [
-    { id: "travel-1", label: "旅遊問路" }, { id: "social-1", label: "認識新朋友" },
-    { id: "airport-6", label: "飯店入住" }, { id: "phone-4", label: "電話預約" },
+    { id: "level-a2-1", label: "問路" },
+    { id: "level-a2-2", label: "電話預約" },
+    { id: "level-a2-3", label: "飯店入住" },
   ],
   Intermediate: [
-    { id: "work-1", label: "職場會議" }, { id: "interview-1", label: "英文面試" },
-    { id: "airport-6", label: "旅館入住" }, { id: "phone-5", label: "客訴處理" },
+    { id: "level-b1-1", label: "看醫生" },
+    { id: "level-b1-2", label: "小組計畫" },
+    { id: "level-b1-3", label: "表達不同意" },
   ],
   "Upper-Intermediate": [
-    { id: "work-6", label: "商務簡報" }, { id: "exam-1", label: "考試英文" },
-    { id: "interview-6", label: "薪資談判" }, { id: "phone-8", label: "技術支援" },
+    { id: "level-b2-1", label: "客訴處理" },
+    { id: "level-b2-2", label: "簡報開場" },
+    { id: "level-b2-3", label: "協商期限" },
   ],
   Advanced: [
-    { id: "work-7", label: "客戶溝通" }, { id: "exam-9", label: "寫作開頭" },
-    { id: "interview-5", label: "情境問題" }, { id: "work-6", label: "商務簡報" },
+    { id: "level-c1-1", label: "策略會議" },
+    { id: "level-c1-2", label: "敏感回饋" },
+    { id: "level-c1-3", label: "高階面試" },
   ],
 };
 

@@ -1,6 +1,15 @@
 import type { Scene, SceneTheme, DialogueLine, QuizItem, EnglishLevel } from "@/types";
 
+const levelThemes: SceneTheme[] = [
+  { id: "level-a1", name: "A1 入門基礎", enName: "A1 Beginner Basics", emoji: "🌱", color: "#D6F5E3", difficulty: "Beginner", minutes: 8, description: "打招呼、點餐、簡單購物" },
+  { id: "level-a2", name: "A2 日常任務", enName: "A2 Everyday Tasks", emoji: "🧭", color: "#D8ECFF", difficulty: "Elementary", minutes: 10, description: "問路、預約、交通住宿" },
+  { id: "level-b1", name: "B1 獨立表達", enName: "B1 Independent Speaking", emoji: "💬", color: "#E8E1FF", difficulty: "Intermediate", minutes: 12, description: "描述問題、表達意見、安排計畫" },
+  { id: "level-b2", name: "B2 進階互動", enName: "B2 Advanced Interaction", emoji: "🎯", color: "#FFE0D2", difficulty: "Upper-Intermediate", minutes: 14, description: "協商、簡報、客服處理" },
+  { id: "level-c1", name: "C1 高階溝通", enName: "C1 Fluent Communication", emoji: "🏆", color: "#F0E7FF", difficulty: "Advanced", minutes: 16, description: "策略討論、精準說服、複雜情境" },
+];
+
 export const themes: SceneTheme[] = [
+  ...levelThemes,
   { id: "daily", name: "日常生活", enName: "Daily Life", emoji: "☀️", color: "#FFE0D2", difficulty: "Beginner", minutes: 10, description: "打招呼、天氣、日常對話" },
   { id: "cafe", name: "餐廳與咖啡廳", enName: "Food & Cafe", emoji: "☕", color: "#E8E1FF", difficulty: "Beginner", minutes: 12, description: "點餐、客製化、結帳" },
   { id: "travel", name: "旅遊", enName: "Travel", emoji: "🧳", color: "#D8ECFF", difficulty: "Elementary", minutes: 12, description: "問路、交通、觀光" },
@@ -694,6 +703,76 @@ const practiceFollowUps: Record<string, { tutor: DialogueLine; user: DialogueLin
       user: { speaker: "user", en: "I think choice B matches the context best.", zh: "我認為 B 選項最符合上下文。" },
     },
   ],
+  "level-a1": [
+    {
+      tutor: { speaker: "tutor", en: "Can you say that again, please?", zh: "可以請你再說一次嗎？" },
+      user: { speaker: "user", en: "Sure. I would like this, please.", zh: "可以。我想要這個，謝謝。" },
+    },
+    {
+      tutor: { speaker: "tutor", en: "Is that for here or to go?", zh: "這是內用還是外帶？" },
+      user: { speaker: "user", en: "To go, please.", zh: "外帶，謝謝。" },
+    },
+    {
+      tutor: { speaker: "tutor", en: "Anything else today?", zh: "今天還需要其他的嗎？" },
+      user: { speaker: "user", en: "No, thank you.", zh: "不用，謝謝。" },
+    },
+  ],
+  "level-a2": [
+    {
+      tutor: { speaker: "tutor", en: "What time works for you?", zh: "你什麼時間方便？" },
+      user: { speaker: "user", en: "Tomorrow morning works for me.", zh: "明天早上我方便。" },
+    },
+    {
+      tutor: { speaker: "tutor", en: "Do you need directions?", zh: "你需要方向指引嗎？" },
+      user: { speaker: "user", en: "Yes, please tell me how to get there.", zh: "需要，請告訴我怎麼到那裡。" },
+    },
+    {
+      tutor: { speaker: "tutor", en: "Would you like me to write it down?", zh: "你需要我寫下來嗎？" },
+      user: { speaker: "user", en: "Yes, that would help a lot.", zh: "好，那會很有幫助。" },
+    },
+  ],
+  "level-b1": [
+    {
+      tutor: { speaker: "tutor", en: "What seems to be the problem?", zh: "看起來問題是什麼？" },
+      user: { speaker: "user", en: "The main problem is the timing.", zh: "主要問題是時間。" },
+    },
+    {
+      tutor: { speaker: "tutor", en: "What would you prefer to do?", zh: "你比較希望怎麼做？" },
+      user: { speaker: "user", en: "I would prefer to reschedule it.", zh: "我比較希望重新安排時間。" },
+    },
+    {
+      tutor: { speaker: "tutor", en: "Can you explain your reason briefly?", zh: "你可以簡短說明原因嗎？" },
+      user: { speaker: "user", en: "Sure. The new time is easier for my team.", zh: "可以。新的時間對我的團隊比較方便。" },
+    },
+  ],
+  "level-b2": [
+    {
+      tutor: { speaker: "tutor", en: "What outcome are you hoping for?", zh: "你希望達成什麼結果？" },
+      user: { speaker: "user", en: "I'm hoping we can find a fair compromise.", zh: "我希望我們能找到公平的折衷方案。" },
+    },
+    {
+      tutor: { speaker: "tutor", en: "Which part is the most urgent?", zh: "哪個部分最急迫？" },
+      user: { speaker: "user", en: "The deadline is the most urgent part.", zh: "截止時間是最急迫的部分。" },
+    },
+    {
+      tutor: { speaker: "tutor", en: "How should we explain this to the client?", zh: "我們應該怎麼向客戶說明？" },
+      user: { speaker: "user", en: "We should be honest and offer a clear next step.", zh: "我們應該誠實說明並提出清楚的下一步。" },
+    },
+  ],
+  "level-c1": [
+    {
+      tutor: { speaker: "tutor", en: "How would you frame the issue diplomatically?", zh: "你會如何有技巧地包裝這個問題？" },
+      user: { speaker: "user", en: "I would focus on the shared goal before raising the concern.", zh: "我會先聚焦共同目標，再提出疑慮。" },
+    },
+    {
+      tutor: { speaker: "tutor", en: "What trade-off are you willing to accept?", zh: "你願意接受什麼取捨？" },
+      user: { speaker: "user", en: "I can accept a longer timeline if the quality stays high.", zh: "如果品質維持高水準，我可以接受較長時程。" },
+    },
+    {
+      tutor: { speaker: "tutor", en: "How can we make the proposal more convincing?", zh: "我們如何讓提案更有說服力？" },
+      user: { speaker: "user", en: "We can support it with data and a practical example.", zh: "我們可以用數據和實際例子支持它。" },
+    },
+  ],
 };
 
 const defaultFollowUps = [
@@ -748,6 +827,385 @@ function ensurePracticeDialogue(themeId: string, dialogue: DialogueLine[]): Dial
 
   return lines;
 }
+
+interface LevelSceneInput {
+  id: string;
+  themeId: string;
+  name: string;
+  enName: string;
+  difficulty: EnglishLevel;
+  minutes: number;
+  words: string[];
+  patterns: { en: string; zh: string }[];
+  dialogue: DialogueLine[];
+  intro?: string;
+  goals?: string[];
+}
+
+function makeLevelScene(input: LevelSceneInput): Scene {
+  return {
+    id: input.id,
+    themeId: input.themeId,
+    name: input.name,
+    enName: input.enName,
+    intro: input.intro || `依照 ${input.difficulty} 程度練習「${input.name}」，從句型到回應都循序漸進。`,
+    difficulty: input.difficulty,
+    minutes: input.minutes,
+    goals: input.goals || [`完成「${input.name}」角色對話`, "練熟本級別常用句", "能用自然句子回答導師"],
+    keyWords: input.words,
+    keyPatterns: input.patterns,
+    dialogue: ensurePracticeDialogue(input.themeId, input.dialogue),
+    quiz: buildQuiz(input.patterns),
+  };
+}
+
+const levelScenes: Scene[] = [
+  makeLevelScene({
+    id: "level-a1-1",
+    themeId: "level-a1",
+    name: "打招呼與自我介紹",
+    enName: "Greetings and Self-introduction",
+    difficulty: "Beginner",
+    minutes: 8,
+    words: ["hello", "name", "from", "nice", "learn", "English"],
+    patterns: [
+      { en: "Hello, my name is Mina.", zh: "你好，我叫 Mina。" },
+      { en: "Nice to meet you.", zh: "很高興認識你。" },
+      { en: "I am from Taiwan.", zh: "我來自台灣。" },
+      { en: "I am learning English.", zh: "我正在學英文。" },
+    ],
+    dialogue: [
+      { speaker: "tutor", en: "Hi! What's your name?", zh: "嗨！你叫什麼名字？" },
+      { speaker: "user", en: "My name is Mina.", zh: "我叫 Mina。" },
+      { speaker: "tutor", en: "Nice to meet you. Where are you from?", zh: "很高興認識你。你來自哪裡？" },
+      { speaker: "user", en: "I'm from Taiwan.", zh: "我來自台灣。" },
+      { speaker: "tutor", en: "Are you learning English?", zh: "你正在學英文嗎？" },
+      { speaker: "user", en: "Yes, I am learning English.", zh: "是的，我正在學英文。" },
+    ],
+  }),
+  makeLevelScene({
+    id: "level-a1-2",
+    themeId: "level-a1",
+    name: "咖啡店點飲料",
+    enName: "Ordering a Drink",
+    difficulty: "Beginner",
+    minutes: 8,
+    words: ["coffee", "tea", "small", "medium", "iced", "please"],
+    patterns: [
+      { en: "I'd like an iced tea, please.", zh: "我想要一杯冰茶，謝謝。" },
+      { en: "Can I get a medium coffee?", zh: "可以給我一杯中杯咖啡嗎？" },
+      { en: "No sugar, please.", zh: "不要糖，謝謝。" },
+      { en: "That's all, thank you.", zh: "就這樣，謝謝。" },
+    ],
+    dialogue: [
+      { speaker: "tutor", en: "Hi! What would you like?", zh: "嗨！你想要什麼？" },
+      { speaker: "user", en: "I'd like an iced tea, please.", zh: "我想要一杯冰茶，謝謝。" },
+      { speaker: "tutor", en: "What size would you like?", zh: "你想要什麼尺寸？" },
+      { speaker: "user", en: "Medium, please.", zh: "中杯，謝謝。" },
+      { speaker: "tutor", en: "Would you like sugar?", zh: "你要加糖嗎？" },
+      { speaker: "user", en: "No sugar, please.", zh: "不要糖，謝謝。" },
+    ],
+  }),
+  makeLevelScene({
+    id: "level-a1-3",
+    themeId: "level-a1",
+    name: "商店買東西",
+    enName: "Buying a Small Item",
+    difficulty: "Beginner",
+    minutes: 8,
+    words: ["price", "buy", "card", "cash", "bag", "receipt"],
+    patterns: [
+      { en: "How much is this?", zh: "這個多少錢？" },
+      { en: "I would like to buy this.", zh: "我想買這個。" },
+      { en: "Can I pay by card?", zh: "我可以刷卡嗎？" },
+      { en: "Can I have a bag, please?", zh: "可以給我一個袋子嗎？" },
+    ],
+    dialogue: [
+      { speaker: "tutor", en: "Hello. Can I help you?", zh: "你好，需要幫忙嗎？" },
+      { speaker: "user", en: "Yes. How much is this?", zh: "需要。這個多少錢？" },
+      { speaker: "tutor", en: "It's ten dollars.", zh: "十美元。" },
+      { speaker: "user", en: "I would like to buy this.", zh: "我想買這個。" },
+      { speaker: "tutor", en: "Sure. Cash or card?", zh: "好的。現金還是刷卡？" },
+      { speaker: "user", en: "Card, please.", zh: "刷卡，謝謝。" },
+    ],
+  }),
+  makeLevelScene({
+    id: "level-a2-1",
+    themeId: "level-a2",
+    name: "問路到車站",
+    enName: "Asking the Way to the Station",
+    difficulty: "Elementary",
+    minutes: 10,
+    words: ["station", "straight", "left", "right", "block", "near"],
+    patterns: [
+      { en: "Could you tell me how to get to the station?", zh: "可以告訴我怎麼到車站嗎？" },
+      { en: "Go straight for two blocks.", zh: "直走兩個街區。" },
+      { en: "Turn left at the corner.", zh: "在轉角左轉。" },
+      { en: "Is it near here?", zh: "它離這裡近嗎？" },
+    ],
+    dialogue: [
+      { speaker: "tutor", en: "Hi, you look a little lost. Where are you going?", zh: "嗨，你看起來有點迷路。你要去哪裡？" },
+      { speaker: "user", en: "I'm looking for the station.", zh: "我在找車站。" },
+      { speaker: "tutor", en: "It's close. Go straight for two blocks.", zh: "很近。直走兩個街區。" },
+      { speaker: "user", en: "Do I turn left or right?", zh: "我要左轉還是右轉？" },
+      { speaker: "tutor", en: "Turn left at the corner.", zh: "在轉角左轉。" },
+      { speaker: "user", en: "Thank you. That's very helpful.", zh: "謝謝。這很有幫助。" },
+    ],
+  }),
+  makeLevelScene({
+    id: "level-a2-2",
+    themeId: "level-a2",
+    name: "電話預約時間",
+    enName: "Booking an Appointment by Phone",
+    difficulty: "Elementary",
+    minutes: 10,
+    words: ["appointment", "available", "tomorrow", "morning", "change", "confirm"],
+    patterns: [
+      { en: "I'd like to make an appointment.", zh: "我想預約。" },
+      { en: "Are you available tomorrow morning?", zh: "你明天早上有空嗎？" },
+      { en: "Could I change the time?", zh: "我可以更改時間嗎？" },
+      { en: "Can you confirm the appointment?", zh: "你可以確認預約嗎？" },
+    ],
+    dialogue: [
+      { speaker: "tutor", en: "Good morning. How can I help you?", zh: "早安。需要什麼協助？" },
+      { speaker: "user", en: "I'd like to make an appointment.", zh: "我想預約。" },
+      { speaker: "tutor", en: "Sure. Are you available tomorrow morning?", zh: "好的。你明天早上有空嗎？" },
+      { speaker: "user", en: "Yes, tomorrow morning works for me.", zh: "有，明天早上我可以。" },
+      { speaker: "tutor", en: "Great. Your appointment is at ten.", zh: "很好。你的預約是十點。" },
+      { speaker: "user", en: "Thank you. Could you confirm it by email?", zh: "謝謝。可以用 email 確認嗎？" },
+    ],
+  }),
+  makeLevelScene({
+    id: "level-a2-3",
+    themeId: "level-a2",
+    name: "飯店入住確認",
+    enName: "Checking in at a Hotel",
+    difficulty: "Elementary",
+    minutes: 10,
+    words: ["reservation", "passport", "room", "breakfast", "key", "checkout"],
+    patterns: [
+      { en: "I have a reservation under Chen.", zh: "我有用 Chen 這個姓訂房。" },
+      { en: "May I see your passport?", zh: "我可以看你的護照嗎？" },
+      { en: "Is breakfast included?", zh: "早餐有包含嗎？" },
+      { en: "What time is checkout?", zh: "退房時間是幾點？" },
+    ],
+    dialogue: [
+      { speaker: "tutor", en: "Welcome. Do you have a reservation?", zh: "歡迎。你有訂房嗎？" },
+      { speaker: "user", en: "Yes, I have a reservation under Chen.", zh: "有，我用 Chen 這個姓訂房。" },
+      { speaker: "tutor", en: "May I see your passport?", zh: "可以看你的護照嗎？" },
+      { speaker: "user", en: "Sure, here it is.", zh: "可以，這是我的護照。" },
+      { speaker: "tutor", en: "Breakfast is included, and checkout is at eleven.", zh: "早餐有包含，退房是十一點。" },
+      { speaker: "user", en: "Great. Thank you for your help.", zh: "太好了。謝謝你的協助。" },
+    ],
+  }),
+  makeLevelScene({
+    id: "level-b1-1",
+    themeId: "level-b1",
+    name: "看醫生描述症狀",
+    enName: "Describing Symptoms",
+    difficulty: "Intermediate",
+    minutes: 12,
+    words: ["symptom", "fever", "headache", "cough", "medicine", "rest"],
+    patterns: [
+      { en: "I've had a fever since yesterday.", zh: "我從昨天開始發燒。" },
+      { en: "My throat hurts when I swallow.", zh: "我吞嚥時喉嚨會痛。" },
+      { en: "Do I need to take any medicine?", zh: "我需要吃藥嗎？" },
+      { en: "How long should I rest?", zh: "我應該休息多久？" },
+    ],
+    dialogue: [
+      { speaker: "tutor", en: "What brings you in today?", zh: "你今天哪裡不舒服？" },
+      { speaker: "user", en: "I've had a fever since yesterday.", zh: "我從昨天開始發燒。" },
+      { speaker: "tutor", en: "Do you have any other symptoms?", zh: "還有其他症狀嗎？" },
+      { speaker: "user", en: "Yes, my throat hurts when I swallow.", zh: "有，我吞嚥時喉嚨會痛。" },
+      { speaker: "tutor", en: "I'll check your throat first.", zh: "我先檢查你的喉嚨。" },
+      { speaker: "user", en: "Okay. Do I need to take any medicine?", zh: "好。我需要吃藥嗎？" },
+    ],
+  }),
+  makeLevelScene({
+    id: "level-b1-2",
+    themeId: "level-b1",
+    name: "安排小組計畫",
+    enName: "Planning a Group Project",
+    difficulty: "Intermediate",
+    minutes: 12,
+    words: ["project", "deadline", "task", "schedule", "progress", "share"],
+    patterns: [
+      { en: "Let's divide the tasks clearly.", zh: "我們把任務清楚分配吧。" },
+      { en: "I can finish my part by Friday.", zh: "我可以在週五前完成我的部分。" },
+      { en: "Could you update the schedule?", zh: "你可以更新時程表嗎？" },
+      { en: "We should check our progress tomorrow.", zh: "我們明天應該確認進度。" },
+    ],
+    dialogue: [
+      { speaker: "tutor", en: "We need to plan the project. Any ideas?", zh: "我們需要規劃專案。有想法嗎？" },
+      { speaker: "user", en: "Let's divide the tasks clearly.", zh: "我們把任務清楚分配吧。" },
+      { speaker: "tutor", en: "Good. When can you finish your part?", zh: "很好。你什麼時候能完成你的部分？" },
+      { speaker: "user", en: "I can finish my part by Friday.", zh: "我可以在週五前完成我的部分。" },
+      { speaker: "tutor", en: "I'll update the schedule.", zh: "我會更新時程表。" },
+      { speaker: "user", en: "Great. We should check our progress tomorrow.", zh: "太好了。我們明天應該確認進度。" },
+    ],
+  }),
+  makeLevelScene({
+    id: "level-b1-3",
+    themeId: "level-b1",
+    name: "禮貌表達不同意",
+    enName: "Disagreeing Politely",
+    difficulty: "Intermediate",
+    minutes: 12,
+    words: ["agree", "concern", "suggest", "option", "reason", "solution"],
+    patterns: [
+      { en: "I see your point, but I have a concern.", zh: "我理解你的觀點，但我有一個疑慮。" },
+      { en: "Could we consider another option?", zh: "我們可以考慮另一個選項嗎？" },
+      { en: "The main reason is the cost.", zh: "主要原因是成本。" },
+      { en: "Maybe we can find a better solution.", zh: "也許我們可以找到更好的解決方案。" },
+    ],
+    dialogue: [
+      { speaker: "tutor", en: "I think we should choose the fastest option.", zh: "我認為我們應該選最快的方案。" },
+      { speaker: "user", en: "I see your point, but I have a concern.", zh: "我理解你的觀點，但我有一個疑慮。" },
+      { speaker: "tutor", en: "What is your concern?", zh: "你的疑慮是什麼？" },
+      { speaker: "user", en: "The main reason is the cost.", zh: "主要原因是成本。" },
+      { speaker: "tutor", en: "What do you suggest instead?", zh: "你建議改成什麼？" },
+      { speaker: "user", en: "Could we consider another option?", zh: "我們可以考慮另一個選項嗎？" },
+    ],
+  }),
+  makeLevelScene({
+    id: "level-b2-1",
+    themeId: "level-b2",
+    name: "客訴與補救方案",
+    enName: "Handling a Complaint",
+    difficulty: "Upper-Intermediate",
+    minutes: 14,
+    words: ["complaint", "mistake", "replace", "refund", "apologize", "resolve"],
+    patterns: [
+      { en: "I understand why this is frustrating.", zh: "我理解為什麼這件事令人沮喪。" },
+      { en: "Let me check what went wrong.", zh: "讓我確認是哪裡出問題。" },
+      { en: "We can offer a replacement or a refund.", zh: "我們可以提供更換或退款。" },
+      { en: "I appreciate your patience while we resolve this.", zh: "感謝你在我們處理期間的耐心。" },
+    ],
+    dialogue: [
+      { speaker: "tutor", en: "I'm not happy with this order. It arrived damaged.", zh: "我對這個訂單不滿意。它送來時損壞了。" },
+      { speaker: "user", en: "I'm sorry about that. I understand why this is frustrating.", zh: "很抱歉。我理解為什麼這令人沮喪。" },
+      { speaker: "tutor", en: "What can you do about it?", zh: "你們可以怎麼處理？" },
+      { speaker: "user", en: "Let me check what went wrong first.", zh: "讓我先確認是哪裡出問題。" },
+      { speaker: "tutor", en: "I need a solution today.", zh: "我今天需要解決方案。" },
+      { speaker: "user", en: "We can offer a replacement or a refund.", zh: "我們可以提供更換或退款。" },
+    ],
+  }),
+  makeLevelScene({
+    id: "level-b2-2",
+    themeId: "level-b2",
+    name: "工作簡報開場",
+    enName: "Opening a Work Presentation",
+    difficulty: "Upper-Intermediate",
+    minutes: 14,
+    words: ["presentation", "agenda", "overview", "highlight", "recommendation", "question"],
+    patterns: [
+      { en: "Today, I'll give a brief overview of our progress.", zh: "今天我會簡短概述我們的進度。" },
+      { en: "I'll start with the key results.", zh: "我會從關鍵結果開始。" },
+      { en: "The main point I'd like to highlight is growth.", zh: "我想強調的重點是成長。" },
+      { en: "I'll leave time for questions at the end.", zh: "最後我會保留時間讓大家提問。" },
+    ],
+    dialogue: [
+      { speaker: "tutor", en: "You're presenting to the team today. How will you begin?", zh: "你今天要對團隊簡報。你會怎麼開始？" },
+      { speaker: "user", en: "Today, I'll give a brief overview of our progress.", zh: "今天我會簡短概述我們的進度。" },
+      { speaker: "tutor", en: "What will you cover first?", zh: "你會先講什麼？" },
+      { speaker: "user", en: "I'll start with the key results.", zh: "我會從關鍵結果開始。" },
+      { speaker: "tutor", en: "And what is the main point?", zh: "那主要重點是什麼？" },
+      { speaker: "user", en: "The main point I'd like to highlight is growth.", zh: "我想強調的重點是成長。" },
+    ],
+  }),
+  makeLevelScene({
+    id: "level-b2-3",
+    themeId: "level-b2",
+    name: "協商截止時間",
+    enName: "Negotiating a Deadline",
+    difficulty: "Upper-Intermediate",
+    minutes: 14,
+    words: ["deadline", "priority", "timeline", "delay", "compromise", "quality"],
+    patterns: [
+      { en: "Given the current workload, Friday may be too tight.", zh: "以目前工作量來看，週五可能太趕。" },
+      { en: "Could we extend the deadline by two days?", zh: "我們可以把截止日延後兩天嗎？" },
+      { en: "That would help us maintain the quality.", zh: "那會幫助我們維持品質。" },
+      { en: "I'm open to a compromise if needed.", zh: "如果需要，我願意接受折衷方案。" },
+    ],
+    dialogue: [
+      { speaker: "tutor", en: "Can your team deliver everything by Friday?", zh: "你的團隊能在週五前交付全部嗎？" },
+      { speaker: "user", en: "Given the current workload, Friday may be too tight.", zh: "以目前工作量來看，週五可能太趕。" },
+      { speaker: "tutor", en: "How much extra time do you need?", zh: "你需要多長的額外時間？" },
+      { speaker: "user", en: "Could we extend the deadline by two days?", zh: "我們可以把截止日延後兩天嗎？" },
+      { speaker: "tutor", en: "Why would that be better?", zh: "為什麼那樣比較好？" },
+      { speaker: "user", en: "That would help us maintain the quality.", zh: "那會幫助我們維持品質。" },
+    ],
+  }),
+  makeLevelScene({
+    id: "level-c1-1",
+    themeId: "level-c1",
+    name: "策略會議提出取捨",
+    enName: "Discussing Trade-offs in a Strategy Meeting",
+    difficulty: "Advanced",
+    minutes: 16,
+    words: ["strategy", "trade-off", "constraint", "priority", "evidence", "impact"],
+    patterns: [
+      { en: "The key trade-off is speed versus long-term stability.", zh: "關鍵取捨是速度與長期穩定性。" },
+      { en: "We need to prioritize the option with measurable impact.", zh: "我們需要優先選擇有可衡量影響的方案。" },
+      { en: "The evidence suggests a phased rollout would reduce risk.", zh: "證據顯示分階段推出會降低風險。" },
+      { en: "I would recommend revisiting the plan after the pilot.", zh: "我建議試行後再重新檢視計畫。" },
+    ],
+    dialogue: [
+      { speaker: "tutor", en: "We have two strategies. How would you compare them?", zh: "我們有兩個策略。你會怎麼比較它們？" },
+      { speaker: "user", en: "The key trade-off is speed versus long-term stability.", zh: "關鍵取捨是速度與長期穩定性。" },
+      { speaker: "tutor", en: "Which option would you prioritize?", zh: "你會優先選哪個方案？" },
+      { speaker: "user", en: "We need to prioritize the option with measurable impact.", zh: "我們需要優先選擇有可衡量影響的方案。" },
+      { speaker: "tutor", en: "How can we reduce the risk?", zh: "我們如何降低風險？" },
+      { speaker: "user", en: "The evidence suggests a phased rollout would reduce risk.", zh: "證據顯示分階段推出會降低風險。" },
+    ],
+  }),
+  makeLevelScene({
+    id: "level-c1-2",
+    themeId: "level-c1",
+    name: "給予敏感回饋",
+    enName: "Giving Sensitive Feedback",
+    difficulty: "Advanced",
+    minutes: 16,
+    words: ["feedback", "specific", "constructive", "impact", "align", "improve"],
+    patterns: [
+      { en: "I want to frame this feedback constructively.", zh: "我想用建設性的方式表達這個回饋。" },
+      { en: "The intention was clear, but the message could be more specific.", zh: "意圖很清楚，但訊息可以更具體。" },
+      { en: "This may help the team align more quickly.", zh: "這可能會幫助團隊更快對齊。" },
+      { en: "Let's focus on what can be improved next time.", zh: "我們聚焦下次可以改善的地方吧。" },
+    ],
+    dialogue: [
+      { speaker: "tutor", en: "You need to give feedback without discouraging the team.", zh: "你需要給回饋，但不能打擊團隊士氣。" },
+      { speaker: "user", en: "I want to frame this feedback constructively.", zh: "我想用建設性的方式表達這個回饋。" },
+      { speaker: "tutor", en: "What would you say first?", zh: "你會先說什麼？" },
+      { speaker: "user", en: "The intention was clear, but the message could be more specific.", zh: "意圖很清楚，但訊息可以更具體。" },
+      { speaker: "tutor", en: "Why does that matter?", zh: "為什麼這很重要？" },
+      { speaker: "user", en: "This may help the team align more quickly.", zh: "這可能會幫助團隊更快對齊。" },
+    ],
+  }),
+  makeLevelScene({
+    id: "level-c1-3",
+    themeId: "level-c1",
+    name: "高階面試說服決策",
+    enName: "Persuading in a Senior Interview",
+    difficulty: "Advanced",
+    minutes: 16,
+    words: ["leadership", "decision", "stakeholder", "outcome", "initiative", "persuade"],
+    patterns: [
+      { en: "I led the initiative from planning to implementation.", zh: "我從規劃到執行主導了這個專案。" },
+      { en: "The biggest challenge was aligning different stakeholders.", zh: "最大的挑戰是協調不同利害關係人。" },
+      { en: "I persuaded the team by connecting the decision to business outcomes.", zh: "我透過把決策連結到商業成果來說服團隊。" },
+      { en: "The result was a clearer process and faster execution.", zh: "結果是流程更清楚，執行更快。" },
+    ],
+    dialogue: [
+      { speaker: "tutor", en: "Tell me about a time you led a difficult initiative.", zh: "請談談你曾經主導困難專案的經驗。" },
+      { speaker: "user", en: "I led the initiative from planning to implementation.", zh: "我從規劃到執行主導了這個專案。" },
+      { speaker: "tutor", en: "What was the biggest challenge?", zh: "最大的挑戰是什麼？" },
+      { speaker: "user", en: "The biggest challenge was aligning different stakeholders.", zh: "最大的挑戰是協調不同利害關係人。" },
+      { speaker: "tutor", en: "How did you persuade them?", zh: "你如何說服他們？" },
+      { speaker: "user", en: "I persuaded the team by connecting the decision to business outcomes.", zh: "我透過把決策連結到商業成果來說服團隊。" },
+    ],
+  }),
+];
 
 const otherThemeScenes: Record<string, { name: string; enName: string; difficulty: EnglishLevel }[]> = {
   daily: [
@@ -861,7 +1319,7 @@ const otherThemeScenes: Record<string, { name: string; enName: string; difficult
 };
 
 function buildScenes(): Scene[] {
-  const all: Scene[] = [];
+  const all: Scene[] = [...levelScenes];
   // cafe (authored)
   cafeScenes.forEach((s, i) => {
     all.push({
