@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { ShieldCheck, Apple } from "lucide-react";
 import { authService } from "@/services/authService";
+import { cloudAppStateService } from "@/services/cloudAppStateService";
 import CheerImage from "@/components/CheerImage";
 
 const SHOW_APPLE_LOGIN = false;
@@ -13,17 +14,19 @@ export default function LoginPage() {
   const router = useRouter();
   const [error, setError] = useState("");
 
-  function go(user: { onboarded: boolean }) {
+  async function go(user: { onboarded: boolean; id: string; email?: string }) {
+    // Restore cloud data immediately after login
+    await cloudAppStateService.restoreForUser({ id: user.id, email: user.email || "" });
     router.replace(user.onboarded ? "/dashboard" : "/onboarding");
   }
 
-  function handleGoogle() {
+  async function handleGoogle() {
     const res = authService.loginWithGoogle();
     if (!res.ok || !res.user) {
       setError(res.error || "Google 登入失敗");
       return;
     }
-    go(res.user);
+    await go(res.user);
   }
 
   async function handleApple() {
@@ -47,7 +50,7 @@ export default function LoginPage() {
           setError(res.error || "Apple 登入失敗");
           return;
         }
-        go(res.user);
+        await go(res.user);
       }
     } catch {
       setError("Apple 登入僅支援 iOS 裝置");
