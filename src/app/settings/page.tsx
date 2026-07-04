@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut, User as UserIcon, Globe, Volume2, ShieldCheck, MessageSquareWarning, GraduationCap, Crown, Trash2, FileText, Mail, ArrowRight, Settings2 } from "lucide-react";
-import type { User, UserSettings, OnboardingProfile, EnglishLevel, CEFRLevel } from "@/types";
+import type { User, UserSettings, OnboardingProfile, EnglishLevel, CEFRLevel, GardenState } from "@/types";
 import { useUser } from "@/hooks/useUser";
 import { learningService } from "@/services/learningService";
 import { authService } from "@/services/authService";
@@ -30,7 +30,7 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState<Partial<OnboardingProfile>>({});
   const [accountUser, setAccountUser] = useState<User | null>(null);
   const [accessState, setAccessState] = useState<AccessState | null>(null);
-  const [gardenState, setGardenState] = useState(gardenService.getState("en"));
+  const [gardenState, setGardenState] = useState<GardenState | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -52,6 +52,13 @@ export default function SettingsPage() {
       active = false;
     };
   }, [user]);
+
+  // Update gardenState when targetLanguage changes
+  useEffect(() => {
+    if (settings) {
+      setGardenState(gardenService.getState(settings.targetLanguage || "en"));
+    }
+  }, [settings?.targetLanguage]);
 
   if (!ready || !user || !settings) return <div className="p-10 text-center text-inkSoft">載入中…</div>;
 
@@ -219,41 +226,43 @@ export default function SettingsPage() {
           <TutorSelector targetLanguage={settings.targetLanguage} />
         </div>
 
-        <div className="card space-y-3">
-          <p className="font-bold text-ink flex items-center gap-2"><GraduationCap size={18} className="text-lilacDeep" /> 公仔主題人物</p>
-          <p className="text-xs text-inkSoft">選擇你的小小學伴穿搭，更換後會在語言小農場中顯示。</p>
-          <div className="grid grid-cols-2 gap-2">
-            {GARDEN_SHOP_ITEMS.filter((item) => item.category === "outfit").map((outfit) => {
-              const owned = gardenState?.ownedItemIds.includes(outfit.id);
-              const equipped = gardenState?.equippedOutfitId === outfit.id;
-              return (
-                <button
-                  key={outfit.id}
-                  onClick={() => owned && equipOutfit(outfit.id)}
-                  disabled={!owned}
-                  className={`rounded-2xl p-3 text-left shadow-softer transition active:scale-95 ${
-                    equipped
-                      ? "bg-mint text-mintDeep"
-                      : owned
-                      ? "bg-cream text-ink"
-                      : "bg-cream/60 text-inkSoft"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">{outfit.emoji}</span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-extrabold leading-tight">{outfit.name}</p>
-                      <p className="text-[10px] text-inkSoft">{equipped ? "使用中" : owned ? "點擊更換" : "尚未擁有"}</p>
+        {gardenState && (
+          <div className="card space-y-3">
+            <p className="font-bold text-ink flex items-center gap-2"><GraduationCap size={18} className="text-lilacDeep" /> 公仔主題人物</p>
+            <p className="text-xs text-inkSoft">選擇你的小小學伴穿搭，更換後會在語言小農場中顯示。</p>
+            <div className="grid grid-cols-2 gap-2">
+              {GARDEN_SHOP_ITEMS.filter((item) => item.category === "outfit").map((outfit) => {
+                const owned = gardenState.ownedItemIds.includes(outfit.id);
+                const equipped = gardenState.equippedOutfitId === outfit.id;
+                return (
+                  <button
+                    key={outfit.id}
+                    onClick={() => owned && equipOutfit(outfit.id)}
+                    disabled={!owned}
+                    className={`rounded-2xl p-3 text-left shadow-softer transition active:scale-95 ${
+                      equipped
+                        ? "bg-mint text-mintDeep"
+                        : owned
+                        ? "bg-cream text-ink"
+                        : "bg-cream/60 text-inkSoft"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">{outfit.emoji}</span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-extrabold leading-tight">{outfit.name}</p>
+                        <p className="text-[10px] text-inkSoft">{equipped ? "使用中" : owned ? "點擊更換" : "尚未擁有"}</p>
+                      </div>
                     </div>
-                  </div>
-                </button>
-              );
-            })}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-xs text-inkSoft leading-relaxed">
+              新穿搭可在「語言小農場」的金幣商店購買。目前語言：{currentLanguage.flag} {currentLanguage.zhName}
+            </p>
           </div>
-          <p className="text-xs text-inkSoft leading-relaxed">
-            新穿搭可在「語言小農場」的金幣商店購買。目前語言：{currentLanguage.flag} {currentLanguage.zhName}
-          </p>
-        </div>
+        )}
 
         <div className="card space-y-4">
           <p className="font-bold text-ink flex items-center gap-2"><Volume2 size={18} className="text-lilacDeep" /> 一般</p>
