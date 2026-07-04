@@ -131,15 +131,18 @@ export default function SettingsPage() {
           <p className="font-bold text-ink flex items-center gap-2"><ShieldCheck size={18} className="text-mintDeep" /> 帳號與裝置綁定</p>
           <Row label="登入方式" value={shownUser.provider === "google" ? "Google 帳號" : shownUser.provider === "apple" ? "Apple 帳號" : "帳號登入"} />
           {shownUser.provider === "google" ? (
-            <p className="text-xs text-inkSoft leading-relaxed">
-              學習資料已同步到你的 Google 帳號，換手機或重新安裝後，用同一個 Google 帳號登入即可自動恢復。
-            </p>
+            <>
+              <Row label="目前裝置" value={`${deviceInfo.currentDeviceName} · ${deviceInfo.shortId}`} />
+              <p className="text-xs text-inkSoft leading-relaxed">
+                Google 帳號不限制裝置數量，學習資料已同步到雲端。換手機或重新安裝後，用同一個 Google 帳號登入即可自動恢復所有紀錄。
+              </p>
+            </>
           ) : (
             <>
               <Row label="綁定規則" value="一個帳號只能綁定 1 支手機" />
               <Row label="綁定手機" value={`${shownUser.deviceName || deviceInfo.currentDeviceName} · ${deviceInfo.shortId}`} />
               <p className="text-xs text-inkSoft leading-relaxed">
-                帳號綁定後，其他手機無法使用此帳號登入。如需換手機，請先聯絡客服。
+                帳號綁定後，其他手機無法使用此帳號登入。如需換手機，請先聯絡客服。此登入方式的學習資料僅儲存在本機，重新安裝 App 會遺失，建議改用 Google 登入以自動雲端備份。
               </p>
             </>
           )}
