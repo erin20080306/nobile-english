@@ -11,20 +11,23 @@ type CharacterVideo = {
   title: string;
   subtitle: string;
   src: string;
+  poster: string;
 };
 
 const CHARACTER_VIDEOS: CharacterVideo[] = [
   {
     id: "theme-character-1",
-    title: "主題人物短片 1",
-    subtitle: "語言夥伴日常",
+    title: "我們是兄弟",
+    subtitle: "主題人物",
     src: "/assets/theme-character-videos/theme-character-1.mov",
+    poster: "/assets/theme-character-videos/theme-character-1-poster.png",
   },
   {
     id: "theme-character-2",
-    title: "主題人物短片 2",
-    subtitle: "練習時光",
+    title: "吃晚餐",
+    subtitle: "主題人物",
     src: "/assets/theme-character-videos/theme-character-2.mov",
+    poster: "/assets/theme-character-videos/theme-character-2-poster.png",
   },
 ];
 
@@ -72,6 +75,7 @@ export default function ThemeCharacterVideosPage() {
                 <video
                   className="block w-full max-h-[520px] bg-ink object-contain"
                   src={video.src}
+                  poster={video.poster}
                   controls
                   playsInline
                   preload="metadata"
