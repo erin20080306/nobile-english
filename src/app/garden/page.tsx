@@ -23,7 +23,7 @@ import {
   X,
 } from "lucide-react";
 import type { GardenLeagueEntry, GardenPlot, GardenShopCategory, GardenShopItem, GardenState, LearningLanguageCode } from "@/types";
-import type { ThemeCharacterId } from "@/data/themeCharacters";
+import type { ThemeCharacter, ThemeCharacterId } from "@/data/themeCharacters";
 import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
 import { gardenService, GARDEN_CROPS, GARDEN_SHOP_ITEMS } from "@/services/gardenService";
 import { learningService } from "@/services/learningService";
@@ -749,7 +749,7 @@ function BuddyFarmStage({
   accessories: GardenShopItem[];
   house?: GardenShopItem;
   items: GardenShopItem[];
-  themeCharacter?: { imageSrc: string };
+  themeCharacter?: ThemeCharacter;
   previewIndex: number;
   onPreviewChange: (index: number) => void;
   canChange: boolean;
@@ -842,8 +842,11 @@ function BuddyFarmStage({
   );
 }
 
-function BuddyDoll({ outfit, accessories, themeCharacter }: { outfit?: GardenShopItem; accessories: GardenShopItem[]; themeCharacter?: { imageSrc: string } }) {
-  const dollImage = outfit?.dollImageSrc || outfit?.imageSrc || themeCharacter?.imageSrc || "/assets/garden/doll-base.png";
+function BuddyDoll({ outfit, accessories, themeCharacter }: { outfit?: GardenShopItem; accessories: GardenShopItem[]; themeCharacter?: ThemeCharacter }) {
+  const isFatDuck = themeCharacter?.id === "fat-duck";
+  const dollImage = isFatDuck
+    ? outfit?.dollImageSrc || outfit?.imageSrc || themeCharacter?.imageSrc || "/assets/garden/doll-base.png"
+    : themeCharacter?.imageSrc || "/assets/garden/doll-base.png";
 
   return (
     <div className="relative h-72 w-52 [perspective:900px]">
@@ -855,7 +858,7 @@ function BuddyDoll({ outfit, accessories, themeCharacter }: { outfit?: GardenSho
         <div className="absolute bottom-1 left-1/2 h-8 w-32 -translate-x-1/2 rounded-full bg-ink/20 blur-sm" />
         <img
           src={dollImage}
-          alt={outfit?.name || "小小學伴"}
+          alt={themeCharacter?.name || outfit?.name || "小小學伴"}
           className="relative h-full w-full object-contain drop-shadow-[0_14px_14px_rgba(64,56,79,0.2)]"
         />
         <div className="absolute -right-2 top-5 flex flex-col gap-1.5">
