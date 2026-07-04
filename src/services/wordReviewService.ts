@@ -211,6 +211,14 @@ function blankedExample(word: Word) {
   return `____ = ${shortMeaning(word)}`;
 }
 
+function exampleZhHint(word: Word) {
+  const zhExample = String(word.exampleZh || "").replace(/\s+/g, " ").trim();
+  if (zhExample) return shortText(zhExample, 90);
+  const meaning = shortMeaning(word);
+  if (String(word.example || "").trim()) return `這句在練習「${meaning}」的用法。`;
+  return `請填入「${meaning}」對應的單字。`;
+}
+
 function isFriendlyForLevel(word: Word, level: EnglishLevel, language: LearningLanguageCode) {
   if (level !== "Beginner" && level !== "Elementary") return true;
   const surface = word.word.trim();
@@ -449,6 +457,11 @@ export const wordReviewService = {
     if (questionKind === "wordFill") return "看短句填單字";
     if (questionKind === "wordChoice") return "看意思選單字";
     return "看單字選意思";
+  },
+
+  questionZhHintFor(word: Word, questionKind: WordReviewQuestionKind): string {
+    if (questionKind === "wordFill") return exampleZhHint(word);
+    return "";
   },
 
   completeSession(session: WordReviewSession): WordReviewScore {

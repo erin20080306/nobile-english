@@ -263,6 +263,7 @@ export default function WordReviewPage() {
   const isFillQuestion = questionKind === "wordFill";
   const questionPrompt = current ? wordReviewService.questionPromptFor(current.word, questionKind) : "";
   const questionHint = current ? wordReviewService.questionHintFor(current.word, questionKind) : "";
+  const questionZhHint = current ? wordReviewService.questionZhHintFor(current.word, questionKind) : "";
   const choicePool = useMemo(() => session?.words.map((item) => item.word) || [], [session]);
   const choices = useMemo(
     () => current ? wordReviewService.choicesFor(current.word, session?.language || language, current.questionKind, choicePool) : [],
@@ -411,6 +412,11 @@ export default function WordReviewPage() {
                   <>
                     <h2 className={`${isFillQuestion ? "text-3xl" : "text-4xl"} mt-4 font-black text-ink break-words`}>{questionPrompt}</h2>
                     <p className="mt-1 text-inkSoft">{questionHint}</p>
+                    {isFillQuestion && questionZhHint && (
+                      <p className="mt-3 rounded-2xl bg-lilacLight px-3 py-2 text-sm font-bold leading-relaxed text-lilacDeep">
+                        {questionZhHint}
+                      </p>
+                    )}
                   </>
                 ) : (
                   <>
@@ -451,7 +457,9 @@ export default function WordReviewPage() {
                 <p className="font-semibold text-ink">
                   {(isWordChoice || isFillQuestion) ? wordReviewService.questionPromptFor(current.word, "wordFill") : current.word.example}
                 </p>
-                {current.word.exampleZh && <p className="text-sm text-inkSoft">{current.word.exampleZh}</p>}
+                <p className="text-sm text-inkSoft">
+                  {current.word.exampleZh || wordReviewService.questionZhHintFor(current.word, "wordFill")}
+                </p>
               </div>
             )}
           </motion.div>

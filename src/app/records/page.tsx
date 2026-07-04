@@ -38,6 +38,7 @@ const wordRecordDateFilters: { key: WordRecordDateFilter; label: string }[] = [
 ];
 
 const collapsedWordRecordCount = 6;
+const collapsedSavedWordCount = 12;
 
 function filterByLanguage(items: LearningRecord[], language: RecordLanguageFilter) {
   if (language === "all") return items;
@@ -85,6 +86,7 @@ function RecordsInner() {
   const [languageFilter, setLanguageFilter] = useState<RecordLanguageFilter>("all");
   const [wordDateFilter, setWordDateFilter] = useState<WordRecordDateFilter>("all");
   const [wordRecordsExpanded, setWordRecordsExpanded] = useState(false);
+  const [savedWordsExpanded, setSavedWordsExpanded] = useState(false);
   const [settings, setSettings] = useState<UserSettings>(() => learningService.getSettings(""));
   const [playingId, setPlayingId] = useState<string | null>(null);
 
@@ -125,6 +127,8 @@ function RecordsInner() {
   const showSceneZh = showChineseGlobal && settings.sceneChinese;
   const wordPracticeRecords = filterByLanguage(records.filter((r) => r.type === "word"), languageFilter);
   const filteredWordPracticeRecords = filterByWordRecordDate(wordPracticeRecords, wordDateFilter);
+  const shouldCollapseSavedWords = words.length > collapsedSavedWordCount;
+  const visibleSavedWords = shouldCollapseSavedWords && !savedWordsExpanded ? words.slice(0, collapsedSavedWordCount) : words;
 
   return (
     <div className="min-h-[100dvh] pb-4">
@@ -143,21 +147,53 @@ function RecordsInner() {
         {(tab === "dialogue" || tab === "scene" || tab === "word") && (
           <LanguageFilter value={languageFilter} onChange={(value) => { setLanguageFilter(value); setWordRecordsExpanded(false); }} />
         )}
-        {tab === "words" && (words.length ? words.map((w) => (
-          <div key={w.word} className="card !p-4">
-            <div className="flex items-center gap-2">
-              <p className="font-extrabold text-ink">{w.word}</p>
-              <span className="chip bg-lilac text-lilacDeep text-xs">{w.pos}</span>
-              {w.inReview && <span className="chip bg-mint text-mintDeep text-xs">複習中</span>}
-              <button onClick={() => speakWithId(`word-${w.word}`, w.word, w.language || "en")} className={`ml-auto h-8 w-8 rounded-xl flex items-center justify-center transition-all ${playingId === `word-${w.word}` ? "bg-lilacDeep text-white" : "text-lilacDeep"}`}>
-                {playingId === `word-${w.word}` ? <SoundWave /> : <Volume2 size={18} />}
-              </button>
+        {tab === "words" && (words.length ? (
+          <>
+            <div className="rounded-[28px] bg-white/70 px-4 py-3 shadow-softer flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold text-inkSoft">收藏單字</p>
+                <p className="text-sm font-extrabold text-ink">共 {words.length} 個單字</p>
+              </div>
+              {shouldCollapseSavedWords && (
+                <button
+                  onClick={() => setSavedWordsExpanded((value) => !value)}
+                  className="flex items-center gap-1 rounded-full bg-lilac px-3 py-2 text-xs font-extrabold text-lilacDeep active:scale-95"
+                >
+                  {savedWordsExpanded ? (
+                    <>
+                      收合 <ChevronUp size={14} />
+                    </>
+                  ) : (
+                    <>
+                      展開 <ChevronDown size={14} />
+                    </>
+                  )}
+                </button>
+              )}
             </div>
-            <p className="text-sm text-inkSoft">{w.phonetic}{showWordZh ? ` · ${w.zh}` : ""}</p>
-            <p className="text-sm text-ink mt-1">{w.example}</p>
-            <button onClick={() => { vocabularyService.toggleSave(w); reload(); }} className="chip bg-peach text-peachDeep text-xs mt-2 flex items-center gap-1"><Star size={12} /> 取消收藏</button>
-          </div>
-        )) : <Empty text="尚未收藏單字，點擊句子中的單字即可收藏。" />)}
+            {visibleSavedWords.map((w) => (
+              <div key={w.word} className="card !p-4">
+                <div className="flex items-center gap-2">
+                  <p className="font-extrabold text-ink">{w.word}</p>
+                  <span className="chip bg-lilac text-lilacDeep text-xs">{w.pos}</span>
+                  {w.inReview && <span className="chip bg-mint text-mintDeep text-xs">複習中</span>}
+                  <button onClick={() => speakWithId(`word-${w.word}`, w.word, w.language || "en")} className={`ml-auto h-8 w-8 rounded-xl flex items-center justify-center transition-all ${playingId === `word-${w.word}` ? "bg-lilacDeep text-white" : "text-lilacDeep"}`}>
+                    {playingId === `word-${w.word}` ? <SoundWave /> : <Volume2 size={18} />}
+                  </button>
+                </div>
+                <p className="text-sm text-inkSoft">{w.phonetic}{showWordZh ? ` · ${w.zh}` : ""}</p>
+                <p className="text-sm text-ink mt-1">{w.example}</p>
+                <button onClick={() => { vocabularyService.toggleSave(w); reload(); }} className="chip bg-peach text-peachDeep text-xs mt-2 flex items-center gap-1"><Star size={12} /> 取消收藏</button>
+              </div>
+            ))}
+            {shouldCollapseSavedWords && (
+              <button onClick={() => setSavedWordsExpanded((value) => !value)} className="w-full rounded-3xl bg-white py-3 text-sm font-bold text-lilacDeep shadow-softer flex items-center justify-center gap-2">
+                {savedWordsExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                {savedWordsExpanded ? "收合單字" : `展開更多 ${words.length - collapsedSavedWordCount} 個`}
+              </button>
+            )}
+          </>
+        ) : <Empty text="尚未收藏單字，點擊句子中的單字即可收藏。" />)}
 
         {tab === "word" && (
           <>

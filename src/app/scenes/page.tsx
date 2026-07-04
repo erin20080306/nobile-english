@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ChevronRight, Wand2 } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronUp, Wand2 } from "lucide-react";
 import type { CustomScene } from "@/types";
 import { sceneService } from "@/services/sceneService";
 import { trialAccessService, type AccessState } from "@/services/trialAccessService";
@@ -14,10 +14,13 @@ import BottomNav from "@/components/BottomNav";
 import SubscriptionLaunchPrompt from "@/components/SubscriptionLaunchPrompt";
 import { LevelBadge } from "@/components/ui";
 
+const CUSTOM_SCENE_COLLAPSED_LIMIT = 2;
+
 export default function ScenesPage() {
   const router = useRouter();
   const themes = sceneService.getThemes();
   const [customScenes, setCustomScenes] = useState<CustomScene[]>([]);
+  const [customExpanded, setCustomExpanded] = useState(false);
   const [access, setAccess] = useState<AccessState | null>(null);
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(false);
 
@@ -33,6 +36,11 @@ export default function ScenesPage() {
     }
     router.push(`/scenes/custom/${sceneId}`);
   }
+
+  const hasManyCustomScenes = customScenes.length > CUSTOM_SCENE_COLLAPSED_LIMIT;
+  const visibleCustomScenes = customExpanded || !hasManyCustomScenes
+    ? customScenes
+    : customScenes.slice(0, CUSTOM_SCENE_COLLAPSED_LIMIT);
 
   return (
     <motion.div
@@ -73,8 +81,27 @@ export default function ScenesPage() {
 
         {customScenes.length > 0 && (
           <div className="mt-2 grid gap-3">
-            <p className="px-1 text-sm font-extrabold text-inkSoft">自訂場景</p>
-            {customScenes.map((custom) => (
+            <div className="flex items-center justify-between gap-3 px-1">
+              <p className="text-sm font-extrabold text-inkSoft">自訂場景</p>
+              {hasManyCustomScenes && (
+                <button
+                  type="button"
+                  onClick={() => setCustomExpanded((value) => !value)}
+                  className="flex items-center gap-1 rounded-full bg-white/80 px-3 py-1.5 text-xs font-extrabold text-lilacDeep shadow-softer active:scale-95"
+                >
+                  {customExpanded ? (
+                    <>
+                      收合 <ChevronUp size={14} />
+                    </>
+                  ) : (
+                    <>
+                      展開全部 {customScenes.length} 個 <ChevronDown size={14} />
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+            {visibleCustomScenes.map((custom) => (
               <motion.button
                 key={custom.id}
                 initial={{ opacity: 0, y: 14 }}
