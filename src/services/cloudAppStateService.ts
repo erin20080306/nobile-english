@@ -42,6 +42,7 @@ let autoBackupStarted = false;
 let restoring = false;
 let backupTimer: number | null = null;
 let backupInFlight = false;
+let backupAgainAfterFlight = false;
 
 function isBrowser() {
   return typeof window !== "undefined";
@@ -154,7 +155,10 @@ export const cloudAppStateService = {
     if (!isBrowser() || !user?.id) return;
     if (!options?.force && !restoredUsers.has(user.id)) return;
     if (typeof navigator !== "undefined" && navigator.onLine === false) return;
-    if (backupInFlight) return;
+    if (backupInFlight) {
+      backupAgainAfterFlight = true;
+      return;
+    }
 
     backupInFlight = true;
     try {
@@ -171,6 +175,10 @@ export const cloudAppStateService = {
       console.warn("[APP_STATE_BACKUP] failed", error instanceof Error ? error.message : String(error));
     } finally {
       backupInFlight = false;
+      if (backupAgainAfterFlight) {
+        backupAgainAfterFlight = false;
+        this.scheduleBackup(300);
+      }
     }
   },
 

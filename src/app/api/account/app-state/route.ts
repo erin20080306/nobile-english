@@ -4,7 +4,7 @@ import { getSupabaseServerClient, missingSupabaseServerEnv } from "@/server/supa
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MAX_PAYLOAD_BYTES = 900_000;
+const MAX_PAYLOAD_BYTES = 5_000_000;
 
 function cleanString(value: unknown, max = 500) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";

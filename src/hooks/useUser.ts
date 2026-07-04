@@ -28,7 +28,12 @@ export function useUser(options?: { requireOnboarded?: boolean }) {
     void cloudAppStateService.restoreForUser(u).then(() => {
       if (!active) return;
       const restored = authService.getCurrentUser();
-      if (restored) setUser(restored);
+      if (restored) {
+        setUser(restored);
+        void cloudAppStateService.backup({ id: restored.id, email: restored.email }, { force: true });
+      } else {
+        void cloudAppStateService.backup({ id: u.id, email: u.email }, { force: true });
+      }
     });
     return () => {
       active = false;
