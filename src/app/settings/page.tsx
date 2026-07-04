@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, User as UserIcon, Globe, Volume2, ShieldCheck, MessageSquareWarning, GraduationCap, Crown, Trash2, FileText, Mail, ArrowRight, Settings2 } from "lucide-react";
+import { LogOut, User as UserIcon, Globe, Volume2, ShieldCheck, MessageSquareWarning, GraduationCap, Crown, Trash2, FileText, Mail, ArrowRight, Settings2, Sparkles } from "lucide-react";
 import type { User, UserSettings, OnboardingProfile, EnglishLevel, CEFRLevel, GardenState } from "@/types";
 import { useUser } from "@/hooks/useUser";
 import { learningService } from "@/services/learningService";
@@ -13,6 +13,8 @@ import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import TutorSelector from "@/components/TutorSelector";
 import { gardenService, GARDEN_SHOP_ITEMS } from "@/services/gardenService";
+import { themeCharacterService, type ThemeCharacterState } from "@/services/themeCharacterService";
+import { THEME_CHARACTERS } from "@/data/themeCharacters";
 import { Toggle, LevelBadge } from "@/components/ui";
 
 const LEVEL_OPTIONS: Array<{ level: EnglishLevel; cefr: CEFRLevel; label: string; description: string }> = [
@@ -31,6 +33,7 @@ export default function SettingsPage() {
   const [accountUser, setAccountUser] = useState<User | null>(null);
   const [accessState, setAccessState] = useState<AccessState | null>(null);
   const [gardenState, setGardenState] = useState<GardenState | null>(null);
+  const [themeCharacterState, setThemeCharacterState] = useState<ThemeCharacterState | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -40,6 +43,7 @@ export default function SettingsPage() {
     setProfile(learningService.getProfile());
     setAccountUser(user);
     setGardenState(gardenService.getState(userSettings.targetLanguage || "en"));
+    setThemeCharacterState(themeCharacterService.getState());
     trialAccessService
       .getAccessState(user, { fresh: true })
       .then((state) => {
@@ -226,6 +230,53 @@ export default function SettingsPage() {
           <p className="font-bold text-ink flex items-center gap-2"><GraduationCap size={18} className="text-lilacDeep" /> AI 導師</p>
           <p className="text-xs text-inkSoft">為「{currentLanguage.flag} {currentLanguage.zhName}」選擇男生或女生導師，對話與情境練習都會使用這位導師的聲音。</p>
           <TutorSelector targetLanguage={settings.targetLanguage} />
+        </div>
+
+        <div className="card space-y-3">
+          <p className="font-bold text-ink flex items-center gap-2"><Sparkles size={18} className="text-lilacDeep" /> 主題人物</p>
+          <p className="text-xs text-inkSoft">選擇你的主題人物，陪伴你學習語言。主題人物只能更換一次。</p>
+          <div className="grid grid-cols-1 gap-2">
+            {THEME_CHARACTERS.map((character) => {
+              const selected = themeCharacterState?.selectedId === character.id;
+              const canChange = !themeCharacterState?.changedOnce;
+              return (
+                <button
+                  key={character.id}
+                  onClick={() => {
+                    if (!canChange && selected) return;
+                    const result = themeCharacterService.selectCharacter(character.id);
+                    if (result.ok) {
+                      setThemeCharacterState(result.state);
+                    } else {
+                      alert(result.message);
+                    }
+                  }}
+                  disabled={!canChange && !selected}
+                  className={`rounded-2xl p-3 text-left shadow-softer transition active:scale-95 ${
+                    selected
+                      ? "bg-lilacDeep text-white"
+                      : canChange
+                      ? "bg-cream text-ink"
+                      : "bg-cream/60 text-inkSoft"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">{character.id === "fat-duck" ? "🦆" : character.id === "sister-piggy" ? "🐷" : "🦆"}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-extrabold leading-tight">{character.zhName}</p>
+                      <p className="text-xs opacity-75">{character.description}</p>
+                    </div>
+                    {selected && <span className="text-xs font-bold">使用中</span>}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          {themeCharacterState?.changedOnce && (
+            <p className="text-xs text-inkSoft leading-relaxed">
+              主題人物已更換過，無法再次更換。
+            </p>
+          )}
         </div>
 
         <div className="card space-y-3">
