@@ -69,7 +69,6 @@ export default function ScenePracticePage() {
   const [activeWord, setActiveWord] = useState<{ word: string; sentence?: string } | null>(null);
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
   const [savedSentences, setSavedSentences] = useState<string[]>([]);
-  const [pronunciationScores, setPronunciationScores] = useState<Record<number, number>>({});
   const [currentStageIndex, setCurrentStageIndex] = useState(0);
   const [phase, setPhase] = useState<"preview" | "staged" | "conversation">("preview");
   const [stepIndex, setStepIndex] = useState(0);
@@ -219,6 +218,7 @@ export default function ScenePracticePage() {
       completed: true,
       minutes: activeScene!.minutes,
     });
+    void learningService.syncRecords(currentUser?.id || storageService.get<string>(KEYS.session, ""));
 
     // Add practiced scene vocabulary to the farm flip-card review pool.
     const practicedWords = Array.from(
@@ -387,11 +387,12 @@ export default function ScenePracticePage() {
       sentence: p.en, 
       translation: p.zh, 
       targetLanguage,
+      sceneId: activeScene!.id,
+      sceneName: activeScene!.name,
+      sceneEnName: activeScene!.enName,
+      themeId: activeScene!.themeId,
       allPatterns: shadowablePatterns,
       currentIndex: currentStep.index,
-      onComplete: (score: number) => {
-        setPronunciationScores((prev) => ({ ...prev, [currentStep.index]: score }));
-      }
     });
     router.push("/shadowing");
     return null;
