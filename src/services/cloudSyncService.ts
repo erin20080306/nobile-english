@@ -149,15 +149,22 @@ export const cloudSyncService = {
         });
       }
 
+      // Always pull from learning_records table to ensure all practice records
+      // (scene, dialogue, exam, word) are restored. This is the authoritative
+      // source for learning history, not user_app_data.
       const { data: records, error: recordsError } = await supabaseBrowserClient
         .from("learning_records")
         .select("*")
         .eq("user_id", userId)
         .order("date", { ascending: false })
-        .limit(500);
+        .limit(1000);
       if (!recordsError && records?.length) {
         foundAny = true;
-        storageService.set(KEYS.records, records.map(mapRecordFromDb), { skipSync: true });
+        const cloudRecords = records.map(mapRecordFromDb);
+        // Merge with local records to avoid losing any unsynced local data
+        const localRecords = storageService.get<LearningRecord[]>(KEYS.records, []);
+        const mergedRecords = this.mergeRecords(cloudRecords, localRecords);
+        storageService.set(KEYS.records, mergedRecords, { skipSync: true });
       }
     } catch (error) {
       console.warn("[CLOUD_SYNC] pull failed", error instanceof Error ? error.message : error);
@@ -165,5 +172,22 @@ export const cloudSyncService = {
       hydrating = false;
     }
     return foundAny;
+  },
+
+  // Merge cloud and local records, keeping the most recent version of each record
+  // by ID. This ensures local unsynced records are not lost when pulling from cloud.
+  mergeRecords(cloudRecords: LearningRecord[], localRecords: LearningRecord[]): LearningRecord[] {
+    const recordMap = new Map<string, LearningRecord>();
+    // Add cloud records first
+    cloudRecords.forEach((record) => recordMap.set(record.id, record));
+    // Override with local records if they are newer (by date)
+    localRecords.forEach((record) => {
+      const existing = recordMap.get(record.id);
+      if (!existing || record.date > existing.date) {
+        recordMap.set(record.id, record);
+      }
+    });
+    // Convert back to array and sort by date descending
+    return Array.from(recordMap.values()).sort((a, b) => b.date.localeCompare(a.date));
   },
 };
