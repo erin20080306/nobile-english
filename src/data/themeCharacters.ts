@@ -22,14 +22,14 @@ export const THEME_CHARACTERS: ThemeCharacter[] = [
     id: "sister-piggy",
     name: "Sister Piggy",
     zhName: "豬豬",
-    imageSrc: "/assets/garden/doll-school.png",
+    imageSrc: "/assets/characters/sister-piggy.png",
     description: "背著書包的溫柔學伴，適合單字複習與考試英文練習。",
   },
   {
     id: "sour-duck",
     name: "Sour Duck",
     zhName: "酸鴨鴨",
-    imageSrc: "/assets/garden/doll-sport.png",
+    imageSrc: "/assets/characters/sour-duck.png",
     description: "戴著小帽子的活潑學伴，適合場景對話和每日挑戰。",
   },
 ];
