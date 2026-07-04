@@ -144,7 +144,7 @@ export const TUTORS: TutorProfile[] = [
     accentLabel: "標準日文",
     flag: "🇯🇵",
     lang: "ja-JP",
-    voiceKeywords: ["kyoko", "otoya", "ja-jp", "japanese"],
+    voiceKeywords: ["otoya", "keita", "male", "ja-jp", "japanese"],
     ttsVoice: "echo",
     ttsInstructions: "Speak as a native Japanese male tutor from Tokyo. Use natural standard Japanese, crisp pronunciation, gentle teacher energy, and strong clean volume. Do not use an English accent.",
     ttsVolumeGain: 1.58,

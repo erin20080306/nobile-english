@@ -47,8 +47,16 @@ const levelZh: Record<string, string> = {
   Advanced: "高級",
 };
 
+const levelCefr: Record<string, string> = {
+  Beginner: "A1",
+  Elementary: "A2",
+  Intermediate: "B1",
+  "Upper-Intermediate": "B2",
+  Advanced: "C1",
+};
+
 export function levelLabel(level: EnglishLevel | string) {
-  return levelZh[level] ? `${level}｜${levelZh[level]}` : level;
+  return levelZh[level] ? `${levelCefr[level]} ${level}｜${levelZh[level]}` : level;
 }
 
 export function LevelBadge({ level }: { level: EnglishLevel | string }) {

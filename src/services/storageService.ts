@@ -19,10 +19,16 @@ export const storageService = {
     }
   },
 
+  has(key: string): boolean {
+    if (!isBrowser()) return false;
+    return window.localStorage.getItem(PREFIX + key) !== null;
+  },
+
   set<T>(key: string, value: T): void {
     if (!isBrowser()) return;
     try {
       window.localStorage.setItem(PREFIX + key, JSON.stringify(value));
+      window.dispatchEvent(new CustomEvent("me:storage-changed", { detail: { key } }));
     } catch {
       /* quota or serialization error – ignore for MVP */
     }

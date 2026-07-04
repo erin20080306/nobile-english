@@ -39,6 +39,38 @@ async function postRecords(userId: string, records: LearningRecord[]) {
   return response.json() as Promise<{ syncedIds?: string[] }>;
 }
 
+async function fetchRemoteRecords(userId: string) {
+  const params = new URLSearchParams({ userId });
+  const response = await fetch(`/api/learning-records/sync?${params.toString()}`, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  });
+
+  if (!response.ok) {
+    const message = await response.text().catch(() => "");
+    throw new Error(`Learning record restore failed (${response.status}): ${message.slice(0, 300)}`);
+  }
+
+  const body = (await response.json()) as { records?: LearningRecord[] };
+  return Array.isArray(body.records) ? body.records : [];
+}
+
+function recordTime(record: LearningRecord) {
+  const time = new Date(record.date).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function mergeRecords(local: LearningRecord[], remote: LearningRecord[]) {
+  const byId = new Map<string, LearningRecord>();
+  remote.forEach((record) => {
+    if (record?.id) byId.set(record.id, record);
+  });
+  local.forEach((record) => {
+    if (record?.id) byId.set(record.id, record);
+  });
+  return Array.from(byId.values()).sort((a, b) => recordTime(b) - recordTime(a));
+}
+
 export const learningRecordSyncService = {
   syncRecord(record: LearningRecord, userId = currentUserId()): void {
     if (!isBrowser() || !userId) return;
@@ -66,5 +98,21 @@ export const learningRecordSyncService = {
     if (!isBrowser() || !userId || !records.length) return;
     records.forEach(queueRecord);
     await this.flush(userId);
+  },
+
+  async restore(userId = currentUserId()): Promise<LearningRecord[]> {
+    const local = storageService.get<LearningRecord[]>(KEYS.records, []);
+    if (!isBrowser() || !userId) return local;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return local;
+
+    try {
+      const remote = await fetchRemoteRecords(userId);
+      const merged = mergeRecords(local, remote);
+      storageService.set(KEYS.records, merged);
+      return merged;
+    } catch (error) {
+      console.warn("[LEARNING_RESTORE] failed", error instanceof Error ? error.message : String(error));
+      return local;
+    }
   },
 };

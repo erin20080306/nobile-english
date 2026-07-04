@@ -9,18 +9,19 @@ import { learningService } from "@/services/learningService";
 import { dictionaryService } from "@/services/dictionaryService";
 import { sceneReviewService } from "@/services/sceneReviewService";
 import { gardenService } from "@/services/gardenService";
-import { speechService } from "@/services/speechService";
+import { tutorVoiceService } from "@/services/tutorVoiceService";
 import { storageService, KEYS } from "@/services/storageService";
 import { authService } from "@/services/authService";
 import { vocabularyService } from "@/services/vocabularyService";
 import { trialAccessService, type AccessState } from "@/services/trialAccessService";
 import { trialUsageService } from "@/services/trialUsageService";
-import { getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
+import { getLearningLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
 import ClickableText from "@/components/ClickableText";
 import WordSheet from "@/components/WordSheet";
 import ConversationPractice from "@/components/ConversationPractice";
 import SubscriptionLaunchPrompt from "@/components/SubscriptionLaunchPrompt";
+import { getSelectedTutor } from "@/components/TutorSelector";
 import { LevelBadge } from "@/components/ui";
 import type { DialogueResult, TutorFeedback, DialogueTranscriptLine } from "@/types";
 
@@ -72,6 +73,7 @@ export default function ScenePracticePage() {
   const showZh = settings ? settings.showChineseGlobal && settings.sceneChinese : true;
   const targetLanguage = scene?.targetLanguage || settings?.targetLanguage || learningService.getCurrentLanguage();
   const languageInfo = getLearningLanguage(targetLanguage);
+  const selectedTutor = useMemo(() => getSelectedTutor(targetLanguage), [targetLanguage]);
   const activeScene = scene ? { ...scene, targetLanguage } : null;
   const theme = scene ? sceneService.getTheme(scene.themeId) : undefined;
   const indexInTheme = scene ? sceneService.getScenesByTheme(scene.themeId).findIndex((item) => item.id === scene.id) : -1;
@@ -94,16 +96,21 @@ export default function ScenePracticePage() {
     );
   }
 
-  function speak(text: string) {
+  async function speak(text: string) {
     if (settings && !settings.pronunciationOn) {
       alert("發音功能已關閉，可至設定開啟。");
       return;
     }
-    const r = speechService.speak(text, {
-      ...voiceForLanguage(targetLanguage, learningService.getSpeechRate(targetLanguage)),
-      onError: (message) => alert(message),
-    });
-    if (!r.ok) alert(r.message);
+    try {
+      await tutorVoiceService.playManual(text, {
+        languageCode: targetLanguage,
+        voiceGender: selectedTutor.gender,
+        voiceProfileId: selectedTutor.id,
+        assetType: "practice_sentence",
+      });
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "語音播放發生問題，請稍後再試。");
+    }
   }
 
   function toggleSentence(en: string, zh: string) {

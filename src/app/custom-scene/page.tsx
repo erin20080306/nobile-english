@@ -7,12 +7,13 @@ import { Wand2, Play, Volume2 } from "lucide-react";
 import type { CustomScene, EnglishLevel, LearningLanguageCode } from "@/types";
 import { sceneService } from "@/services/sceneService";
 import { learningService } from "@/services/learningService";
-import { speechService } from "@/services/speechService";
+import { tutorVoiceService } from "@/services/tutorVoiceService";
 import { trialAccessService, type AccessState } from "@/services/trialAccessService";
 import { trialUsageService } from "@/services/trialUsageService";
-import { getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
+import { getLearningLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
 import SubscriptionLaunchPrompt from "@/components/SubscriptionLaunchPrompt";
+import { getSelectedTutor } from "@/components/TutorSelector";
 import { LevelBadge, Toggle, levelLabel } from "@/components/ui";
 
 const levels: EnglishLevel[] = ["Beginner", "Elementary", "Intermediate", "Upper-Intermediate", "Advanced"];
@@ -72,12 +73,19 @@ export default function CustomScenePage() {
     const studyPhrases = s.keyPatterns.slice(0, 3);
     const requiredPhraseCount = Math.min(3, studyPhrases.length);
     const canStart = requiredPhraseCount === 0 || studiedPhrases.length >= requiredPhraseCount;
-    const voiceOptions = voiceForLanguage(created.targetLanguage || targetLanguage, learningService.getSpeechRate(created.targetLanguage || targetLanguage));
-    const speak = (text: string) => {
-      speechService.speak(text, {
-        ...voiceOptions,
-        onError: (message) => alert(message),
-      });
+    const phraseLanguage = created.targetLanguage || targetLanguage;
+    const selectedTutor = getSelectedTutor(phraseLanguage);
+    const speak = async (text: string) => {
+      try {
+        await tutorVoiceService.playManual(text, {
+          languageCode: phraseLanguage,
+          voiceGender: selectedTutor.gender,
+          voiceProfileId: selectedTutor.id,
+          assetType: "practice_sentence",
+        });
+      } catch (error) {
+        alert(error instanceof Error ? error.message : "語音播放發生問題，請稍後再試。");
+      }
     };
     const markStudied = (text: string) => {
       setStudiedPhrases((items) => (items.includes(text) ? items : [...items, text]));

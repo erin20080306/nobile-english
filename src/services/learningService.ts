@@ -165,6 +165,10 @@ export const learningService = {
     return learningRecordSyncService.syncAll(this.getRecords(), userId);
   },
 
+  restoreRecords(userId = storageService.get<string>(KEYS.session, "")) {
+    return learningRecordSyncService.restore(userId);
+  },
+
   // ---- Level test scoring ----
   scoreLevelTest(score: number, total: number, dailyMinutes: number): LevelTestResult {
     const pct = (score / total) * 100;

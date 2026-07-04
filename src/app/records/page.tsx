@@ -9,6 +9,8 @@ import { dictionaryService } from "@/services/dictionaryService";
 import { learningService } from "@/services/learningService";
 import { examService } from "@/services/examService";
 import { speechService } from "@/services/speechService";
+import { authService } from "@/services/authService";
+import { cloudAppStateService } from "@/services/cloudAppStateService";
 import { LEARNING_LANGUAGES, getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
@@ -118,7 +120,17 @@ function RecordsInner() {
     setWrong(examService.getWrongQuestions());
   }
 
-  useEffect(() => { reload(); }, []);
+  useEffect(() => {
+    reload();
+    const user = authService.getCurrentUser();
+    if (!user) return;
+    void (async () => {
+      await cloudAppStateService.restoreForUser(user);
+      await learningService.restoreRecords(user.id);
+      reload();
+      await cloudAppStateService.backup({ id: user.id, email: user.email }, { force: true });
+    })();
+  }, []);
 
   const showChineseGlobal = settings.showChineseGlobal;
   const showWordZh = showChineseGlobal && settings.wordReviewChinese;

@@ -89,14 +89,20 @@ export default function GardenPage() {
   const [characterNotice, setCharacterNotice] = useState("");
 
   useEffect(() => {
-    const current = learningService.getCurrentLanguage();
-    setLanguage(current);
-    setGarden(gardenService.getState(current));
-    const characterState = themeCharacterService.getState();
-    setThemeCharacterState(characterState);
-    setPreviewCharacterIndex(themeCharacterService.getCharacterIndex(characterState.selectedId));
+    if (!user) return;
+    const loadLocalState = () => {
+      const current = learningService.getCurrentLanguage();
+      setLanguage(current);
+      setGarden(gardenService.getState(current));
+      const characterState = themeCharacterService.getState();
+      setThemeCharacterState(characterState);
+      setPreviewCharacterIndex(themeCharacterService.getCharacterIndex(characterState.selectedId));
+    };
+    loadLocalState();
+    window.addEventListener("me:cloud-state-restored", loadLocalState);
     trialAccessService.getAccessState(user, { fresh: true }).then(setAccess).catch(() => setAccess(null));
-  }, []);
+    return () => window.removeEventListener("me:cloud-state-restored", loadLocalState);
+  }, [user]);
 
   const currentLanguage = getLearningLanguage(language);
   const trialLimited = trialUsageService.isLimited(access);
@@ -350,16 +356,18 @@ export default function GardenPage() {
       <div className="px-5 mt-4">
         <div className="relative overflow-hidden rounded-[34px] bg-white p-4 shadow-soft">
           <div className="absolute -right-8 -bottom-8 h-28 w-28 rounded-full bg-mint/60" />
-          <BuddyFarmStage
-            character={selectedThemeCharacter}
-            outfit={equippedOutfit}
-            accessories={equippedAccessories}
-            house={equippedHouse}
-            items={equippedItems}
-          />
-          <div className="relative mt-4">
+          <div className="relative">
             <p className="text-xs font-bold text-inkSoft">小小學伴</p>
             <h2 className="text-xl font-extrabold text-ink">我的語言夥伴</h2>
+            <ThemeCharacterSelector
+              preview={previewThemeCharacter}
+              selected={selectedThemeCharacter}
+              changedOnce={themeCharacterState.changedOnce}
+              notice={characterNotice}
+              onPrev={() => cycleThemeCharacter(-1)}
+              onNext={() => cycleThemeCharacter(1)}
+              onApply={applyThemeCharacter}
+            />
             <p className="mt-1 text-sm leading-relaxed text-inkSoft">
               主題人物：{selectedThemeCharacter.name}（{selectedThemeCharacter.zhName}）。目前穿搭：{equippedOutfit?.name || "基本上衣"}
               {equippedAccessories.length > 0 ? `，飾品 ${equippedAccessories.map((item) => item.name).join("、")}` : "，尚未配戴飾品"}
@@ -372,14 +380,14 @@ export default function GardenPage() {
                 已擺設：{equippedItems.map((item) => `${item.emoji} ${item.name}`).join("、")}
               </p>
             )}
-            <ThemeCharacterSelector
-              preview={previewThemeCharacter}
-              selected={selectedThemeCharacter}
-              changedOnce={themeCharacterState.changedOnce}
-              notice={characterNotice}
-              onPrev={() => cycleThemeCharacter(-1)}
-              onNext={() => cycleThemeCharacter(1)}
-              onApply={applyThemeCharacter}
+          </div>
+          <div className="relative mt-4">
+            <BuddyFarmStage
+              character={selectedThemeCharacter}
+              outfit={equippedOutfit}
+              accessories={equippedAccessories}
+              house={equippedHouse}
+              items={equippedItems}
             />
           </div>
         </div>
@@ -1066,6 +1074,12 @@ function ThemeCharacterSelector({
   const isSelected = preview.id === selected.id;
   return (
     <div className="mt-4 rounded-[26px] bg-cream/80 p-3 shadow-softer">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-sm font-extrabold text-ink">更換主題人物</p>
+        <span className={`rounded-full px-3 py-1 text-[11px] font-extrabold ${changedOnce ? "bg-white text-inkSoft" : "bg-mint text-mintDeep"}`}>
+          {changedOnce ? "已使用更換次數" : "可更換 1 次"}
+        </span>
+      </div>
       <div className="flex items-center justify-between gap-2">
         <button
           type="button"
@@ -1092,9 +1106,7 @@ function ThemeCharacterSelector({
         </button>
       </div>
       <div className="mt-3 flex items-center justify-between gap-2">
-        <span className={`rounded-full px-3 py-1 text-[11px] font-extrabold ${changedOnce ? "bg-white text-inkSoft" : "bg-mint text-mintDeep"}`}>
-          {changedOnce ? "已使用更換次數" : "可更換 1 次"}
-        </span>
+        <span className="text-xs font-bold text-inkSoft">{isSelected ? "目前使用中" : "左右選擇後套用"}</span>
         <button
           type="button"
           onClick={onApply}

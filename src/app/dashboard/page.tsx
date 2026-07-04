@@ -20,7 +20,8 @@ import CheerImage from "@/components/CheerImage";
 import BottomNav from "@/components/BottomNav";
 import HorizontalScrollChips from "@/components/HorizontalScrollChips";
 import SubscriptionLaunchPrompt from "@/components/SubscriptionLaunchPrompt";
-import { LevelBadge, ProgressBar, Toggle } from "@/components/ui";
+import { LevelBadge, ProgressBar, Toggle, levelLabel } from "@/components/ui";
+import { cloudAppStateService } from "@/services/cloudAppStateService";
 import { trialAccessService, type AccessState } from "@/services/trialAccessService";
 import { trialUsageService } from "@/services/trialUsageService";
 
@@ -68,16 +69,31 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!user) return;
-    setStats(learningService.getStats());
-    const nextSettings = learningService.getSettings(user.id);
-    setSettings(nextSettings);
-    setGarden(gardenService.getState(nextSettings.targetLanguage));
-    setSavedCount(vocabularyService.getSaved().length);
-    void learningService.syncRecords(user.id);
+    let cancelled = false;
+    const loadLocalState = () => {
+      setStats(learningService.getStats());
+      const nextSettings = learningService.getSettings(user.id);
+      setSettings(nextSettings);
+      setGarden(gardenService.getState(nextSettings.targetLanguage));
+      setSavedCount(vocabularyService.getSaved().length);
+    };
+
+    loadLocalState();
+    void (async () => {
+      await cloudAppStateService.restoreForUser(user);
+      await learningService.restoreRecords(user.id);
+      if (cancelled) return;
+      loadLocalState();
+      await learningService.syncRecords(user.id);
+      await cloudAppStateService.backup({ id: user.id, email: user.email }, { force: true });
+    })();
     trialAccessService
       .getAccessState(user, { fresh: true })
       .then(setAccessState)
       .catch(() => setAccessState(null));
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
   if (!ready || !user || !stats || !settings) {
@@ -138,6 +154,12 @@ export default function Dashboard() {
         <div>
           <p className="text-inkSoft text-sm">歡迎回來</p>
           <h1 className="text-2xl font-extrabold text-ink">{user.name} 👋</h1>
+          <p className="mt-1 text-xs font-bold text-inkSoft">
+            目前級別：{levelLabel(user.level)}
+          </p>
+          <p className="text-[11px] font-bold text-lilacDeep">
+            {accessState?.isSubscribed ? "可至設定自行更換 A1-C1 級別" : "訂閱者可至設定自行更換 A1-C1 級別"}
+          </p>
         </div>
         <LevelBadge level={user.level} />
       </div>
