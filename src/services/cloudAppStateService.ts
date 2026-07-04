@@ -5,6 +5,8 @@ type CloudUser = Pick<User, "id" | "email">;
 type CloudPayload = Partial<Record<CloudStorageKey, unknown>>;
 
 const CLOUD_STORAGE_KEYS = [
+  KEYS.users,
+  KEYS.deviceId,
   KEYS.onboarding,
   KEYS.levelResult,
   KEYS.plan,
@@ -24,6 +26,12 @@ const CLOUD_STORAGE_KEYS = [
   KEYS.lastResult,
   KEYS.wordReviewMemory,
   KEYS.trialUsage,
+  "selected_tutor_id",
+  "selected_tutor_id_en",
+  "selected_tutor_id_ja",
+  "selected_tutor_id_ko",
+  "selected_tutor_id_it",
+  "selected_tutor_id_es",
 ] as const;
 
 type CloudStorageKey = (typeof CLOUD_STORAGE_KEYS)[number];
@@ -68,11 +76,22 @@ function mergeRecords(local: unknown, remote: unknown) {
   return Array.from(byId.values()).sort((a, b) => recordTime(b) - recordTime(a));
 }
 
+function sanitizeUsersForCloud(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is Partial<User> => Boolean(item && typeof item === "object"))
+    .map((user) => {
+      const { password: _password, ...safeUser } = user;
+      return safeUser;
+    });
+}
+
 function collectPayload(): CloudPayload {
   const payload: CloudPayload = {};
   CLOUD_STORAGE_KEYS.forEach((key) => {
     if (storageService.has(key)) {
-      payload[key] = storageService.get<unknown>(key, null);
+      const value = storageService.get<unknown>(key, null);
+      payload[key] = key === KEYS.users ? sanitizeUsersForCloud(value) : value;
     }
   });
   return payload;

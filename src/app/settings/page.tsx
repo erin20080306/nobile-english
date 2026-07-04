@@ -33,9 +33,14 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!user) return;
     let active = true;
-    setSettings(learningService.getSettings(user.id));
-    setProfile(learningService.getProfile());
-    setAccountUser(user);
+    const loadLocalState = () => {
+      const current = authService.getCurrentUser() || user;
+      setSettings(learningService.getSettings(current.id));
+      setProfile(learningService.getProfile());
+      setAccountUser(current);
+    };
+    loadLocalState();
+    window.addEventListener("me:cloud-state-restored", loadLocalState);
     trialAccessService
       .getAccessState(user, { fresh: true })
       .then((state) => {
@@ -46,6 +51,7 @@ export default function SettingsPage() {
       });
     return () => {
       active = false;
+      window.removeEventListener("me:cloud-state-restored", loadLocalState);
     };
   }, [user]);
 

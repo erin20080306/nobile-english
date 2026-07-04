@@ -354,20 +354,27 @@ export default function GardenPage() {
       </div>
 
       <div className="px-5 mt-4">
+        <div className="rounded-[34px] bg-white p-4 shadow-soft">
+          <p className="text-xs font-bold text-inkSoft">主題人物</p>
+          <h2 className="text-xl font-extrabold text-ink">更換主題人物</h2>
+          <ThemeCharacterSelector
+            preview={previewThemeCharacter}
+            selected={selectedThemeCharacter}
+            changedOnce={themeCharacterState.changedOnce}
+            notice={characterNotice}
+            onPrev={() => cycleThemeCharacter(-1)}
+            onNext={() => cycleThemeCharacter(1)}
+            onApply={applyThemeCharacter}
+          />
+        </div>
+      </div>
+
+      <div className="px-5 mt-4">
         <div className="relative overflow-hidden rounded-[34px] bg-white p-4 shadow-soft">
           <div className="absolute -right-8 -bottom-8 h-28 w-28 rounded-full bg-mint/60" />
           <div className="relative">
             <p className="text-xs font-bold text-inkSoft">小小學伴</p>
             <h2 className="text-xl font-extrabold text-ink">我的語言夥伴</h2>
-            <ThemeCharacterSelector
-              preview={previewThemeCharacter}
-              selected={selectedThemeCharacter}
-              changedOnce={themeCharacterState.changedOnce}
-              notice={characterNotice}
-              onPrev={() => cycleThemeCharacter(-1)}
-              onNext={() => cycleThemeCharacter(1)}
-              onApply={applyThemeCharacter}
-            />
             <p className="mt-1 text-sm leading-relaxed text-inkSoft">
               主題人物：{selectedThemeCharacter.name}（{selectedThemeCharacter.zhName}）。目前穿搭：{equippedOutfit?.name || "基本上衣"}
               {equippedAccessories.length > 0 ? `，飾品 ${equippedAccessories.map((item) => item.name).join("、")}` : "，尚未配戴飾品"}
