@@ -298,6 +298,7 @@ export default function WordReviewPage() {
   const isFillQuestion = questionKind === "wordFill";
   const questionPrompt = current ? wordReviewService.questionPromptFor(current.word, questionKind) : "";
   const questionHint = current ? wordReviewService.questionHintFor(current.word, questionKind) : "";
+  const questionZh = current ? wordReviewService.questionZhFor(current.word, questionKind) : "";
   const choicePool = useMemo(() => session?.words.map((item) => item.word) || [], [session]);
   const choices = useMemo(
     () => current ? wordReviewService.choicesFor(current.word, session?.language || language, current.questionKind, choicePool) : [],
@@ -449,6 +450,11 @@ export default function WordReviewPage() {
                 {isWordChoice || isFillQuestion ? (
                   <>
                     <h2 className={`${isFillQuestion ? "text-3xl" : "text-4xl"} mt-4 font-black text-ink break-words`}>{questionPrompt}</h2>
+                    {isFillQuestion && questionZh && (
+                      <p className="mt-2 rounded-2xl bg-cream px-3 py-2 text-sm font-bold text-inkSoft">
+                        {questionZh}
+                      </p>
+                    )}
                     <p className="mt-1 text-inkSoft">{questionHint}</p>
                   </>
                 ) : (
@@ -490,8 +496,8 @@ export default function WordReviewPage() {
                 <p className="font-semibold text-ink">
                   {(isWordChoice || isFillQuestion) ? wordReviewService.questionPromptFor(current.word, "wordFill") : current.word.example}
                 </p>
-                {(current.word.exampleZh || current.word.zh) && (
-                  <p className="text-sm text-inkSoft">{current.word.exampleZh || current.word.zh}</p>
+                {(wordReviewService.questionZhFor(current.word, "wordFill") || current.word.zh) && (
+                  <p className="text-sm text-inkSoft">{wordReviewService.questionZhFor(current.word, "wordFill") || current.word.zh}</p>
                 )}
               </div>
             )}

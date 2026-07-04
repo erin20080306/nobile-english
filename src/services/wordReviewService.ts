@@ -218,6 +218,14 @@ function blankedExample(word: Word) {
   return `____ = ${shortMeaning(word)}`;
 }
 
+function sentenceZh(word: Word) {
+  const exampleZh = String(word.exampleZh || "").replace(/\s+/g, " ").trim();
+  if (containsCjk(exampleZh)) return shortText(exampleZh, 90);
+  const zh = String(word.zh || "").replace(/\s+/g, " ").trim();
+  if (containsCjk(zh)) return shortText(zh, 90);
+  return "";
+}
+
 function isFriendlyForLevel(word: Word, level: EnglishLevel, language: LearningLanguageCode) {
   if (level !== "Beginner" && level !== "Elementary") return true;
   const surface = word.word.trim();
@@ -456,6 +464,11 @@ export const wordReviewService = {
     if (questionKind === "wordFill") return "看短句填單字";
     if (questionKind === "wordChoice") return "看意思選單字";
     return "看單字選意思";
+  },
+
+  questionZhFor(word: Word, questionKind: WordReviewQuestionKind): string {
+    if (questionKind === "wordFill") return sentenceZh(word);
+    return "";
   },
 
   completeSession(session: WordReviewSession): WordReviewScore {

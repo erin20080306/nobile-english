@@ -139,7 +139,10 @@ export default function Dashboard() {
           <p className="text-inkSoft text-sm">歡迎回來</p>
           <h1 className="text-2xl font-extrabold text-ink">{user.name} 👋</h1>
         </div>
-        <LevelBadge level={user.level} />
+        <div className="flex flex-col items-end gap-1">
+          <p className="text-[10px] font-extrabold text-lilacDeep">訂閱者可自由修改級別</p>
+          <LevelBadge level={user.level} />
+        </div>
       </div>
 
       {/* Hero encouragement with cheer image */}
