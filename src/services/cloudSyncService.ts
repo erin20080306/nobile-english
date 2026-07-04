@@ -26,6 +26,13 @@ const SYNC_KEYS: string[] = [
   KEYS.lastResult,
   KEYS.feedbackReports,
   KEYS.wordReviewMemory,
+  // Redundant backup of the full practice-history array. The dedicated
+  // learning_records table sync (learningRecordSyncService) is queued and
+  // can be lost if the app/local storage is wiped before it flushes (e.g.
+  // iOS "Add to Home Screen" apps wipe local storage when the icon is
+  // deleted). Mirroring KEYS.records here means it also rides the generic
+  // per-key sync hook, which fires synchronously on every addRecord() call.
+  KEYS.records,
 ];
 
 let activeUserId: string | null = null;

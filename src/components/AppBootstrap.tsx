@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { authService } from "@/services/authService";
 import { cloudSyncService } from "@/services/cloudSyncService";
+import { learningService } from "@/services/learningService";
 import { storageService, KEYS } from "@/services/storageService";
 import { supabaseBrowserClient } from "@/services/supabaseBrowserClient";
 
@@ -23,6 +24,10 @@ export default function AppBootstrap() {
       if (!sessionUser) return;
       if (storageService.get<string | null>(KEYS.session, null) === sessionUser.id) {
         cloudSyncService.setActiveUser(sessionUser.id);
+        // Retry-flush any practice records still stuck in the local sync
+        // queue from a previous session (e.g. the last push failed because
+        // the network dropped right as a scene/exam/dialogue finished).
+        void learningService.syncRecords(sessionUser.id);
         return;
       }
       void authService.hydrateFromSupabaseSession(sessionUser);
