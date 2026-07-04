@@ -79,4 +79,5 @@ export const KEYS = {
   deviceId: "deviceId",
   shadowingPattern: "shadowingPattern",
   perfectScoreToggle: "perfectScoreToggle",
+  themeCharacterState: "themeCharacterState",
 } as const;
