@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
+  ArrowRight,
   Award,
   CheckCircle2,
   ChevronDown,
@@ -29,6 +30,7 @@ import { soundService } from "@/services/soundService";
 import { trialAccessService, type AccessState } from "@/services/trialAccessService";
 import { trialUsageService } from "@/services/trialUsageService";
 import { themeCharacterService } from "@/services/themeCharacterService";
+import { THEME_CHARACTERS } from "@/data/themeCharacters";
 import { useUser } from "@/hooks/useUser";
 import BottomNav from "@/components/BottomNav";
 import HorizontalScrollChips from "@/components/HorizontalScrollChips";
@@ -79,11 +81,15 @@ export default function GardenPage() {
   const [previewItem, setPreviewItem] = useState<GardenShopItem | null>(null);
   const [access, setAccess] = useState<AccessState | null>(null);
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(false);
+  const [previewCharacterIndex, setPreviewCharacterIndex] = useState(0);
 
   useEffect(() => {
     const current = learningService.getCurrentLanguage();
     setLanguage(current);
     setGarden(gardenService.getState(current));
+    const currentState = themeCharacterService.getState();
+    const currentIndex = THEME_CHARACTERS.findIndex((c) => c.id === currentState.selectedId);
+    setPreviewCharacterIndex(currentIndex >= 0 ? currentIndex : 0);
     trialAccessService.getAccessState(user, { fresh: true }).then(setAccess).catch(() => setAccess(null));
   }, []);
 
@@ -318,6 +324,9 @@ export default function GardenPage() {
             house={equippedHouse}
             items={equippedItems}
             themeCharacter={selectedThemeCharacter}
+            previewIndex={previewCharacterIndex}
+            onPreviewChange={setPreviewCharacterIndex}
+            canChange={!themeCharacterService.getState().changedOnce}
           />
           <div className="relative mt-4">
             <p className="text-xs font-bold text-inkSoft">小小學伴</p>
@@ -721,12 +730,18 @@ function BuddyFarmStage({
   house,
   items,
   themeCharacter,
+  previewIndex,
+  onPreviewChange,
+  canChange,
 }: {
   outfit?: GardenShopItem;
   accessories: GardenShopItem[];
   house?: GardenShopItem;
   items: GardenShopItem[];
   themeCharacter?: { imageSrc: string };
+  previewIndex: number;
+  onPreviewChange: (index: number) => void;
+  canChange: boolean;
 }) {
   return (
     <div className="relative h-[360px] overflow-hidden rounded-[32px] bg-gradient-to-b from-sky/55 via-[#fff7ea] to-[#dff6df] shadow-softer [perspective:1000px]">
@@ -739,8 +754,51 @@ function BuddyFarmStage({
         <HouseFigure house={house} />
       </div>
 
-      <div className="absolute bottom-10 left-0 z-30 sm:left-4">
-        <BuddyDoll outfit={outfit} accessories={accessories} themeCharacter={themeCharacter} />
+      <button
+        onClick={() => canChange && onPreviewChange((previewIndex - 1 + THEME_CHARACTERS.length) % THEME_CHARACTERS.length)}
+        disabled={!canChange}
+        className="absolute left-2 top-1/2 -translate-y-1/2 z-50 h-8 w-8 rounded-full bg-white/90 shadow-softer flex items-center justify-center text-ink disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        <ArrowRight size={16} className="rotate-180" />
+      </button>
+
+      <div className="absolute bottom-10 left-8 right-8 z-30">
+        {THEME_CHARACTERS.map((character, index) => {
+          const isCurrentPreview = index === previewIndex;
+          if (!isCurrentPreview) return null;
+          
+          return (
+            <BuddyDoll 
+              key={character.id} 
+              outfit={outfit} 
+              accessories={accessories} 
+              themeCharacter={character} 
+            />
+          );
+        })}
+      </div>
+
+      <button
+        onClick={() => canChange && onPreviewChange((previewIndex + 1) % THEME_CHARACTERS.length)}
+        disabled={!canChange}
+        className="absolute right-2 top-1/2 -translate-y-1/2 z-50 h-8 w-8 rounded-full bg-white/90 shadow-softer flex items-center justify-center text-ink disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        <ArrowRight size={16} />
+      </button>
+
+      <div className="absolute bottom-2 left-0 right-0 z-50 flex justify-center gap-1.5">
+        {THEME_CHARACTERS.map((_, index) => (
+          <button
+            key={index}
+            onClick={() => canChange && onPreviewChange(index)}
+            disabled={!canChange}
+            className={`h-1.5 w-1.5 rounded-full transition ${
+              index === previewIndex
+                ? "bg-lilacDeep w-4"
+                : "bg-white/60"
+            } disabled:opacity-40 disabled:cursor-not-allowed`}
+          />
+        ))}
       </div>
 
       <div className="absolute bottom-5 left-3 right-3 z-40 flex min-h-[74px] items-end justify-center gap-2">
