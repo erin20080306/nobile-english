@@ -300,6 +300,8 @@ export default function WordReviewPage() {
   const questionPrompt = current ? wordReviewService.questionPromptFor(current.word, questionKind) : "";
   const questionHint = current ? wordReviewService.questionHintFor(current.word, questionKind) : "";
   const questionZh = current ? wordReviewService.questionZhFor(current.word, questionKind) : "";
+  const contextSentence = current?.word.example?.trim() || "";
+  const contextSentenceZh = current?.word.exampleZh?.trim() || questionZh || current?.word.zh?.trim() || "";
   const choicePool = useMemo(() => session?.words.map((item) => item.word) || [], [session]);
   const choices = useMemo(
     () => current ? wordReviewService.choicesFor(current.word, session?.language || language, current.questionKind, choicePool) : [],
@@ -457,6 +459,21 @@ export default function WordReviewPage() {
                       </p>
                     )}
                     <p className="mt-1 text-inkSoft">{questionHint}</p>
+                    {isWordChoice && (contextSentence || contextSentenceZh) && (
+                      <div className="mt-3 rounded-3xl bg-cream p-3">
+                        <p className="text-xs font-bold text-inkSoft">完整句</p>
+                        {contextSentence && (
+                          <p className="mt-1 text-base font-semibold leading-relaxed text-ink">
+                            {contextSentence}
+                          </p>
+                        )}
+                        {contextSentenceZh && (
+                          <p className="mt-1 text-sm font-bold leading-relaxed text-inkSoft">
+                            {contextSentenceZh}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </>
                 ) : (
                   <>
@@ -495,10 +512,10 @@ export default function WordReviewPage() {
                 )}
                 <p className="text-xs font-bold text-inkSoft">例句</p>
                 <p className="font-semibold text-ink">
-                  {(isWordChoice || isFillQuestion) ? wordReviewService.questionPromptFor(current.word, "wordFill") : current.word.example}
+                  {current.word.example}
                 </p>
-                {(wordReviewService.questionZhFor(current.word, "wordFill") || current.word.zh) && (
-                  <p className="text-sm text-inkSoft">{wordReviewService.questionZhFor(current.word, "wordFill") || current.word.zh}</p>
+                {(current.word.exampleZh || wordReviewService.questionZhFor(current.word, "wordFill") || current.word.zh) && (
+                  <p className="text-sm text-inkSoft">{current.word.exampleZh || wordReviewService.questionZhFor(current.word, "wordFill") || current.word.zh}</p>
                 )}
               </div>
             )}
