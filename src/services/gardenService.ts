@@ -334,6 +334,7 @@ function normalizeState(raw: Partial<GardenState> | undefined, language: Learnin
     },
     harvests: raw?.harvests ?? 0,
     harvestByCrop: raw?.harvestByCrop ?? {},
+    harvestHistory: (raw?.harvestHistory || []).slice(0, 80),
     ownedItemIds,
     equippedHouseId,
     equippedItemIds,
@@ -513,6 +514,17 @@ export const gardenService = {
     const coinGain = crop?.rewardCoins ?? 10;
     addCoins(state, coinGain);
     if (cropId) state.harvestByCrop[cropId] = (state.harvestByCrop[cropId] || 0) + 1;
+    state.harvestHistory = [
+      {
+        id: makeId(),
+        cropId,
+        cropName: crop?.name || "作物",
+        coins: coinGain,
+        plotId,
+        harvestedAt: nowIso(),
+      },
+      ...(state.harvestHistory || []),
+    ].slice(0, 80);
     state.seeds += 1;
     state.water += 1;
     state.xp += 18;

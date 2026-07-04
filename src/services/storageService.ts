@@ -58,6 +58,7 @@ export const KEYS = {
   sceneProgress: "sceneProgress",
   sceneReviewCounter: "sceneReviewCounter",
   gardenStates: "gardenStates",
+  themeCharacterState: "themeCharacterState",
   customScenes: "customScenes",
   lastResult: "lastResult",
   feedbackReports: "feedbackReports",

@@ -8,6 +8,8 @@ import {
   Award,
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Coins,
   Crown,
   Gift,
@@ -23,9 +25,11 @@ import {
 } from "lucide-react";
 import type { GardenLeagueEntry, GardenPlot, GardenShopCategory, GardenShopItem, GardenState, LearningLanguageCode } from "@/types";
 import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
+import { THEME_CHARACTERS, type ThemeCharacter } from "@/data/themeCharacters";
 import { gardenService, GARDEN_CROPS, GARDEN_SHOP_ITEMS } from "@/services/gardenService";
 import { learningService } from "@/services/learningService";
 import { soundService } from "@/services/soundService";
+import { themeCharacterService, type ThemeCharacterState } from "@/services/themeCharacterService";
 import { trialAccessService, type AccessState } from "@/services/trialAccessService";
 import { trialUsageService } from "@/services/trialUsageService";
 import { useUser } from "@/hooks/useUser";
@@ -78,11 +82,19 @@ export default function GardenPage() {
   const [previewItem, setPreviewItem] = useState<GardenShopItem | null>(null);
   const [access, setAccess] = useState<AccessState | null>(null);
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(false);
+  const [themeCharacterState, setThemeCharacterState] = useState<ThemeCharacterState>(() => themeCharacterService.getState());
+  const [previewCharacterIndex, setPreviewCharacterIndex] = useState(() =>
+    themeCharacterService.getCharacterIndex(themeCharacterService.getState().selectedId)
+  );
+  const [characterNotice, setCharacterNotice] = useState("");
 
   useEffect(() => {
     const current = learningService.getCurrentLanguage();
     setLanguage(current);
     setGarden(gardenService.getState(current));
+    const characterState = themeCharacterService.getState();
+    setThemeCharacterState(characterState);
+    setPreviewCharacterIndex(themeCharacterService.getCharacterIndex(characterState.selectedId));
     trialAccessService.getAccessState(user, { fresh: true }).then(setAccess).catch(() => setAccess(null));
   }, []);
 
@@ -105,6 +117,8 @@ export default function GardenPage() {
   const equippedOutfit = gardenService.getShopItem(garden?.equippedOutfitId);
   const equippedItems = (garden?.equippedItemIds || []).map((id) => gardenService.getShopItem(id)).filter(Boolean) as GardenShopItem[];
   const equippedAccessories = (garden?.equippedAccessoryIds || []).map((id) => gardenService.getShopItem(id)).filter(Boolean) as GardenShopItem[];
+  const selectedThemeCharacter = themeCharacterService.getCharacter(themeCharacterState.selectedId);
+  const previewThemeCharacter = THEME_CHARACTERS[previewCharacterIndex] || selectedThemeCharacter;
   const shopByCategory: Record<GardenShopCategory, GardenShopItem[]> = {
     house: GARDEN_SHOP_ITEMS.filter((item) => item.category === "house"),
     item: GARDEN_SHOP_ITEMS.filter((item) => item.category === "item"),
@@ -114,6 +128,32 @@ export default function GardenPage() {
 
   function refresh(nextLanguage = language) {
     setGarden(gardenService.getState(nextLanguage));
+  }
+
+  function cycleThemeCharacter(direction: -1 | 1) {
+    setCharacterNotice("");
+    setPreviewCharacterIndex((prev) => (prev + direction + THEME_CHARACTERS.length) % THEME_CHARACTERS.length);
+  }
+
+  function applyThemeCharacter() {
+    const nextCharacter = THEME_CHARACTERS[previewCharacterIndex] || selectedThemeCharacter;
+    if (nextCharacter.id === themeCharacterState.selectedId) {
+      setCharacterNotice(`目前已使用 ${nextCharacter.name}。`);
+      return;
+    }
+    if (themeCharacterState.changedOnce) {
+      const message = "主題人物只能更換一次。";
+      setCharacterNotice(message);
+      window.alert(message);
+      return;
+    }
+    const confirmed = window.confirm(`主題人物只能更換一次，確定更換為 ${nextCharacter.name} 嗎？`);
+    if (!confirmed) return;
+    const result = themeCharacterService.selectCharacter(nextCharacter.id);
+    setThemeCharacterState(result.state);
+    setPreviewCharacterIndex(themeCharacterService.getCharacterIndex(result.state.selectedId));
+    setCharacterNotice(result.message);
+    if (!result.ok) window.alert(result.message);
   }
 
   function changeLanguage(code: LearningLanguageCode) {
@@ -311,6 +351,7 @@ export default function GardenPage() {
         <div className="relative overflow-hidden rounded-[34px] bg-white p-4 shadow-soft">
           <div className="absolute -right-8 -bottom-8 h-28 w-28 rounded-full bg-mint/60" />
           <BuddyFarmStage
+            character={selectedThemeCharacter}
             outfit={equippedOutfit}
             accessories={equippedAccessories}
             house={equippedHouse}
@@ -320,7 +361,7 @@ export default function GardenPage() {
             <p className="text-xs font-bold text-inkSoft">小小學伴</p>
             <h2 className="text-xl font-extrabold text-ink">我的語言夥伴</h2>
             <p className="mt-1 text-sm leading-relaxed text-inkSoft">
-              目前穿搭：{equippedOutfit?.name || "基本上衣"}
+              主題人物：{selectedThemeCharacter.name}（{selectedThemeCharacter.zhName}）。目前穿搭：{equippedOutfit?.name || "基本上衣"}
               {equippedAccessories.length > 0 ? `，飾品 ${equippedAccessories.map((item) => item.name).join("、")}` : "，尚未配戴飾品"}
             </p>
             <p className="mt-2 text-sm leading-relaxed text-inkSoft">
@@ -331,6 +372,15 @@ export default function GardenPage() {
                 已擺設：{equippedItems.map((item) => `${item.emoji} ${item.name}`).join("、")}
               </p>
             )}
+            <ThemeCharacterSelector
+              preview={previewThemeCharacter}
+              selected={selectedThemeCharacter}
+              changedOnce={themeCharacterState.changedOnce}
+              notice={characterNotice}
+              onPrev={() => cycleThemeCharacter(-1)}
+              onNext={() => cycleThemeCharacter(1)}
+              onApply={applyThemeCharacter}
+            />
           </div>
         </div>
       </div>
@@ -713,11 +763,13 @@ export default function GardenPage() {
 }
 
 function BuddyFarmStage({
+  character,
   outfit,
   accessories,
   house,
   items,
 }: {
+  character: ThemeCharacter;
   outfit?: GardenShopItem;
   accessories: GardenShopItem[];
   house?: GardenShopItem;
@@ -735,7 +787,7 @@ function BuddyFarmStage({
       </div>
 
       <div className="absolute bottom-10 left-0 z-30 sm:left-4">
-        <BuddyDoll outfit={outfit} accessories={accessories} />
+        <BuddyDoll character={character} outfit={outfit} accessories={accessories} />
       </div>
 
       <div className="absolute bottom-5 left-3 right-3 z-40 flex min-h-[74px] items-end justify-center gap-2">
@@ -760,8 +812,18 @@ function BuddyFarmStage({
   );
 }
 
-function BuddyDoll({ outfit, accessories }: { outfit?: GardenShopItem; accessories: GardenShopItem[] }) {
-  const dollImage = outfit?.dollImageSrc || outfit?.imageSrc || "/assets/garden/doll-base.png";
+function BuddyDoll({
+  character,
+  outfit,
+  accessories,
+}: {
+  character: ThemeCharacter;
+  outfit?: GardenShopItem;
+  accessories: GardenShopItem[];
+}) {
+  const dollImage = character.id === "fat-duck"
+    ? outfit?.dollImageSrc || outfit?.imageSrc || character.imageSrc
+    : character.imageSrc;
 
   return (
     <div className="relative h-72 w-52 [perspective:900px]">
@@ -773,7 +835,7 @@ function BuddyDoll({ outfit, accessories }: { outfit?: GardenShopItem; accessori
         <div className="absolute bottom-1 left-1/2 h-8 w-32 -translate-x-1/2 rounded-full bg-ink/20 blur-sm" />
         <img
           src={dollImage}
-          alt={outfit?.name || "小小學伴"}
+          alt={character.name}
           className="relative h-full w-full object-contain drop-shadow-[0_14px_14px_rgba(64,56,79,0.2)]"
         />
         <div className="absolute -right-2 top-5 flex flex-col gap-1.5">
@@ -982,6 +1044,72 @@ function shopCategoryLabel(category: GardenShopCategory) {
     accessory: "小小學伴飾品",
   };
   return labels[category];
+}
+
+function ThemeCharacterSelector({
+  preview,
+  selected,
+  changedOnce,
+  notice,
+  onPrev,
+  onNext,
+  onApply,
+}: {
+  preview: ThemeCharacter;
+  selected: ThemeCharacter;
+  changedOnce: boolean;
+  notice: string;
+  onPrev: () => void;
+  onNext: () => void;
+  onApply: () => void;
+}) {
+  const isSelected = preview.id === selected.id;
+  return (
+    <div className="mt-4 rounded-[26px] bg-cream/80 p-3 shadow-softer">
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={onPrev}
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-ink shadow-softer active:scale-95 transition"
+          aria-label="上一位主題人物"
+        >
+          <ChevronLeft size={21} />
+        </button>
+        <div className="min-w-0 flex-1 text-center">
+          <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-[24px] bg-white shadow-softer">
+            <img src={preview.imageSrc} alt={preview.name} className="max-h-[92px] max-w-[92px] object-contain" />
+          </div>
+          <p className="mt-2 truncate text-base font-black text-ink">{preview.name}</p>
+          <p className="truncate text-xs font-bold text-inkSoft">{preview.zhName}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onNext}
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-ink shadow-softer active:scale-95 transition"
+          aria-label="下一位主題人物"
+        >
+          <ChevronRight size={21} />
+        </button>
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <span className={`rounded-full px-3 py-1 text-[11px] font-extrabold ${changedOnce ? "bg-white text-inkSoft" : "bg-mint text-mintDeep"}`}>
+          {changedOnce ? "已使用更換次數" : "可更換 1 次"}
+        </span>
+        <button
+          type="button"
+          onClick={onApply}
+          className={`rounded-2xl px-4 py-2 text-sm font-extrabold active:scale-95 transition ${
+            isSelected ? "bg-white text-inkSoft" : "bg-lilacDeep text-white shadow-soft"
+          }`}
+        >
+          {isSelected ? "使用中" : "套用角色"}
+        </button>
+      </div>
+      <p className="mt-2 min-h-[18px] text-xs font-bold text-inkSoft">
+        {notice || preview.description}
+      </p>
+    </div>
+  );
 }
 
 function GardenPlotCard({

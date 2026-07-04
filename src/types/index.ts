@@ -285,6 +285,15 @@ export interface GardenActivityLog {
   at: string;
 }
 
+export interface GardenHarvestRecord {
+  id: string;
+  cropId: string;
+  cropName: string;
+  coins: number;
+  plotId: number;
+  harvestedAt: string;
+}
+
 export interface GardenState {
   language: LearningLanguageCode;
   level: number;
@@ -299,6 +308,7 @@ export interface GardenState {
   leagueRewardsClaimed: Partial<Record<"daily" | "monthly", string>>;
   harvests: number;
   harvestByCrop: Partial<Record<string, number>>;
+  harvestHistory: GardenHarvestRecord[];
   ownedItemIds: string[];
   equippedHouseId: string;
   equippedItemIds: string[];

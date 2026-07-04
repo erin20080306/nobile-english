@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { themeCharacterService } from "@/services/themeCharacterService";
 
 // Uses the bundled transparent fallback asset so the app never requests a
 // missing image during local preview or production.
@@ -8,14 +9,33 @@ export default function CheerImage({
   size = 140,
   className = "",
   alt = "加油！Mobile Language 鼓勵角色",
-  src: imageSrc = "/assets/cheer-fallback.svg",
+  src: imageSrc,
 }: {
   size?: number;
   className?: string;
   alt?: string;
   src?: string;
 }) {
-  const [src, setSrc] = useState(imageSrc);
+  const fallbackSrc = "/assets/cheer-fallback.svg";
+  const [src, setSrc] = useState(imageSrc || "/assets/garden/doll-base.png");
+
+  useEffect(() => {
+    if (imageSrc) {
+      setSrc(imageSrc);
+      return undefined;
+    }
+    const syncSelectedCharacter = () => {
+      setSrc(themeCharacterService.getSelectedCharacter().imageSrc);
+    };
+    syncSelectedCharacter();
+    window.addEventListener("theme-character-change", syncSelectedCharacter);
+    window.addEventListener("storage", syncSelectedCharacter);
+    return () => {
+      window.removeEventListener("theme-character-change", syncSelectedCharacter);
+      window.removeEventListener("storage", syncSelectedCharacter);
+    };
+  }, [imageSrc]);
+
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
@@ -24,7 +44,7 @@ export default function CheerImage({
       width={size}
       height={size}
       onError={() => {
-        if (src !== "/assets/cheer-fallback.svg") setSrc("/assets/cheer-fallback.svg");
+        if (src !== fallbackSrc) setSrc(fallbackSrc);
       }}
       style={{ width: size, height: "auto", objectFit: "contain", background: "transparent" }}
       className={`drop-shadow-sm ${className}`}
