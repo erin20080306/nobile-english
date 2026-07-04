@@ -276,6 +276,10 @@ export default function SettingsPage() {
                         src={character.imageSrc}
                         alt={character.zhName}
                         className="h-32 w-32 object-contain"
+                        onError={(e) => {
+                          console.error('Image load error:', character.imageSrc, e);
+                          (e.target as HTMLImageElement).src = '/assets/garden/doll-base.png';
+                        }}
                       />
                     </div>
                     <p className="text-lg font-extrabold">{character.zhName}</p>
