@@ -34,6 +34,7 @@ export default function SettingsPage() {
   const [accessState, setAccessState] = useState<AccessState | null>(null);
   const [gardenState, setGardenState] = useState<GardenState | null>(null);
   const [themeCharacterState, setThemeCharacterState] = useState<ThemeCharacterState | null>(null);
+  const [previewCharacterIndex, setPreviewCharacterIndex] = useState(0);
 
   useEffect(() => {
     if (!user) return;
@@ -44,6 +45,9 @@ export default function SettingsPage() {
     setAccountUser(user);
     setGardenState(gardenService.getState(userSettings.targetLanguage || "en"));
     setThemeCharacterState(themeCharacterService.getState());
+    const currentState = themeCharacterService.getState();
+    const currentIndex = THEME_CHARACTERS.findIndex((c) => c.id === currentState.selectedId);
+    setPreviewCharacterIndex(currentIndex >= 0 ? currentIndex : 0);
     trialAccessService
       .getAccessState(user, { fresh: true })
       .then((state) => {
@@ -235,45 +239,102 @@ export default function SettingsPage() {
         <div className="card space-y-3">
           <p className="font-bold text-ink flex items-center gap-2"><Sparkles size={18} className="text-lilacDeep" /> 主題人物</p>
           <p className="text-xs text-inkSoft">選擇你的主題人物，陪伴你學習語言。主題人物只能更換一次。</p>
-          <div className="grid grid-cols-1 gap-2">
-            {THEME_CHARACTERS.map((character) => {
-              const selected = themeCharacterState?.selectedId === character.id;
-              const canChange = !themeCharacterState?.changedOnce;
-              return (
-                <button
-                  key={character.id}
-                  onClick={() => {
-                    if (!canChange && selected) return;
-                    const result = themeCharacterService.selectCharacter(character.id);
-                    if (result.ok) {
-                      setThemeCharacterState(result.state);
-                    } else {
-                      alert(result.message);
-                    }
-                  }}
-                  disabled={!canChange && !selected}
-                  className={`rounded-2xl p-3 text-left shadow-softer transition active:scale-95 ${
-                    selected
-                      ? "bg-lilacDeep text-white"
-                      : canChange
-                      ? "bg-cream text-ink"
-                      : "bg-cream/60 text-inkSoft"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-3xl">{character.id === "fat-duck" ? "🦆" : character.id === "sister-piggy" ? "🐷" : "🦆"}</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-extrabold leading-tight">{character.zhName}</p>
-                      <p className="text-xs opacity-75">{character.description}</p>
+          
+          <div className="relative">
+            <button
+              onClick={() => {
+                if (themeCharacterState?.changedOnce) return;
+                setPreviewCharacterIndex((prev) => (prev - 1 + THEME_CHARACTERS.length) % THEME_CHARACTERS.length);
+              }}
+              disabled={themeCharacterState?.changedOnce}
+              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-white shadow-softer flex items-center justify-center text-ink disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <ArrowRight size={18} className="rotate-180" />
+            </button>
+            
+            <div className="mx-12">
+              {THEME_CHARACTERS.map((character, index) => {
+                const selected = themeCharacterState?.selectedId === character.id;
+                const canChange = !themeCharacterState?.changedOnce;
+                const isCurrentPreview = index === previewCharacterIndex;
+                
+                if (!isCurrentPreview) return null;
+                
+                return (
+                  <div
+                    key={character.id}
+                    className={`rounded-2xl p-4 text-center shadow-softer transition ${
+                      selected
+                        ? "bg-lilacDeep text-white"
+                        : canChange
+                        ? "bg-cream text-ink"
+                        : "bg-cream/60 text-inkSoft"
+                    }`}
+                  >
+                    <div className="mb-3 flex justify-center">
+                      <img
+                        src={character.imageSrc}
+                        alt={character.zhName}
+                        className="h-32 w-32 object-contain"
+                      />
                     </div>
-                    {selected && <span className="text-xs font-bold">使用中</span>}
+                    <p className="text-lg font-extrabold">{character.zhName}</p>
+                    <p className="text-sm opacity-75 mt-1">{character.description}</p>
+                    {selected && (
+                      <p className="mt-2 text-sm font-bold">使用中</p>
+                    )}
+                    {canChange && !selected && (
+                      <button
+                        onClick={() => {
+                          const result = themeCharacterService.selectCharacter(character.id);
+                          if (result.ok) {
+                            setThemeCharacterState(result.state);
+                          } else {
+                            alert(result.message);
+                          }
+                        }}
+                        className="mt-3 w-full rounded-xl bg-white/20 py-2 text-sm font-extrabold active:scale-95 transition"
+                      >
+                        選擇此人物
+                      </button>
+                    )}
                   </div>
-                </button>
-              );
-            })}
+                );
+              })}
+            </div>
+            
+            <button
+              onClick={() => {
+                if (themeCharacterState?.changedOnce) return;
+                setPreviewCharacterIndex((prev) => (prev + 1) % THEME_CHARACTERS.length);
+              }}
+              disabled={themeCharacterState?.changedOnce}
+              className="absolute right-0 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-white shadow-softer flex items-center justify-center text-ink disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <ArrowRight size={18} />
+            </button>
           </div>
+          
+          <div className="flex justify-center gap-2">
+            {THEME_CHARACTERS.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => {
+                  if (themeCharacterState?.changedOnce) return;
+                  setPreviewCharacterIndex(index);
+                }}
+                disabled={themeCharacterState?.changedOnce}
+                className={`h-2 w-2 rounded-full transition ${
+                  index === previewCharacterIndex
+                    ? "bg-lilacDeep w-6"
+                    : "bg-cream"
+                } disabled:opacity-40 disabled:cursor-not-allowed`}
+              />
+            ))}
+          </div>
+          
           {themeCharacterState?.changedOnce && (
-            <p className="text-xs text-inkSoft leading-relaxed">
+            <p className="text-xs text-inkSoft leading-relaxed text-center">
               主題人物已更換過，無法再次更換。
             </p>
           )}
