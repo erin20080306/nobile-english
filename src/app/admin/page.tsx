@@ -7,7 +7,7 @@ import {
   BookOpen, Zap, CheckCircle, AlertCircle, Clock,
   RefreshCw, Globe, Users, ArrowLeft, Settings,
   Database, Volume2, Send, ChevronRight, KeyRound, ExternalLink,
-  Cpu, BarChart3,
+  Cpu, BarChart3, Cloud,
 } from "lucide-react";
 import { LEARNING_LANGUAGES } from "@/data/learningLanguages";
 import { useUser } from "@/hooks/useUser";
@@ -61,6 +61,12 @@ interface AdminSubscriptionStats {
     storeOrProfile: number;
     paypal: number;
   };
+  cloudSync?: {
+    users: number;
+    dataRows: number;
+    learningRecords: number;
+    latestUpdatedAt: string | null;
+  };
 }
 
 function apiRequestUrl(path: string): string {
@@ -87,6 +93,18 @@ async function readApiJson<T = Record<string, unknown>>(response: Response): Pro
       error: `伺服器回傳格式異常（HTTP ${response.status}）。可能是請求逾時，請再按一次或查看 Vercel Logs。`,
     } as T & { error?: string };
   }
+}
+
+function formatAdminDate(value?: string | null): string {
+  if (!value) return "尚無";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "尚無";
+  return date.toLocaleString("zh-TW", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export default function AdminPage() {
@@ -516,32 +534,58 @@ export default function AdminPage() {
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-lilacDeep" />
             </div>
           ) : subscriptionStats ? (
-            <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-xl bg-lilacLight px-3 py-2">
-                <p className="text-xs font-bold text-lilacDeep">登入 App 使用者</p>
-                <p className="text-2xl font-extrabold text-ink">{subscriptionStats.appUsers.total}</p>
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-xl bg-lilacLight px-3 py-2">
+                  <p className="text-xs font-bold text-lilacDeep">登入 App 使用者</p>
+                  <p className="text-2xl font-extrabold text-ink">{subscriptionStats.appUsers.total}</p>
+                </div>
+                <div className="rounded-xl bg-mintLight px-3 py-2">
+                  <p className="text-xs font-bold text-mintDeep">訂閱人數</p>
+                  <p className="text-2xl font-extrabold text-ink">{subscriptionStats.subscribers.total}</p>
+                </div>
+                <div className="rounded-xl bg-sand px-3 py-2">
+                  <p className="text-xs font-bold text-inkSoft">今日活躍</p>
+                  <p className="text-lg font-extrabold text-ink">{subscriptionStats.appUsers.activeToday}</p>
+                </div>
+                <div className="rounded-xl bg-sand px-3 py-2">
+                  <p className="text-xs font-bold text-inkSoft">30 天活躍</p>
+                  <p className="text-lg font-extrabold text-ink">{subscriptionStats.appUsers.activeThirtyDays}</p>
+                </div>
+                <div className="rounded-xl bg-sand px-3 py-2">
+                  <p className="text-xs font-bold text-inkSoft">PayPal 訂閱</p>
+                  <p className="text-lg font-extrabold text-ink">{subscriptionStats.subscribers.paypal}</p>
+                </div>
+                <div className="rounded-xl bg-sand px-3 py-2">
+                  <p className="text-xs font-bold text-inkSoft">商店/Profile</p>
+                  <p className="text-lg font-extrabold text-ink">{subscriptionStats.subscribers.storeOrProfile}</p>
+                </div>
               </div>
-              <div className="rounded-xl bg-mintLight px-3 py-2">
-                <p className="text-xs font-bold text-mintDeep">訂閱人數</p>
-                <p className="text-2xl font-extrabold text-ink">{subscriptionStats.subscribers.total}</p>
-              </div>
-              <div className="rounded-xl bg-sand px-3 py-2">
-                <p className="text-xs font-bold text-inkSoft">今日活躍</p>
-                <p className="text-lg font-extrabold text-ink">{subscriptionStats.appUsers.activeToday}</p>
-              </div>
-              <div className="rounded-xl bg-sand px-3 py-2">
-                <p className="text-xs font-bold text-inkSoft">30 天活躍</p>
-                <p className="text-lg font-extrabold text-ink">{subscriptionStats.appUsers.activeThirtyDays}</p>
-              </div>
-              <div className="rounded-xl bg-sand px-3 py-2">
-                <p className="text-xs font-bold text-inkSoft">PayPal 訂閱</p>
-                <p className="text-lg font-extrabold text-ink">{subscriptionStats.subscribers.paypal}</p>
-              </div>
-              <div className="rounded-xl bg-sand px-3 py-2">
-                <p className="text-xs font-bold text-inkSoft">商店/Profile</p>
-                <p className="text-lg font-extrabold text-ink">{subscriptionStats.subscribers.storeOrProfile}</p>
-              </div>
-            </div>
+              {subscriptionStats.cloudSync && (
+                <div className="mt-3 rounded-xl bg-cream px-3 py-3">
+                  <p className="mb-2 flex items-center gap-1.5 text-xs font-extrabold text-ink">
+                    <Cloud size={14} className="text-lilacDeep" /> 帳號雲端同步
+                  </p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-xl bg-white px-2 py-2">
+                      <p className="text-[10px] font-bold text-inkSoft">同步帳號</p>
+                      <p className="text-lg font-extrabold text-ink">{subscriptionStats.cloudSync.users}</p>
+                    </div>
+                    <div className="rounded-xl bg-white px-2 py-2">
+                      <p className="text-[10px] font-bold text-inkSoft">App 資料列</p>
+                      <p className="text-lg font-extrabold text-ink">{subscriptionStats.cloudSync.dataRows}</p>
+                    </div>
+                    <div className="rounded-xl bg-white px-2 py-2">
+                      <p className="text-[10px] font-bold text-inkSoft">學習紀錄</p>
+                      <p className="text-lg font-extrabold text-ink">{subscriptionStats.cloudSync.learningRecords}</p>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-xs font-bold text-inkSoft">
+                    最近同步：{formatAdminDate(subscriptionStats.cloudSync.latestUpdatedAt)}
+                  </p>
+                </div>
+              )}
+            </>
           ) : (
             <p className="text-sm font-bold text-peachDeep">無法讀取統計資料，請確認 Supabase migration 已執行。</p>
           )}

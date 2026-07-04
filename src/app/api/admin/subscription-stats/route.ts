@@ -17,7 +17,17 @@ export async function GET() {
     const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-    const [totalUsers, activeToday, activeThirtyDays, profileSubscribers, paypalSubscribers] =
+    const [
+      totalUsers,
+      activeToday,
+      activeThirtyDays,
+      profileSubscribers,
+      paypalSubscribers,
+      cloudSyncRows,
+      cloudSyncUsers,
+      latestCloudSync,
+      learningRecordRows,
+    ] =
       await Promise.all([
       supabase.from("app_user_sessions").select("user_id", { count: "exact", head: true }),
       supabase
@@ -39,6 +49,15 @@ export async function GET() {
         .select("id, user_id, user_email, payer_email")
         .eq("status", "active")
         .gt("expires_at", now),
+      supabase.from("user_app_data").select("user_id", { count: "exact", head: true }),
+      supabase.from("user_app_data").select("user_id").limit(10000),
+      supabase
+        .from("user_app_data")
+        .select("updated_at")
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase.from("learning_records").select("id", { count: "exact", head: true }),
     ]);
 
     const errors = [
@@ -47,6 +66,10 @@ export async function GET() {
       activeThirtyDays.error,
       profileSubscribers.error,
       paypalSubscribers.error,
+      cloudSyncRows.error,
+      cloudSyncUsers.error,
+      latestCloudSync.error,
+      learningRecordRows.error,
     ].filter(Boolean);
     if (errors.length) throw errors[0];
 
@@ -58,6 +81,11 @@ export async function GET() {
         .map((row) => String(row.user_id || row.user_email || row.payer_email || row.id || "").toLowerCase())
         .filter(Boolean)
     );
+    const cloudSyncUserKeys = new Set<string>();
+    (cloudSyncUsers.data || []).forEach((row) => {
+      const userId = String(row.user_id || "").trim();
+      if (userId) cloudSyncUserKeys.add(userId);
+    });
 
     return NextResponse.json({
       appUsers: {
@@ -69,6 +97,12 @@ export async function GET() {
         total: storeSubscriberKeys.size + paypalSubscriberKeys.size,
         storeOrProfile: storeSubscriberKeys.size,
         paypal: paypalSubscriberKeys.size,
+      },
+      cloudSync: {
+        users: cloudSyncUserKeys.size,
+        dataRows: cloudSyncRows.count ?? 0,
+        learningRecords: learningRecordRows.count ?? 0,
+        latestUpdatedAt: latestCloudSync.data?.updated_at ?? null,
       },
     });
   } catch (error) {

@@ -24,3 +24,7 @@ create policy "Users manage their own app data"
   with check (auth.uid() = user_id);
 
 create index if not exists user_app_data_user_id_idx on user_app_data (user_id);
+create index if not exists user_app_data_updated_at_idx on user_app_data (updated_at desc);
+
+grant select, insert, update, delete on user_app_data to authenticated;
+grant all on user_app_data to service_role;
