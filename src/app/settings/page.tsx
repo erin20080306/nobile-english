@@ -12,6 +12,7 @@ import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguage
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import TutorSelector from "@/components/TutorSelector";
+import { gardenService, GARDEN_SHOP_ITEMS } from "@/services/gardenService";
 import { Toggle, LevelBadge } from "@/components/ui";
 
 const LEVEL_OPTIONS: Array<{ level: EnglishLevel; cefr: CEFRLevel; label: string; description: string }> = [
@@ -29,13 +30,16 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState<Partial<OnboardingProfile>>({});
   const [accountUser, setAccountUser] = useState<User | null>(null);
   const [accessState, setAccessState] = useState<AccessState | null>(null);
+  const [gardenState, setGardenState] = useState(gardenService.getState("en"));
 
   useEffect(() => {
     if (!user) return;
     let active = true;
-    setSettings(learningService.getSettings(user.id));
+    const userSettings = learningService.getSettings(user.id);
+    setSettings(userSettings);
     setProfile(learningService.getProfile());
     setAccountUser(user);
+    setGardenState(gardenService.getState(userSettings.targetLanguage || "en"));
     trialAccessService
       .getAccessState(user, { fresh: true })
       .then((state) => {
@@ -112,6 +116,13 @@ export default function SettingsPage() {
   function logout() {
     authService.logout();
     router.replace("/login");
+  }
+
+  function equipOutfit(outfitId: string) {
+    if (!settings) return;
+    const language = settings.targetLanguage;
+    const newState = gardenService.equipItem(language, outfitId);
+    setGardenState(newState);
   }
 
   return (
@@ -206,6 +217,42 @@ export default function SettingsPage() {
           <p className="font-bold text-ink flex items-center gap-2"><GraduationCap size={18} className="text-lilacDeep" /> AI 導師</p>
           <p className="text-xs text-inkSoft">為「{currentLanguage.flag} {currentLanguage.zhName}」選擇男生或女生導師，對話與情境練習都會使用這位導師的聲音。</p>
           <TutorSelector targetLanguage={settings.targetLanguage} />
+        </div>
+
+        <div className="card space-y-3">
+          <p className="font-bold text-ink flex items-center gap-2"><GraduationCap size={18} className="text-lilacDeep" /> 公仔主題人物</p>
+          <p className="text-xs text-inkSoft">選擇你的小小學伴穿搭，更換後會在語言小農場中顯示。</p>
+          <div className="grid grid-cols-2 gap-2">
+            {GARDEN_SHOP_ITEMS.filter((item) => item.category === "outfit").map((outfit) => {
+              const owned = gardenState?.ownedItemIds.includes(outfit.id);
+              const equipped = gardenState?.equippedOutfitId === outfit.id;
+              return (
+                <button
+                  key={outfit.id}
+                  onClick={() => owned && equipOutfit(outfit.id)}
+                  disabled={!owned}
+                  className={`rounded-2xl p-3 text-left shadow-softer transition active:scale-95 ${
+                    equipped
+                      ? "bg-mint text-mintDeep"
+                      : owned
+                      ? "bg-cream text-ink"
+                      : "bg-cream/60 text-inkSoft"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">{outfit.emoji}</span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-extrabold leading-tight">{outfit.name}</p>
+                      <p className="text-[10px] text-inkSoft">{equipped ? "使用中" : owned ? "點擊更換" : "尚未擁有"}</p>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-xs text-inkSoft leading-relaxed">
+            新穿搭可在「語言小農場」的金幣商店購買。目前語言：{currentLanguage.flag} {currentLanguage.zhName}
+          </p>
         </div>
 
         <div className="card space-y-4">
