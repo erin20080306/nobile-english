@@ -52,17 +52,18 @@ function writeAscii(view: DataView, offset: number, text: string) {
 function answerTonePlan(correct: boolean): AnswerTone[] {
   return correct
     ? [
-        // "登登登登" idol-entrance fanfare: four punchy same-pitch stabs
-        // (fast attack, fast decay) building anticipation, then a quick
-        // ascending flourish into a bright sustained victory ring.
-        { frequency: 587.33, duration: 0.1, decayRate: 15 }, // D5 登
-        { frequency: 587.33, duration: 0.1, decayRate: 15 }, // D5 登
-        { frequency: 587.33, duration: 0.1, decayRate: 15 }, // D5 登
-        { frequency: 587.33, duration: 0.16, decayRate: 11, accent: 1.1 }, // D5 登 (anchor)
-        { frequency: 1046.5, duration: 0.08, decayRate: 9 }, // C6 climb
-        { frequency: 1318.5, duration: 0.08, decayRate: 9 }, // E6
-        { frequency: 1568.0, duration: 0.08, decayRate: 9 }, // G6
-        { frequency: 2093.0, duration: 0.46, decayRate: 3.2, accent: 1.15 }, // C7 big reveal ring
+        // Lottery-style prize fanfare: playful stepping notes, a quick
+        // sparkle run, then a longer bright ring so it feels celebratory
+        // instead of a single short ding.
+        { frequency: 523.25, duration: 0.1, decayRate: 10 }, // C5
+        { frequency: 659.25, duration: 0.1, decayRate: 10 }, // E5
+        { frequency: 783.99, duration: 0.12, decayRate: 9.5 }, // G5
+        { frequency: 1046.5, duration: 0.18, decayRate: 7.5, accent: 1.1 }, // C6
+        { frequency: 880.0, duration: 0.08, decayRate: 9 }, // A5 sparkle
+        { frequency: 1046.5, duration: 0.08, decayRate: 8.5 }, // C6
+        { frequency: 1318.51, duration: 0.1, decayRate: 7.5 }, // E6
+        { frequency: 1567.98, duration: 0.12, decayRate: 6.5, accent: 1.08 }, // G6
+        { frequency: 2093.0, duration: 0.62, decayRate: 2.7, accent: 1.18 }, // C7 victory ring
       ]
     : [
         { frequency: 349.23, duration: 0.16 },
@@ -102,7 +103,7 @@ function makeAnswerSoundUrl(correct: boolean) {
   if (answerSoundUrls[key]) return answerSoundUrls[key] || "";
 
   const tones = answerTonePlan(correct);
-  const sampleRate = 16000;
+  const sampleRate = 22050;
   const duration = tones.reduce((sum, tone) => sum + tone.duration, 0);
   const sampleCount = Math.floor(sampleRate * duration);
   const dataBytes = sampleCount * 2;

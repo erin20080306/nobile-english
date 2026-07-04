@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { BookOpen, Play, Pause, SkipBack, SkipForward, Volume2, Bookmark, CheckCircle, ArrowLeft } from "lucide-react";
+import { BookOpen, Play, Pause, SkipBack, SkipForward, Volume2, Bookmark, CheckCircle, ArrowLeft, X } from "lucide-react";
 import type { LearningLanguageCode } from "@/types";
 import { LEARNING_LANGUAGES, getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
 import { audioQueueService } from "@/services/audioQueueService";
@@ -99,6 +99,7 @@ export default function DailyReadingPage() {
   const [access, setAccess] = useState<AccessState | null>(null);
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(false);
   const [audioError, setAudioError] = useState("");
+  const [showReadingGuide, setShowReadingGuide] = useState(true);
 
   const blobUrlsRef = useRef<string[]>([]);
   const speechFallbackSessionRef = useRef(0);
@@ -180,6 +181,7 @@ export default function DailyReadingPage() {
       setCompleted(false);
       setQuizAnswers({});
       setQuizSubmitted(false);
+      setShowReadingGuide(true);
     }
   }
 
@@ -814,6 +816,58 @@ export default function DailyReadingPage() {
       </div>
 
       {/* Word Sheet */}
+      {showReadingGuide && (
+        <div className="fixed inset-0 z-40 flex items-end justify-center bg-ink/45 px-4 pb-5 backdrop-blur-sm sm:items-center sm:pb-0">
+          <motion.div
+            initial={{ opacity: 0, y: 24, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            className="w-full max-w-md rounded-[32px] bg-white p-5 shadow-soft"
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-lilacLight text-lilacDeep">
+                <BookOpen size={24} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-black text-lilacDeep">每日閱讀小提醒</p>
+                <h2 className="mt-1 text-xl font-black text-ink">先聽文章，再完成小測驗</h2>
+                <p className="mt-2 text-sm font-semibold leading-relaxed text-inkSoft">
+                  播放完整篇文章後，下方會出現閱讀小測驗。閱讀時也可以點句子中的單字，直接查看中文解釋與發音。
+                </p>
+              </div>
+              <button
+                onClick={() => setShowReadingGuide(false)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-cream text-inkSoft transition active:scale-95"
+                aria-label="關閉閱讀提醒"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-2">
+              <div className="flex items-center gap-3 rounded-2xl bg-cream px-3 py-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-lilacDeep text-white">
+                  <Play size={16} fill="currentColor" />
+                </span>
+                <p className="text-sm font-bold text-ink">按播放後跟著文章一句一句聽</p>
+              </div>
+              <div className="flex items-center gap-3 rounded-2xl bg-cream px-3 py-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-mintDeep text-white">
+                  <CheckCircle size={16} />
+                </span>
+                <p className="text-sm font-bold text-ink">完成後會開啟閱讀小測驗</p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowReadingGuide(false)}
+              className="mt-4 w-full rounded-3xl bg-lilacDeep py-3 font-black text-white shadow-softer transition active:scale-[0.98]"
+            >
+              開始閱讀
+            </button>
+          </motion.div>
+        </div>
+      )}
+
       {selectedWord && (
         <WordSheet
           word={selectedWord.word}
