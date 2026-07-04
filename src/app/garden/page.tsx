@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import type { GardenLeagueEntry, GardenPlot, GardenShopCategory, GardenShopItem, GardenState, LearningLanguageCode } from "@/types";
+import type { ThemeCharacterId } from "@/data/themeCharacters";
 import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
 import { gardenService, GARDEN_CROPS, GARDEN_SHOP_ITEMS } from "@/services/gardenService";
 import { learningService } from "@/services/learningService";
@@ -82,6 +83,7 @@ export default function GardenPage() {
   const [access, setAccess] = useState<AccessState | null>(null);
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(false);
   const [previewCharacterIndex, setPreviewCharacterIndex] = useState(0);
+  const [themeCharacterState, setThemeCharacterState] = useState(themeCharacterService.getState());
 
   useEffect(() => {
     const current = learningService.getCurrentLanguage();
@@ -327,6 +329,14 @@ export default function GardenPage() {
             previewIndex={previewCharacterIndex}
             onPreviewChange={setPreviewCharacterIndex}
             canChange={!themeCharacterService.getState().changedOnce}
+            onCharacterSelect={(characterId) => {
+              const result = themeCharacterService.selectCharacter(characterId as ThemeCharacterId);
+              if (result.ok) {
+                setThemeCharacterState(result.state);
+              } else {
+                alert(result.message);
+              }
+            }}
           />
           <div className="relative mt-4">
             <p className="text-xs font-bold text-inkSoft">小小學伴</p>
@@ -733,6 +743,7 @@ function BuddyFarmStage({
   previewIndex,
   onPreviewChange,
   canChange,
+  onCharacterSelect,
 }: {
   outfit?: GardenShopItem;
   accessories: GardenShopItem[];
@@ -742,6 +753,7 @@ function BuddyFarmStage({
   previewIndex: number;
   onPreviewChange: (index: number) => void;
   canChange: boolean;
+  onCharacterSelect: (characterId: string) => void;
 }) {
   return (
     <div className="relative h-[360px] overflow-hidden rounded-[32px] bg-gradient-to-b from-sky/55 via-[#fff7ea] to-[#dff6df] shadow-softer [perspective:1000px]">
@@ -786,19 +798,29 @@ function BuddyFarmStage({
         <ArrowRight size={16} />
       </button>
 
-      <div className="absolute bottom-2 left-0 right-0 z-50 flex justify-center gap-1.5">
-        {THEME_CHARACTERS.map((_, index) => (
+      <div className="absolute bottom-2 left-0 right-0 z-50 flex flex-col items-center gap-2">
+        {canChange && (
           <button
-            key={index}
-            onClick={() => canChange && onPreviewChange(index)}
-            disabled={!canChange}
-            className={`h-1.5 w-1.5 rounded-full transition ${
-              index === previewIndex
-                ? "bg-lilacDeep w-4"
-                : "bg-white/60"
-            } disabled:opacity-40 disabled:cursor-not-allowed`}
-          />
-        ))}
+            onClick={() => onCharacterSelect(THEME_CHARACTERS[previewIndex].id)}
+            className="rounded-full bg-lilacDeep text-white px-4 py-1.5 text-xs font-extrabold shadow-softer active:scale-95 transition"
+          >
+            選擇此人物
+          </button>
+        )}
+        <div className="flex justify-center gap-1.5">
+          {THEME_CHARACTERS.map((_, index) => (
+            <button
+              key={index}
+              onClick={() => canChange && onPreviewChange(index)}
+              disabled={!canChange}
+              className={`h-1.5 w-1.5 rounded-full transition ${
+                index === previewIndex
+                  ? "bg-lilacDeep w-4"
+                  : "bg-white/60"
+              } disabled:opacity-40 disabled:cursor-not-allowed`}
+            />
+          ))}
+        </div>
       </div>
 
       <div className="absolute bottom-5 left-3 right-3 z-40 flex min-h-[74px] items-end justify-center gap-2">
