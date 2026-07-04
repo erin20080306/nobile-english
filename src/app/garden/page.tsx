@@ -28,6 +28,7 @@ import { learningService } from "@/services/learningService";
 import { soundService } from "@/services/soundService";
 import { trialAccessService, type AccessState } from "@/services/trialAccessService";
 import { trialUsageService } from "@/services/trialUsageService";
+import { themeCharacterService } from "@/services/themeCharacterService";
 import { useUser } from "@/hooks/useUser";
 import BottomNav from "@/components/BottomNav";
 import HorizontalScrollChips from "@/components/HorizontalScrollChips";
@@ -105,6 +106,7 @@ export default function GardenPage() {
   const equippedOutfit = gardenService.getShopItem(garden?.equippedOutfitId);
   const equippedItems = (garden?.equippedItemIds || []).map((id) => gardenService.getShopItem(id)).filter(Boolean) as GardenShopItem[];
   const equippedAccessories = (garden?.equippedAccessoryIds || []).map((id) => gardenService.getShopItem(id)).filter(Boolean) as GardenShopItem[];
+  const selectedThemeCharacter = themeCharacterService.getSelectedCharacter();
   const shopByCategory: Record<GardenShopCategory, GardenShopItem[]> = {
     house: GARDEN_SHOP_ITEMS.filter((item) => item.category === "house"),
     item: GARDEN_SHOP_ITEMS.filter((item) => item.category === "item"),
@@ -315,6 +317,7 @@ export default function GardenPage() {
             accessories={equippedAccessories}
             house={equippedHouse}
             items={equippedItems}
+            themeCharacter={selectedThemeCharacter}
           />
           <div className="relative mt-4">
             <p className="text-xs font-bold text-inkSoft">小小學伴</p>
@@ -717,11 +720,13 @@ function BuddyFarmStage({
   accessories,
   house,
   items,
+  themeCharacter,
 }: {
   outfit?: GardenShopItem;
   accessories: GardenShopItem[];
   house?: GardenShopItem;
   items: GardenShopItem[];
+  themeCharacter?: { imageSrc: string };
 }) {
   return (
     <div className="relative h-[360px] overflow-hidden rounded-[32px] bg-gradient-to-b from-sky/55 via-[#fff7ea] to-[#dff6df] shadow-softer [perspective:1000px]">
@@ -735,7 +740,7 @@ function BuddyFarmStage({
       </div>
 
       <div className="absolute bottom-10 left-0 z-30 sm:left-4">
-        <BuddyDoll outfit={outfit} accessories={accessories} />
+        <BuddyDoll outfit={outfit} accessories={accessories} themeCharacter={themeCharacter} />
       </div>
 
       <div className="absolute bottom-5 left-3 right-3 z-40 flex min-h-[74px] items-end justify-center gap-2">
@@ -760,8 +765,8 @@ function BuddyFarmStage({
   );
 }
 
-function BuddyDoll({ outfit, accessories }: { outfit?: GardenShopItem; accessories: GardenShopItem[] }) {
-  const dollImage = outfit?.dollImageSrc || outfit?.imageSrc || "/assets/garden/doll-base.png";
+function BuddyDoll({ outfit, accessories, themeCharacter }: { outfit?: GardenShopItem; accessories: GardenShopItem[]; themeCharacter?: { imageSrc: string } }) {
+  const dollImage = outfit?.dollImageSrc || outfit?.imageSrc || themeCharacter?.imageSrc || "/assets/garden/doll-base.png";
 
   return (
     <div className="relative h-72 w-52 [perspective:900px]">
