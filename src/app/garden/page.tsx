@@ -115,6 +115,7 @@ export default function GardenPage() {
   const equippedItems = (garden?.equippedItemIds || []).map((id) => gardenService.getShopItem(id)).filter(Boolean) as GardenShopItem[];
   const equippedAccessories = (garden?.equippedAccessoryIds || []).map((id) => gardenService.getShopItem(id)).filter(Boolean) as GardenShopItem[];
   const selectedThemeCharacter = themeCharacterService.getSelectedCharacter();
+  const previewThemeCharacter = THEME_CHARACTERS[previewCharacterIndex] || selectedThemeCharacter;
   const shopByCategory: Record<GardenShopCategory, GardenShopItem[]> = {
     house: GARDEN_SHOP_ITEMS.filter((item) => item.category === "house"),
     item: GARDEN_SHOP_ITEMS.filter((item) => item.category === "item"),
@@ -341,6 +342,9 @@ export default function GardenPage() {
           <div className="relative mt-4">
             <p className="text-xs font-bold text-inkSoft">小小學伴</p>
             <h2 className="text-xl font-extrabold text-ink">我的語言夥伴</h2>
+            <p className="mt-1 text-sm font-extrabold text-lilacDeep">
+              公仔名稱：{previewThemeCharacter.zhName}（{previewThemeCharacter.name}）
+            </p>
             <p className="mt-1 text-sm leading-relaxed text-inkSoft">
               目前穿搭：{equippedOutfit?.name || "基本上衣"}
               {equippedAccessories.length > 0 ? `，飾品 ${equippedAccessories.map((item) => item.name).join("、")}` : "，尚未配戴飾品"}
