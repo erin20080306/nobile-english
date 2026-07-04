@@ -242,13 +242,7 @@ export const authService = {
     storageService.set(KEYS.users, [...others, user], { skipSync: true });
     storageService.set(KEYS.session, uid, { skipSync: true });
 
-    if (!cloudProfile) {
-      await cloudSyncService.pushProfile(uid, user);
-      await cloudSyncService.pushAll(uid);
-    } else {
-      // Ensure cloud profile is pushed to keep it up to date
-      await cloudSyncService.pushProfile(uid, user);
-    }
+    await cloudSyncService.pushProfile(uid, user);
 
     // After pulling cloud data, check if user has learning data and update onboarded flag
     const { learningService } = await import("@/services/learningService");
@@ -259,6 +253,11 @@ export const authService = {
       storageService.set(KEYS.users, updatedUsers, { skipSync: true });
       await cloudSyncService.pushProfile(uid, user);
     }
+
+    // Always mirror the merged current device state back to cloud on Google
+    // login. This covers returning accounts that log in from a device with
+    // newer local learning records or app state.
+    await cloudSyncService.pushAll(uid);
 
     trackAppLogin(user);
     return user;

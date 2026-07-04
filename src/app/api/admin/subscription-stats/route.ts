@@ -3,6 +3,114 @@ import { getSupabaseServerClient, missingSupabaseServerEnv } from "@/server/supa
 
 export const dynamic = "force-dynamic";
 
+const ADMIN_EMAIL = "erin20080306@gmail.com";
+
+type PageActivityRow = {
+  user_id?: string | null;
+  email?: string | null;
+  name?: string | null;
+  path?: string | null;
+  title?: string | null;
+  visit_count?: number | null;
+  first_seen_at?: string | null;
+  last_seen_at?: string | null;
+};
+
+type SessionRow = {
+  user_id?: string | null;
+  email?: string | null;
+  name?: string | null;
+  first_seen_at?: string | null;
+  last_seen_at?: string | null;
+};
+
+function earlier(a?: string | null, b?: string | null): string | null {
+  if (!a) return b || null;
+  if (!b) return a;
+  return new Date(a).getTime() <= new Date(b).getTime() ? a : b;
+}
+
+function later(a?: string | null, b?: string | null): string | null {
+  if (!a) return b || null;
+  if (!b) return a;
+  return new Date(a).getTime() >= new Date(b).getTime() ? a : b;
+}
+
+function buildGoogleActivity(sessions: SessionRow[], pageRows: PageActivityRow[]) {
+  const users = new Map<
+    string,
+    {
+      userId: string;
+      email: string;
+      name: string | null;
+      firstSeenAt: string | null;
+      lastSeenAt: string | null;
+      totalPageVisits: number;
+      pages: Array<{
+        path: string;
+        title: string | null;
+        visitCount: number;
+        firstSeenAt: string | null;
+        lastSeenAt: string | null;
+      }>;
+    }
+  >();
+
+  sessions.forEach((row) => {
+    const email = String(row.email || "").trim().toLowerCase();
+    if (!email || email === ADMIN_EMAIL) return;
+    const userId = String(row.user_id || email);
+    users.set(email, {
+      userId,
+      email,
+      name: row.name || null,
+      firstSeenAt: row.first_seen_at || null,
+      lastSeenAt: row.last_seen_at || null,
+      totalPageVisits: 0,
+      pages: [],
+    });
+  });
+
+  pageRows.forEach((row) => {
+    const email = String(row.email || "").trim().toLowerCase();
+    const path = String(row.path || "").trim();
+    if (!email || email === ADMIN_EMAIL || !path) return;
+    const existing = users.get(email);
+    const user = existing || {
+      userId: String(row.user_id || email),
+      email,
+      name: row.name || null,
+      firstSeenAt: row.first_seen_at || null,
+      lastSeenAt: row.last_seen_at || null,
+      totalPageVisits: 0,
+      pages: [],
+    };
+    const visitCount = Math.max(0, Number(row.visit_count || 0));
+    user.name = user.name || row.name || null;
+    user.firstSeenAt = earlier(user.firstSeenAt, row.first_seen_at || null);
+    user.lastSeenAt = later(user.lastSeenAt, row.last_seen_at || null);
+    user.totalPageVisits += visitCount;
+    user.pages.push({
+      path,
+      title: row.title || null,
+      visitCount,
+      firstSeenAt: row.first_seen_at || null,
+      lastSeenAt: row.last_seen_at || null,
+    });
+    users.set(email, user);
+  });
+
+  return Array.from(users.values())
+    .map((user) => ({
+      ...user,
+      pages: user.pages
+        .sort((a, b) => (b.lastSeenAt || "").localeCompare(a.lastSeenAt || ""))
+        .slice(0, 8),
+    }))
+    .sort((a, b) => (b.lastSeenAt || "").localeCompare(a.lastSeenAt || ""))
+    .slice(0, 20);
+}
+
 export async function GET() {
   const supabase = getSupabaseServerClient();
   if (!supabase) {
@@ -27,6 +135,8 @@ export async function GET() {
       cloudSyncUsers,
       latestCloudSync,
       learningRecordRows,
+      googleSessions,
+      googlePageActivity,
     ] =
       await Promise.all([
       supabase.from("app_user_sessions").select("user_id", { count: "exact", head: true }),
@@ -58,6 +168,20 @@ export async function GET() {
         .limit(1)
         .maybeSingle(),
       supabase.from("learning_records").select("id", { count: "exact", head: true }),
+      supabase
+        .from("app_user_sessions")
+        .select("user_id, email, name, first_seen_at, last_seen_at")
+        .eq("provider", "google")
+        .neq("email", ADMIN_EMAIL)
+        .order("last_seen_at", { ascending: false })
+        .limit(100),
+      supabase
+        .from("app_user_page_activity")
+        .select("user_id, email, name, path, title, visit_count, first_seen_at, last_seen_at")
+        .eq("provider", "google")
+        .neq("email", ADMIN_EMAIL)
+        .order("last_seen_at", { ascending: false })
+        .limit(500),
     ]);
 
     const errors = [
@@ -70,6 +194,7 @@ export async function GET() {
       cloudSyncUsers.error,
       latestCloudSync.error,
       learningRecordRows.error,
+      googleSessions.error,
     ].filter(Boolean);
     if (errors.length) throw errors[0];
 
@@ -103,6 +228,14 @@ export async function GET() {
         dataRows: cloudSyncRows.count ?? 0,
         learningRecords: learningRecordRows.count ?? 0,
         latestUpdatedAt: latestCloudSync.data?.updated_at ?? null,
+      },
+      googleActivity: {
+        users: buildGoogleActivity(
+          (googleSessions.data || []) as SessionRow[],
+          googlePageActivity.error ? [] : ((googlePageActivity.data || []) as PageActivityRow[])
+        ),
+        pageActivityAvailable: !googlePageActivity.error,
+        error: googlePageActivity.error?.message,
       },
     });
   } catch (error) {
