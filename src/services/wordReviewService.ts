@@ -215,7 +215,8 @@ function blankedExample(word: Word) {
     const exact = new RegExp(`\\b${escaped}\\b`, "i");
     if (exact.test(example)) return shortText(example.replace(exact, "____"), 90);
   }
-  return `____ = ${shortMeaning(word)}`;
+  // If no example or target not in example, return null to indicate this word should not be used for fill-in-the-blank
+  return null;
 }
 
 function isFriendlyForLevel(word: Word, level: EnglishLevel, language: LearningLanguageCode) {
@@ -290,16 +291,23 @@ function choiceScore(text: string, seed: number) {
 
 function pickQuestionKinds(words: Word[], level: EnglishLevel): WordReviewQuestionKind[] {
   const beginnerLike = level === "Beginner" || level === "Elementary";
+  // Only count words that have valid examples for fill-in-the-blank
+  const wordsWithExamples = words.filter((word) => blankedExample(word) !== null);
   const fillCount = beginnerLike
-    ? words.length >= 8 ? 2 : words.length >= 4 ? 1 : 0
-    : words.length >= 5 ? Math.max(1, Math.round(words.length * 0.25)) : words.length >= 3 ? 1 : 0;
+    ? wordsWithExamples.length >= 8 ? 2 : wordsWithExamples.length >= 4 ? 1 : 0
+    : wordsWithExamples.length >= 5 ? Math.max(1, Math.round(wordsWithExamples.length * 0.25)) : wordsWithExamples.length >= 3 ? 1 : 0;
   const wordChoiceCount = beginnerLike
     ? words.length >= 3 ? Math.max(1, Math.round(words.length * 0.45)) : 1
     : words.length >= 4 ? Math.max(1, Math.round(words.length * 0.25)) : words.length >= 2 ? 1 : 0;
   const shuffledIndexes = words
     .map((_, index) => index)
     .sort(() => Math.random() - 0.5);
-  const fillIndexes = new Set(shuffledIndexes.slice(0, fillCount));
+  // Only assign fill-in-the-blank to words that have valid examples
+  const fillIndexes = new Set(
+    shuffledIndexes
+      .filter((index) => blankedExample(words[index]) !== null)
+      .slice(0, fillCount)
+  );
   const wordChoiceIndexes = new Set(shuffledIndexes.slice(fillCount, fillCount + wordChoiceCount));
   return words.map((_, index) => {
     if (fillIndexes.has(index)) return "wordFill";
@@ -428,7 +436,24 @@ export const wordReviewService = {
   },
 
   choicesFor(target: Word, language: LearningLanguageCode, questionKind: WordReviewQuestionKind = "meaningChoice", pool?: Word[]): string[] {
-    if (questionKind === "wordFill") return [];
+    if (questionKind === "wordFill") {
+      // For fill-in-the-blank, provide English word choices
+      const correct = target.word;
+      const sourceWords = pool && pool.length > 0 ? pool : vocabularyService.all(language);
+      const all = sourceWords
+        .filter((word) => matchesLanguage(word, language) && word.word !== target.word)
+        .map((word) => word.word)
+        .filter((text) => text && text !== correct);
+      const seed = choiceScore(`${target.word}:wordFill`, 5);
+      const uniqueChoices = all.filter((text, index) => all.indexOf(text) === index);
+      const distractors = uniqueChoices
+        .sort((a, b) => (choiceScore(a, seed) % 17) - (choiceScore(b, seed) % 17))
+        .slice(0, 3);
+      return [correct, ...distractors]
+        .filter(Boolean)
+        .slice(0, 4)
+        .sort((a, b) => (choiceScore(a, seed) % 11) - (choiceScore(b, seed) % 11));
+    }
     const correct = optionText(target, questionKind);
     const sourceWords = pool && pool.length > 0 ? pool : vocabularyService.all(language);
     const all = sourceWords
@@ -447,13 +472,25 @@ export const wordReviewService = {
   },
 
   questionPromptFor(word: Word, questionKind: WordReviewQuestionKind): string {
-    if (questionKind === "wordFill") return blankedExample(word);
+    if (questionKind === "wordFill") {
+      const blanked = blankedExample(word);
+      if (blanked) return blanked;
+      // Fallback to meaning choice if no valid example
+      return shortMeaning(word);
+    }
     if (questionKind === "wordChoice") return shortMeaning(word);
     return word.word;
   },
 
   questionHintFor(word: Word, questionKind: WordReviewQuestionKind): string {
-    if (questionKind === "wordFill") return "看短句填單字";
+    if (questionKind === "wordFill") {
+      const blanked = blankedExample(word);
+      if (blanked) {
+        // Show the Chinese translation of the example sentence if available
+        return word.exampleZh || word.zh || "看短句填單字";
+      }
+      return "看意思選單字";
+    }
     if (questionKind === "wordChoice") return "看意思選單字";
     return "看單字選意思";
   },
