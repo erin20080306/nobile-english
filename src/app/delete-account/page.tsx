@@ -143,8 +143,8 @@ export default function DeleteAccountPage() {
         <p className="text-xs text-inkSoft text-center leading-relaxed">
           如果您遇到問題，請聯絡客服：
           <br />
-          <a href="mailto:support@mobileenglish.app" className="text-lilacDeep">
-            support@mobileenglish.app
+          <a href="mailto:support.mobileenglish@gmail.com" className="text-lilacDeep">
+            support.mobileenglish@gmail.com
           </a>
         </p>
       </div>

@@ -7,7 +7,7 @@ import { storageService, KEYS } from "@/services/storageService";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 
-const FEEDBACK_EMAIL = "erin20080306@gmail.com";
+const FEEDBACK_EMAIL = "support.mobileenglish@gmail.com";
 
 type FeedbackCategory = "錯誤" | "語音" | "對話" | "測驗" | "單字" | "建議";
 

@@ -110,8 +110,8 @@ export default function PrivacyPage() {
               <p className="text-inkSoft leading-relaxed">
                 若您對本隱私權政策有任何疑問，請透過以下方式聯絡我們：
                 <br />
-                <a href="mailto:support@mobileenglish.app" className="text-lilacDeep">
-                  support@mobileenglish.app
+                <a href="mailto:support.mobileenglish@gmail.com" className="text-lilacDeep">
+                  support.mobileenglish@gmail.com
                 </a>
               </p>
             </section>
