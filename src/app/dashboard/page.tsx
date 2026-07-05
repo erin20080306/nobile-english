@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -21,10 +21,12 @@ import CheerImage from "@/components/CheerImage";
 import BottomNav from "@/components/BottomNav";
 import HorizontalScrollChips from "@/components/HorizontalScrollChips";
 import SubscriptionLaunchPrompt from "@/components/SubscriptionLaunchPrompt";
+import DailyGoalCard from "@/components/DailyGoalCard";
 import { LevelBadge, ProgressBar, Toggle } from "@/components/ui";
 import { trialAccessService, type AccessState } from "@/services/trialAccessService";
 import { trialUsageService } from "@/services/trialUsageService";
 import { subscriptionReminderService, type SubscriptionPromptReason } from "@/services/subscriptionReminderService";
+import { dailyGoalService, type DailyGoalRow } from "@/services/dailyGoalService";
 
 const dailySentences = [
   { en: "Every day is a fresh start.", zh: "每一天都是嶄新的開始。" },
@@ -73,7 +75,22 @@ export default function Dashboard() {
     reason: SubscriptionPromptReason;
     featureName?: string;
   } | null>(null);
+  const [dailyGoalVisible, setDailyGoalVisible] = useState(false);
+  const [dailyGoalToday, setDailyGoalToday] = useState<DailyGoalRow | null>(null);
+  const [dailyGoalYesterday, setDailyGoalYesterday] = useState<DailyGoalRow | null>(null);
+  const dailyGoalBlockingRef = useRef(true);
+  const accessStateRef = useRef<AccessState | null>(null);
   const sentence = dailySentences[new Date().getDate() % dailySentences.length];
+
+  function tryShowSubscriptionPrompt(userId: string) {
+    if (dailyGoalBlockingRef.current) return;
+    const state = accessStateRef.current;
+    if (!state) return;
+    if (subscriptionReminderService.shouldShowLoginReminder(userId, state)) {
+      subscriptionReminderService.markLoginReminderShown(userId);
+      setSubscriptionPrompt({ reason: state.reason === "trial_expired" ? "expired" : "login" });
+    }
+  }
 
   useEffect(() => {
     if (!user) return;
@@ -87,13 +104,36 @@ export default function Dashboard() {
       .getAccessState(user, { fresh: true })
       .then((state) => {
         setAccessState(state);
-        if (subscriptionReminderService.shouldShowLoginReminder(user.id, state)) {
-          subscriptionReminderService.markLoginReminderShown(user.id);
-          setSubscriptionPrompt({ reason: state.reason === "trial_expired" ? "expired" : "login" });
-        }
+        accessStateRef.current = state;
+        tryShowSubscriptionPrompt(user.id);
       })
       .catch(() => setAccessState(null));
+
+    dailyGoalBlockingRef.current = true;
+    void dailyGoalService.fetchState(user.id).then(({ today, yesterday }) => {
+      setDailyGoalToday(today);
+      setDailyGoalYesterday(yesterday);
+      const dismissed = dailyGoalService.isDismissedToday();
+      dailyGoalBlockingRef.current = !dismissed;
+      setDailyGoalVisible(!dismissed);
+      tryShowSubscriptionPrompt(user.id);
+    });
   }, [user]);
+
+  function handleSaveDailyGoalTargets(targets: { wordReview: number; scene: number; dialogue: number }) {
+    if (!user) return;
+    void dailyGoalService.setTargets(user.id, targets).then((row) => {
+      if (row) setDailyGoalToday(row);
+    });
+  }
+
+  function handleCloseDailyGoalCard() {
+    dailyGoalService.dismissToday();
+    if (dailyGoalYesterday) dailyGoalService.markYesterdayRecapSeen();
+    dailyGoalBlockingRef.current = false;
+    setDailyGoalVisible(false);
+    if (user) tryShowSubscriptionPrompt(user.id);
+  }
 
   if (!ready || !user || !stats || !settings) {
     return <div className="p-10 text-center text-inkSoft">載入中…</div>;
@@ -170,6 +210,22 @@ export default function Dashboard() {
           <LevelBadge level={user.level} />
         </div>
       </div>
+
+      {/* Daily practice goal (shown before the subscription prompt) */}
+      {dailyGoalVisible && (
+        <div className="px-5 mb-4">
+          <DailyGoalCard
+            today={dailyGoalToday}
+            yesterday={dailyGoalYesterday}
+            comprehensionPercent={comprehensionPercent}
+            comprehensionCefr={comprehensionCefr}
+            languageLabel={currentLanguage.zhName}
+            onSaveTargets={handleSaveDailyGoalTargets}
+            onClose={handleCloseDailyGoalCard}
+            showYesterdayRecap={!!dailyGoalYesterday && !dailyGoalService.hasSeenYesterdayRecap()}
+          />
+        </div>
+      )}
 
       {/* Hero encouragement with cheer image */}
       <div className="px-5">

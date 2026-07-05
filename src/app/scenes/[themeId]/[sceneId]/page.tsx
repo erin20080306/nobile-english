@@ -16,6 +16,7 @@ import { vocabularyService } from "@/services/vocabularyService";
 import { trialAccessService, type AccessState } from "@/services/trialAccessService";
 import { trialUsageService } from "@/services/trialUsageService";
 import { subscriptionReminderService } from "@/services/subscriptionReminderService";
+import { dailyGoalService } from "@/services/dailyGoalService";
 import { getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
 import ClickableText from "@/components/ClickableText";
@@ -205,6 +206,7 @@ export default function ScenePracticePage() {
     sceneService.setProgress(activeScene!.id, score);
     learningService.addScene();
     learningService.touchActivity(activeScene!.minutes, 20 + correct * 5);
+    if (currentUser) dailyGoalService.incrementProgress(currentUser.id, "scene");
     learningService.addRecord({
       type: "scene",
       targetLanguage,

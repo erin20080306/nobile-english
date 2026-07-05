@@ -81,4 +81,6 @@ export const KEYS = {
   perfectScoreToggle: "perfectScoreToggle",
   themeCharacterState: "themeCharacterState",
   grammarPracticeMemory: "grammarPracticeMemory",
+  dailyGoalCache: "dailyGoalCache",
+  dailyGoalCardState: "dailyGoalCardState",
 } as const;

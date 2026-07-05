@@ -15,6 +15,7 @@ import { dictionaryService } from "@/services/dictionaryService";
 import { trialAccessService, type AccessState } from "@/services/trialAccessService";
 import { trialUsageService, TRIAL_DIALOGUE_DAILY_LIMIT } from "@/services/trialUsageService";
 import { subscriptionReminderService } from "@/services/subscriptionReminderService";
+import { dailyGoalService } from "@/services/dailyGoalService";
 import { sceneCardStyle } from "@/data/sceneVisuals";
 import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
@@ -303,6 +304,8 @@ function Chat({ scene, onExit }: { scene: Scene; onExit: () => void }) {
     const transcript = buildTranscript(userTurns, feedbacks);
     learningService.addDialogue();
     learningService.touchActivity(8, 30);
+    const currentUser = authService.getCurrentUser();
+    if (currentUser) dailyGoalService.incrementProgress(currentUser.id, "dialogue");
     learningService.addRecord({
       type: "dialogue",
       targetLanguage,

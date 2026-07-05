@@ -13,6 +13,7 @@ import { wordReviewService, type WordReviewScore, type WordReviewSession } from 
 import { trialAccessService, type AccessState } from "@/services/trialAccessService";
 import { trialUsageService, TRIAL_WORD_REVIEW_DAILY_LIMIT } from "@/services/trialUsageService";
 import { subscriptionReminderService } from "@/services/subscriptionReminderService";
+import { dailyGoalService } from "@/services/dailyGoalService";
 import { getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
@@ -392,6 +393,7 @@ export default function WordReviewPage() {
     setRewardImage(rewardImageForScore(result.score));
     setReadyToFinish(false);
     window.setTimeout(() => soundService.playForScore(result.score), 250);
+    if (user) dailyGoalService.incrementProgress(user.id, "wordReview");
   }
 
   function speakCurrent() {
