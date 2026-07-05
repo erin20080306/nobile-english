@@ -289,7 +289,6 @@ export default function SubscriptionPage() {
             <Feature>英文 6 位 AI 導師；日文、韓文、義大利文、西班牙文各男女 1 位</Feature>
             <Feature>AI 導師即時回覆可產生 Neural 角色語音並快取</Feature>
             <Feature>場景練習、對話練習、文章、單字完整播放</Feature>
-            <Feature>同一句語音命中快取時不重複產生成本</Feature>
           </ul>
         </div>
 

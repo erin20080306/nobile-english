@@ -89,7 +89,6 @@ export default function SubscriptionLaunchPrompt({
               <Feature>每日文章可聽各國語言，試用額度共 1 次</Feature>
               <Feature>優惠碼 30 天試用：練習、閱讀、農場補給與商店每日各最多 20 次</Feature>
               <Feature>主題人物影片不限額瀏覽</Feature>
-              <Feature muted>即時 AI 導師角色語音以已快取音檔為主</Feature>
             </ul>
           </div>
 
