@@ -80,6 +80,12 @@ function normalizeKey(language: LearningLanguageCode, text: string) {
   return `${language}:${text.trim().toLowerCase().normalize("NFC").replace(/\s+/g, " ")}`;
 }
 
+function normalizeAnswer(text: string, language: LearningLanguageCode) {
+  const clean = text.trim().normalize("NFC");
+  if (language === "ja" || language === "ko" || language === "zh") return clean;
+  return clean.replace(/\s+/g, " ");
+}
+
 function shuffle<T>(items: T[]): T[] {
   const list = [...items];
   for (let i = list.length - 1; i > 0; i -= 1) {
@@ -119,6 +125,15 @@ export const grammarPracticeService = {
     return tokens.join(" ");
   },
 
+  sentenceText(exercise: GrammarExercise, language: LearningLanguageCode): string {
+    return exercise.textTarget.trim() || this.joinTokens(exercise.tokens, language);
+  },
+
+  isCorrectArrangement(tokens: string[], exercise: GrammarExercise, language: LearningLanguageCode): boolean {
+    if (tokens.length !== exercise.tokens.length) return false;
+    return normalizeAnswer(this.joinTokens(tokens, language), language) === normalizeAnswer(this.sentenceText(exercise, language), language);
+  },
+
   async fetchExercises(language: LearningLanguageCode, level: EnglishLevel, limit: number) {
     const params = new URLSearchParams({ language, level, limit: String(limit) });
     const response = await fetch(`/api/grammar/exercises?${params.toString()}`, { cache: "no-store" });
@@ -126,7 +141,13 @@ export const grammarPracticeService = {
     const data = (await response.json()) as { source?: "database" | "generated" | "empty"; exercises?: ApiExercise[] };
     return {
       source: data.source || "empty",
-      exercises: (data.exercises || []).filter((item) => Array.isArray(item.tokens) && item.tokens.length >= 3),
+      exercises: (data.exercises || [])
+        .map((item) => ({
+          ...item,
+          textTarget: String(item.textTarget || "").trim(),
+          textZh: String(item.textZh || "").trim(),
+        }))
+        .filter((item) => item.textTarget && item.textZh && Array.isArray(item.tokens) && item.tokens.length >= 3),
     };
   },
 

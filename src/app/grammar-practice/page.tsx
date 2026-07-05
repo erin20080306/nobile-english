@@ -77,7 +77,11 @@ export default function GrammarPracticePage() {
   const totalQuestions = session?.questions.length || 0;
   const progress = totalQuestions ? Math.round((questionIndex / totalQuestions) * 100) : 0;
 
-  const joined = useMemo(() => (exercise ? grammarPracticeService.joinTokens(exercise.tokens, language) : ""), [exercise, language]);
+  const targetSentence = useMemo(() => (exercise ? grammarPracticeService.sentenceText(exercise, language) : ""), [exercise, language]);
+  const answerIsCorrect = useMemo(
+    () => (exercise ? grammarPracticeService.isCorrectArrangement(placed, exercise, language) : false),
+    [exercise, language, placed]
+  );
 
   function startQuestion(nextIndex: number, activeSession: GrammarSession) {
     const nextQuestion = activeSession.questions[nextIndex];
@@ -119,11 +123,14 @@ export default function GrammarPracticePage() {
 
   function speakSentence() {
     if (!exercise) return;
-    speechService.speak(joined, voiceForLanguage(language, learningService.getSpeechRate(language)));
+    const text = targetSentence.trim();
+    if (!text) return;
+    speechService.speak(text, voiceForLanguage(language, learningService.getSpeechRate(language)));
   }
 
-  function finishQuestion(mistakes: number) {
+  function finishQuestion(mistakes: number, finalTokens: string[]) {
     if (!session || !exercise) return;
+    if (!grammarPracticeService.isCorrectArrangement(finalTokens, exercise, language)) return;
     grammarPracticeService.recordCompletion(language, exercise, mistakes);
     const nextResults = [...results, { exerciseId: exercise.id, mistakes }];
     setResults(nextResults);
@@ -168,8 +175,8 @@ export default function GrammarPracticePage() {
       window.setTimeout(() => {
         setBank((prev) => prev.filter((item) => item.uid !== tile.uid));
       }, 320);
-      if (nextPlaced.length === exercise.tokens.length) {
-        finishQuestion(mistakesThisQuestion);
+      if (grammarPracticeService.isCorrectArrangement(nextPlaced, exercise, language)) {
+        finishQuestion(mistakesThisQuestion, nextPlaced);
       }
     } else {
       grammarPracticeService.recordMistake(language, exercise);
@@ -215,7 +222,6 @@ export default function GrammarPracticePage() {
   }
 
   if (session && exercise) {
-    const sentenceComplete = placed.length === exercise.tokens.length;
     return (
       <div className="min-h-[100dvh] pb-4">
         <div className="px-5 pt-8 flex items-center gap-3">
@@ -239,17 +245,26 @@ export default function GrammarPracticePage() {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <span className="chip bg-peach text-peachDeep text-xs">拖曳排出正確句子</span>
-                <p className="mt-3 text-lg font-black text-ink break-words">{exercise.textZh}</p>
+                <p className="mt-3 text-xs font-bold text-inkSoft">中文意思</p>
+                <p className="mt-1 text-xl font-black text-ink break-words">{exercise.textZh}</p>
               </div>
-              <button onClick={speakSentence} className="h-12 w-12 shrink-0 rounded-2xl bg-lilacDeep text-white flex items-center justify-center shadow-softer">
-                <Volume2 size={22} />
-              </button>
+              {answerIsCorrect && (
+                <button onClick={speakSentence} className="h-12 w-12 shrink-0 rounded-2xl bg-lilacDeep text-white flex items-center justify-center shadow-softer" aria-label="播放正確句子">
+                  <Volume2 size={22} />
+                </button>
+              )}
             </div>
+            {answerIsCorrect && (
+              <div className="mt-4 rounded-3xl bg-mint/40 px-4 py-3">
+                <p className="text-xs font-bold text-mintDeep">正確句子</p>
+                <p className="mt-1 text-base font-black text-ink break-words">{targetSentence}</p>
+              </div>
+            )}
 
             <div
               ref={answerZoneRef}
               className={`mt-4 min-h-[72px] rounded-3xl border-2 border-dashed p-3 flex flex-wrap items-center gap-2 transition-colors ${
-                sentenceComplete ? "border-mintDeep bg-mint/40" : "border-lilac bg-cream/60"
+                answerIsCorrect ? "border-mintDeep bg-mint/40" : "border-lilac bg-cream/60"
               }`}
             >
               {placed.map((text, i) => (
@@ -263,7 +278,7 @@ export default function GrammarPracticePage() {
                 </motion.span>
               ))}
               {!placed.length && <span className="text-sm font-semibold text-inkSoft">拖曳下方單字到這裡排出句子…</span>}
-              {sentenceComplete && (
+              {answerIsCorrect && (
                 <span className="chip bg-mintDeep text-white flex items-center gap-1 text-xs">
                   <Check size={14} /> 正確！自動播放語音中
                 </span>
@@ -278,7 +293,7 @@ export default function GrammarPracticePage() {
                 {bank.map((tile) => (
                   <motion.div
                     key={tile.uid}
-                    drag={tile.status === "idle" && !sentenceComplete}
+                    drag={tile.status === "idle" && !answerIsCorrect}
                     dragSnapToOrigin
                     dragElastic={0.15}
                     dragMomentum={false}

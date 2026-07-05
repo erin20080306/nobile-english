@@ -10,6 +10,14 @@ const LANGUAGES: LearningLanguageCode[] = ["en", "ja", "ko", "it", "es", "zh"];
 const LEVELS: EnglishLevel[] = ["Beginner", "Elementary", "Intermediate", "Upper-Intermediate", "Advanced"];
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 60;
+const LANGUAGE_NAMES: Record<LearningLanguageCode, string> = {
+  en: "English",
+  ja: "Japanese",
+  ko: "Korean",
+  it: "Italian",
+  es: "Spanish",
+  zh: "Traditional Chinese",
+};
 
 const CEFR_RANK: Record<string, number> = { A1: 1, A2: 2, B1: 3, B2: 4, C1: 5, C2: 6 };
 const LEVEL_MAX_CEFR: Record<EnglishLevel, number> = {
@@ -68,6 +76,20 @@ function sentenceKey(text: string) {
     .replace(/[!"#$%&'()*+,\-./:;<=>?@[\]^_`{|}~。，、；：？！「」『』（）\s]+/g, " ")
     .trim()
     .slice(0, 90);
+}
+
+function cacheKeyForRow(row: Pick<ExerciseRow, "language_code" | "sentence_key">) {
+  return `${row.language_code}:${row.sentence_key}`;
+}
+
+function hasUsefulChineseTranslation(value: string | null | undefined) {
+  const clean = String(value || "").trim();
+  if (!clean) return false;
+  if (!/[\u3400-\u9fff]/.test(clean)) return false;
+  if (/(_{2,}|＿{2,})/.test(clean)) return false;
+  if (/放回場景句子中完整練習|場景中的完整句子/.test(clean)) return false;
+  if (/^請依照.*排出/.test(clean)) return false;
+  return true;
 }
 
 function isTargetScript(char: string, language: LearningLanguageCode) {
@@ -206,16 +228,8 @@ async function translateScenesWithGemini(
   language: LearningLanguageCode
 ): Promise<Array<{ text: string; zh: string }>> {
   if (!hasGeminiConfig() || sentences.length === 0) return [];
-  const languageNames: Record<LearningLanguageCode, string> = {
-    en: "English",
-    ja: "Japanese",
-    ko: "Korean",
-    it: "Italian",
-    es: "Spanish",
-    zh: "Traditional Chinese",
-  };
   const prompt = [
-    `Translate these English sentences into natural, everyday ${languageNames[language]}.`,
+    `Translate these English sentences into natural, everyday ${LANGUAGE_NAMES[language]}.`,
     "Return ONLY a JSON object with this exact shape, one item per input sentence, in the same order:",
     JSON.stringify({ items: [{ target: "translated sentence", zh: "Traditional Chinese translation of the sentence" }] }),
     "Sentences:",
@@ -238,6 +252,46 @@ async function translateScenesWithGemini(
   } catch {
     return [];
   }
+}
+
+async function fillMissingChineseTranslations(
+  rows: ExerciseRow[],
+  language: LearningLanguageCode
+): Promise<Set<string>> {
+  const changed = new Set<string>();
+  const missing = rows.filter((row) => !hasUsefulChineseTranslation(row.text_zh));
+  if (!hasGeminiConfig() || missing.length === 0) return changed;
+
+  const prompt = [
+    `Translate these ${LANGUAGE_NAMES[language]} sentences into natural Traditional Chinese for a grammar drag-to-order exercise.`,
+    "Return ONLY a JSON object with this exact shape, one item per input sentence, in the same order:",
+    JSON.stringify({ items: [{ zh: "complete Traditional Chinese translation of the whole sentence" }] }),
+    "Rules:",
+    "- Translate the complete sentence meaning, not the missing word and not a hint.",
+    "- Do not include blanks, underscores, answer labels, grammar explanations, or instructions.",
+    "- Keep names, prices, and product terms natural.",
+    "Sentences:",
+    JSON.stringify(missing.map((row) => row.text_target)),
+  ].join("\n");
+
+  try {
+    const result = await generateJsonWithGemini<{ items?: Array<{ zh?: string }> }>({
+      prompt,
+      temperature: 0.2,
+      maxOutputTokens: Math.min(2200, 220 + missing.length * 90),
+    });
+    if (!result || !Array.isArray(result.items)) return changed;
+    missing.forEach((row, index) => {
+      const zh = String(result.items?.[index]?.zh || "").trim();
+      if (!hasUsefulChineseTranslation(zh)) return;
+      row.text_zh = zh;
+      changed.add(cacheKeyForRow(row));
+    });
+  } catch {
+    // Leave rows untranslated; they are filtered out before being shown.
+  }
+
+  return changed;
 }
 
 export async function GET(req: Request) {
@@ -320,14 +374,26 @@ export async function GET(req: Request) {
     }
   }
 
+  const combinedRows = [...cachedRows, ...newRows].filter((row) => Array.isArray(row.tokens) && row.tokens.length >= 3);
+  const translatedKeys = await fillMissingChineseTranslations(combinedRows, language);
+  const rowsToCache = new Map<string, ExerciseRow>();
+  newRows
+    .filter((row) => hasUsefulChineseTranslation(row.text_zh))
+    .forEach((row) => rowsToCache.set(cacheKeyForRow(row), row));
+  combinedRows.forEach((row) => {
+    if (translatedKeys.has(cacheKeyForRow(row)) && hasUsefulChineseTranslation(row.text_zh)) {
+      rowsToCache.set(cacheKeyForRow(row), row);
+    }
+  });
+
   // Best-effort cache write. If the migration hasn't been applied yet, this
   // silently fails and the app still works (just without cross-user caching).
-  if (supabase && newRows.length) {
+  if (supabase && rowsToCache.size) {
     try {
       await supabase
         .from("grammar_exercise_cache")
         .upsert(
-          newRows.map((row) => ({
+          Array.from(rowsToCache.values()).map((row) => ({
             language_code: row.language_code,
             level: row.level,
             source: row.source,
@@ -343,8 +409,8 @@ export async function GET(req: Request) {
     }
   }
 
-  const combined = [...cachedRows, ...newRows]
-    .filter((row) => Array.isArray(row.tokens) && row.tokens.length >= 3)
+  const combined = combinedRows
+    .filter((row) => hasUsefulChineseTranslation(row.text_zh))
     .map((row): ExerciseOut => ({
       id: row.id,
       textTarget: row.text_target,
