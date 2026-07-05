@@ -42,7 +42,7 @@ export default function ResultsPage() {
     setShowReview(Boolean(result?.sceneReview));
     if (result) {
       setRewardImage(rewardImageForScore(result.total));
-      window.setTimeout(() => soundService.play("result"), 250);
+      window.setTimeout(() => soundService.playForScore(result.total), 250);
     }
     const s = learningService.getStats();
     setXp(s.xp);

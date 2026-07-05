@@ -11,6 +11,7 @@ const RECORD_TYPES = new Set<LearningRecord["type"]>([
   "custom",
   "word",
   "reading_article",
+  "grammar",
 ]);
 
 interface SyncRequest {

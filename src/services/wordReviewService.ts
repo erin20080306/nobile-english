@@ -1,4 +1,4 @@
-import type { EnglishLevel, LearningLanguageCode, Word } from "@/types";
+import type { CEFRLevel, EnglishLevel, LearningLanguageCode, Word } from "@/types";
 import { scenes } from "@/data/scenes";
 import { vocabularyService } from "./vocabularyService";
 import { learningService } from "./learningService";
@@ -500,6 +500,35 @@ function buildSessionFromPool(options: WordReviewOptions, poolWords: Word[]): Wo
 export const wordReviewService = {
   getLastOptions(): Partial<WordReviewOptions> | null {
     return getMemory().lastOptions || null;
+  },
+
+  // Number of distinct words marked "learned" for this language, used on the
+  // dashboard for the "已學習單字" stat and comprehension estimate below.
+  getLearnedWordCount(language: LearningLanguageCode): number {
+    const memory = getMemory();
+    return Object.values(memory.byWord).filter((entry) => entry.language === language && entry.learned).length;
+  },
+
+  // Rough English-comprehension estimate (0-100), scaled against the
+  // vocabulary size expected at the Advanced/C1 level for this language.
+  // This intentionally reuses LEVEL_LIMITS instead of per-word CEFR tags,
+  // since that data is already tracked locally for every learner.
+  getComprehensionPercent(language: LearningLanguageCode): number {
+    const learned = this.getLearnedWordCount(language);
+    const target = LEVEL_LIMITS[language]?.Advanced || LEVEL_LIMITS.en.Advanced;
+    return clamp(Math.min(100, (learned / target) * 100), 0, 100);
+  },
+
+  // Nearest CEFR label for the comprehension percent above, purely for
+  // display (e.g. "B1" on the dashboard progress badge).
+  getComprehensionCefr(language: LearningLanguageCode): CEFRLevel {
+    const learned = this.getLearnedWordCount(language);
+    const targets = LEVEL_LIMITS[language] || LEVEL_LIMITS.en;
+    if (learned >= targets.Advanced) return "C1";
+    if (learned >= targets["Upper-Intermediate"]) return "B2";
+    if (learned >= targets.Intermediate) return "B1";
+    if (learned >= targets.Elementary) return "A2";
+    return "A1";
   },
 
   getReviewableCount(language: LearningLanguageCode, level: EnglishLevel): number {

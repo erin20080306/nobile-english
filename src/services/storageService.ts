@@ -80,4 +80,5 @@ export const KEYS = {
   shadowingPattern: "shadowingPattern",
   perfectScoreToggle: "perfectScoreToggle",
   themeCharacterState: "themeCharacterState",
+  grammarPracticeMemory: "grammarPracticeMemory",
 } as const;

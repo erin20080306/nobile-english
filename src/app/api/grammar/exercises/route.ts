@@ -1,0 +1,365 @@
+import { NextResponse } from "next/server";
+import type { EnglishLevel, LearningLanguageCode } from "@/types";
+import { getSupabaseServerClient } from "@/server/supabaseClient";
+import { generateJsonWithGemini, hasGeminiConfig } from "@/server/gemini";
+import { scenes } from "@/data/scenes";
+
+export const runtime = "nodejs";
+
+const LANGUAGES: LearningLanguageCode[] = ["en", "ja", "ko", "it", "es", "zh"];
+const LEVELS: EnglishLevel[] = ["Beginner", "Elementary", "Intermediate", "Upper-Intermediate", "Advanced"];
+const DEFAULT_LIMIT = 20;
+const MAX_LIMIT = 60;
+
+const CEFR_RANK: Record<string, number> = { A1: 1, A2: 2, B1: 3, B2: 4, C1: 5, C2: 6 };
+const LEVEL_MAX_CEFR: Record<EnglishLevel, number> = {
+  Beginner: 2,
+  Elementary: 3,
+  Intermediate: 4,
+  "Upper-Intermediate": 5,
+  Advanced: 6,
+};
+
+function isCefrAllowed(cefrLevel: string | null | undefined, level: EnglishLevel) {
+  const cefr = String(cefrLevel || "").toUpperCase();
+  const rank = CEFR_RANK[cefr];
+  if (!rank) {
+    // Unknown CEFR entries are often rare/archaic dictionary quotations, so
+    // only let them through for the higher levels where that's acceptable.
+    return level === "Intermediate" || level === "Upper-Intermediate" || level === "Advanced";
+  }
+  return rank <= LEVEL_MAX_CEFR[level];
+}
+
+function parseLanguage(value: string | null): LearningLanguageCode {
+  return LANGUAGES.includes(value as LearningLanguageCode) ? (value as LearningLanguageCode) : "en";
+}
+
+function parseLevel(value: string | null): EnglishLevel {
+  return LEVELS.includes(value as EnglishLevel) ? (value as EnglishLevel) : "Beginner";
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, Math.round(value)));
+}
+
+interface ExerciseRow {
+  id: string;
+  language_code: string;
+  level: string;
+  source: string;
+  sentence_key: string;
+  text_target: string;
+  text_zh: string;
+  tokens: string[];
+}
+
+interface ExerciseOut {
+  id: string;
+  textTarget: string;
+  textZh: string;
+  tokens: string[];
+}
+
+function sentenceKey(text: string) {
+  return text
+    .toLowerCase()
+    .normalize("NFC")
+    .replace(/[!"#$%&'()*+,\-./:;<=>?@[\]^_`{|}~。，、；：？！「」『』（）\s]+/g, " ")
+    .trim()
+    .slice(0, 90);
+}
+
+function isTargetScript(char: string, language: LearningLanguageCode) {
+  if (language === "ja") return /[\u3040-\u30ff\u3400-\u9fff]/.test(char);
+  if (language === "ko") return /[\uac00-\ud7af]/.test(char);
+  return /[A-Za-zÀ-ÖØ-öø-ÿ]/.test(char);
+}
+
+function tokenizeSentence(text: string, language: LearningLanguageCode): string[] {
+  const clean = text.trim();
+  if (!clean) return [];
+
+  if (language === "ja" || language === "ko" || language === "zh") {
+    const SegmenterCtor = (Intl as typeof Intl & {
+      Segmenter?: new (locale?: string, options?: { granularity?: "word" }) => {
+        segment(input: string): Iterable<{ segment: string; index: number }>;
+      };
+    }).Segmenter;
+    if (SegmenterCtor) {
+      const locale = language === "ja" ? "ja-JP" : language === "ko" ? "ko-KR" : "zh-TW";
+      const segmenter = new SegmenterCtor(locale, { granularity: "word" });
+      const tokens: string[] = [];
+      Array.from(segmenter.segment(clean)).forEach((part) => {
+        const seg = part.segment;
+        if (!seg.trim()) return;
+        const isPunctOnly = !Array.from(seg).some((char) => isTargetScript(char, language) || /[A-Za-z0-9]/.test(char));
+        if (isPunctOnly && tokens.length) {
+          tokens[tokens.length - 1] += seg;
+        } else {
+          tokens.push(seg);
+        }
+      });
+      return tokens;
+    }
+    // Fallback: split by character when Intl.Segmenter isn't available.
+    return Array.from(clean);
+  }
+
+  return clean.split(/\s+/).filter(Boolean);
+}
+
+function normalizePartOfSpeechExamples(value: unknown): Array<{ text: string; translation?: string }> {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (typeof item === "string") return { text: item.trim() };
+      if (!item || typeof item !== "object") return { text: "" };
+      const example = item as { text?: unknown; translation?: unknown };
+      return {
+        text: String(example.text || "").trim(),
+        translation: String(example.translation || "").trim() || undefined,
+      };
+    })
+    .filter((item) => item.text);
+}
+
+function wordCount(text: string, language: LearningLanguageCode) {
+  if (language === "ja" || language === "ko" || language === "zh") return Array.from(text).length;
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+// Filters out dictionary quotations that are technically valid sentences but
+// a poor fit for a sentence-ordering game (extremely long single words,
+// archaic spelling artifacts, etc). Intentionally simple/heuristic rather
+// than a full quality classifier.
+function isReasonableSentence(text: string, language: LearningLanguageCode, level: EnglishLevel) {
+  if (language !== "ja" && language !== "ko" && language !== "zh") {
+    const words = text.split(/\s+/).filter(Boolean);
+    const maxWordLength = level === "Beginner" || level === "Elementary" ? 12 : 18;
+    if (words.some((word) => word.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ]/g, "").length > maxWordLength)) return false;
+  }
+  return true;
+}
+
+async function fetchDictionarySentences(
+  supabase: ReturnType<typeof getSupabaseServerClient>,
+  language: LearningLanguageCode,
+  level: EnglishLevel,
+  need: number,
+  existingKeys: Set<string>
+): Promise<Array<{ text: string; zh: string }>> {
+  if (!supabase || need <= 0) return [];
+  const { data, error } = await supabase
+    .from("dictionary_entries")
+    .select("examples_json, cefr_level")
+    .eq("language_code", language)
+    .order("frequency_rank", { ascending: true })
+    .limit(500);
+  if (error || !data) return [];
+
+  const minWords = 3;
+  const isCjk = language === "ja" || language === "ko" || language === "zh";
+  const maxWords = isCjk ? 24 : level === "Beginner" ? 8 : level === "Elementary" ? 10 : 12;
+  const candidates: Array<{ text: string; zh: string; hasZh: boolean }> = [];
+
+  for (const row of data as Array<{ examples_json: unknown; cefr_level: string | null }>) {
+    if (!isCefrAllowed(row.cefr_level, level)) continue;
+    const examples = normalizePartOfSpeechExamples(row.examples_json);
+    for (const example of examples) {
+      const words = wordCount(example.text, language);
+      if (words < minWords || words > maxWords) continue;
+      if (!isReasonableSentence(example.text, language, level)) continue;
+      const key = sentenceKey(example.text);
+      if (!key || existingKeys.has(key)) continue;
+      existingKeys.add(key);
+      candidates.push({ text: example.text, zh: example.translation || "", hasZh: Boolean(example.translation) });
+    }
+  }
+
+  // Prefer sentences that already have a Chinese translation so the practice
+  // prompt is never blank; only fall back to untranslated ones if needed.
+  candidates.sort((a, b) => Number(b.hasZh) - Number(a.hasZh));
+  return candidates.slice(0, need).map(({ text, zh }) => ({ text, zh }));
+}
+
+function collectSceneSentences(level: EnglishLevel, need: number, existingKeys: Set<string>) {
+  const out: Array<{ en: string; zh: string }> = [];
+  const matching = scenes.filter((scene) => scene.difficulty === level);
+  const pool = matching.length ? matching : scenes;
+  for (const scene of pool) {
+    for (const line of scene.dialogue) {
+      const words = wordCount(line.en, "en");
+      if (words < 3 || words > 12) continue;
+      const key = sentenceKey(line.en);
+      if (!key || existingKeys.has(key)) continue;
+      existingKeys.add(key);
+      out.push({ en: line.en, zh: line.zh });
+      if (out.length >= need) return out;
+    }
+  }
+  return out;
+}
+
+async function translateScenesWithGemini(
+  sentences: Array<{ en: string; zh: string }>,
+  language: LearningLanguageCode
+): Promise<Array<{ text: string; zh: string }>> {
+  if (!hasGeminiConfig() || sentences.length === 0) return [];
+  const languageNames: Record<LearningLanguageCode, string> = {
+    en: "English",
+    ja: "Japanese",
+    ko: "Korean",
+    it: "Italian",
+    es: "Spanish",
+    zh: "Traditional Chinese",
+  };
+  const prompt = [
+    `Translate these English sentences into natural, everyday ${languageNames[language]}.`,
+    "Return ONLY a JSON object with this exact shape, one item per input sentence, in the same order:",
+    JSON.stringify({ items: [{ target: "translated sentence", zh: "Traditional Chinese translation of the sentence" }] }),
+    "Sentences:",
+    JSON.stringify(sentences.map((s) => s.en)),
+  ].join("\n");
+
+  try {
+    const result = await generateJsonWithGemini<{ items?: Array<{ target?: string; zh?: string }> }>({
+      prompt,
+      temperature: 0.3,
+      maxOutputTokens: 1200,
+    });
+    if (!result || !Array.isArray(result.items)) return [];
+    return result.items
+      .map((item, index) => ({
+        text: String(item?.target || "").trim(),
+        zh: String(item?.zh || sentences[index]?.zh || "").trim(),
+      }))
+      .filter((item) => item.text);
+  } catch {
+    return [];
+  }
+}
+
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const language = parseLanguage(url.searchParams.get("language"));
+  const level = parseLevel(url.searchParams.get("level"));
+  const limit = clamp(Number(url.searchParams.get("limit") || DEFAULT_LIMIT), 5, MAX_LIMIT);
+
+  const supabase = getSupabaseServerClient();
+  const existingKeys = new Set<string>();
+  let cachedRows: ExerciseRow[] = [];
+
+  if (supabase) {
+    try {
+      const { data } = await supabase
+        .from("grammar_exercise_cache")
+        .select("*")
+        .eq("language_code", language)
+        .eq("level", level)
+        .limit(limit * 3);
+      cachedRows = (data || []) as ExerciseRow[];
+      cachedRows.forEach((row) => existingKeys.add(row.sentence_key));
+    } catch {
+      cachedRows = [];
+    }
+  }
+
+  const need = Math.max(0, limit * 2 - cachedRows.length);
+  const newRows: ExerciseRow[] = [];
+
+  if (need > 0) {
+    const dictionarySentences = await fetchDictionarySentences(supabase, language, level, need, existingKeys);
+    dictionarySentences.forEach((sentence) => {
+      newRows.push({
+        id: `new-${sentenceKey(sentence.text)}`,
+        language_code: language,
+        level,
+        source: "dictionary",
+        sentence_key: sentenceKey(sentence.text),
+        text_target: sentence.text,
+        text_zh: sentence.zh,
+        tokens: tokenizeSentence(sentence.text, language),
+      });
+    });
+
+    const stillNeed = need - dictionarySentences.length;
+    if (stillNeed > 0) {
+      const sceneSentences = collectSceneSentences(level, stillNeed, existingKeys);
+      if (language === "en") {
+        sceneSentences.forEach((sentence) => {
+          newRows.push({
+            id: `new-${sentenceKey(sentence.en)}`,
+            language_code: language,
+            level,
+            source: "scene",
+            sentence_key: sentenceKey(sentence.en),
+            text_target: sentence.en,
+            text_zh: sentence.zh,
+            tokens: tokenizeSentence(sentence.en, language),
+          });
+        });
+      } else {
+        const translated = await translateScenesWithGemini(sceneSentences, language);
+        translated.forEach((sentence) => {
+          const key = sentenceKey(sentence.text);
+          if (!key || existingKeys.has(key)) return;
+          existingKeys.add(key);
+          newRows.push({
+            id: `new-${key}`,
+            language_code: language,
+            level,
+            source: "scene_translation",
+            sentence_key: key,
+            text_target: sentence.text,
+            text_zh: sentence.zh,
+            tokens: tokenizeSentence(sentence.text, language),
+          });
+        });
+      }
+    }
+  }
+
+  // Best-effort cache write. If the migration hasn't been applied yet, this
+  // silently fails and the app still works (just without cross-user caching).
+  if (supabase && newRows.length) {
+    try {
+      await supabase
+        .from("grammar_exercise_cache")
+        .upsert(
+          newRows.map((row) => ({
+            language_code: row.language_code,
+            level: row.level,
+            source: row.source,
+            sentence_key: row.sentence_key,
+            text_target: row.text_target,
+            text_zh: row.text_zh,
+            tokens: row.tokens,
+          })),
+          { onConflict: "language_code,sentence_key", ignoreDuplicates: true }
+        );
+    } catch {
+      // Ignore; caching is a best-effort optimization.
+    }
+  }
+
+  const combined = [...cachedRows, ...newRows]
+    .filter((row) => Array.isArray(row.tokens) && row.tokens.length >= 3)
+    .map((row): ExerciseOut => ({
+      id: row.id,
+      textTarget: row.text_target,
+      textZh: row.text_zh,
+      tokens: row.tokens,
+    }));
+
+  // Shuffle so repeated requests within the same day feel varied.
+  for (let i = combined.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [combined[i], combined[j]] = [combined[j], combined[i]];
+  }
+
+  return NextResponse.json({
+    source: cachedRows.length > 0 ? "database" : newRows.length > 0 ? "generated" : "empty",
+    exercises: combined.slice(0, limit),
+  });
+}

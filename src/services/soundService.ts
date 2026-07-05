@@ -1,4 +1,4 @@
-type SoundKind = "plant" | "water" | "harvest" | "review" | "result";
+type SoundKind = "plant" | "water" | "harvest" | "review" | "result" | "scorePerfect" | "scoreGreat" | "scoreGood" | "scoreLow";
 
 type AudioContextConstructor = new () => AudioContext;
 
@@ -64,7 +64,39 @@ export const soundService = {
         [784, 0.24, 0.16, "triangle"],
         [1046, 0.42, 0.22, "sine"],
       ],
+      // 90-100: bright ascending fanfare with a sparkle finish.
+      scorePerfect: [
+        [523.25, 0, 0.1, "triangle"],
+        [659.25, 0.1, 0.1, "triangle"],
+        [783.99, 0.2, 0.1, "triangle"],
+        [1046.5, 0.3, 0.16, "sine"],
+        [1318.51, 0.46, 0.14, "sine"],
+        [1567.98, 0.6, 0.32, "sine"],
+      ],
+      // 70-89: cheerful two-step chime.
+      scoreGreat: [
+        [523, 0, 0.1, "triangle"],
+        [698.46, 0.1, 0.12, "triangle"],
+        [880, 0.22, 0.2, "sine"],
+      ],
+      // 50-69: neutral, encouraging double-tap.
+      scoreGood: [
+        [440, 0, 0.1, "sine"],
+        [523, 0.11, 0.16, "sine"],
+      ],
+      // <50: soft, non-harsh descending tone so it stays encouraging.
+      scoreLow: [
+        [392, 0, 0.14, "sine"],
+        [329.63, 0.15, 0.22, "sine"],
+      ],
     };
     void playSequence(sequences[kind]).catch(() => undefined);
+  },
+
+  // Convenience helper so every score/result screen in the app can play a
+  // consistent tiered sound effect based purely on the 0-100 score.
+  playForScore(score: number) {
+    const kind: SoundKind = score >= 90 ? "scorePerfect" : score >= 70 ? "scoreGreat" : score >= 50 ? "scoreGood" : "scoreLow";
+    this.play(kind);
   },
 };

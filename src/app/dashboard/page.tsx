@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   Flame, Star, MessageSquare, Trophy, Volume2, Languages, ChevronRight,
-  BookOpen, Sparkles, GraduationCap, Wand2, Search, Newspaper,
+  BookOpen, Sparkles, GraduationCap, Wand2, Search, Newspaper, Puzzle, BrainCircuit,
 } from "lucide-react";
 import type { GardenState, Stats, UserSettings, EnglishLevel } from "@/types";
 import { useUser } from "@/hooks/useUser";
@@ -14,6 +14,7 @@ import { gardenService } from "@/services/gardenService";
 import { vocabularyService } from "@/services/vocabularyService";
 import { examService } from "@/services/examService";
 import { sceneService } from "@/services/sceneService";
+import { wordReviewService } from "@/services/wordReviewService";
 import { sceneCardStyle } from "@/data/sceneVisuals";
 import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
 import CheerImage from "@/components/CheerImage";
@@ -104,6 +105,9 @@ export default function Dashboard() {
   const lastExam = examResults[0];
   const recs = recByLevel[user.level] || recByLevel.Beginner;
   const currentLanguage = getLearningLanguage(settings.targetLanguage);
+  const learnedWordCount = wordReviewService.getLearnedWordCount(settings.targetLanguage);
+  const comprehensionPercent = wordReviewService.getComprehensionPercent(settings.targetLanguage);
+  const comprehensionCefr = wordReviewService.getComprehensionCefr(settings.targetLanguage);
 
   function updateSetting(patch: Partial<UserSettings>) {
     const next = { ...settings!, ...patch };
@@ -202,6 +206,26 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Learned words + comprehension level */}
+      <div className="px-5 mt-4">
+        <div className="card !p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky text-skyDeep">
+                <BrainCircuit size={20} />
+              </span>
+              <div>
+                <p className="text-xs font-bold text-inkSoft">已學習單字 · {currentLanguage.zhName}</p>
+                <p className="text-xl font-extrabold text-ink">{learnedWordCount.toLocaleString()} 個</p>
+              </div>
+            </div>
+            <span className="chip bg-lilacDeep text-white text-xs">{comprehensionCefr} 程度</span>
+          </div>
+          <div className="mt-3"><ProgressBar value={comprehensionPercent} /></div>
+          <p className="mt-1 text-xs font-semibold text-inkSoft">理解程度約 {comprehensionPercent}%（以 C1 詞彙量為滿分基準）</p>
+        </div>
+      </div>
+
       <div className="px-5 mt-4">
         <div className="relative overflow-hidden rounded-[30px] bg-white/95 p-4 shadow-soft border border-white/80">
           <div className="absolute right-0 top-0 h-24 w-28 rounded-bl-[42px] bg-gradient-to-br from-lilac/70 to-mint/70" />
@@ -284,6 +308,7 @@ export default function Dashboard() {
         <Action color="bg-sky" icon={<BookOpen className="text-skyDeep" />} title="語言字典" onClick={() => router.push("/dictionary")} />
         <Action color="bg-lilac" icon={<GraduationCap className="text-lilacDeep" />} title="測驗中心" onClick={() => router.push("/exam")} />
         <Action color="bg-peach" icon={<Trophy className="text-peachDeep" />} title="我的紀錄" onClick={() => router.push("/records")} />
+        <Action color="bg-mint" icon={<Puzzle className="text-mintDeep" />} title="文法練習" onClick={() => router.push("/grammar-practice")} />
       </div>
 
       {/* Recommended scenes by level */}

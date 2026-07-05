@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Home, RotateCcw } from "lucide-react";
@@ -8,6 +8,7 @@ import type { ExamType, ExamQuestion, ExamResult } from "@/types";
 import { examService } from "@/services/examService";
 import { learningService } from "@/services/learningService";
 import { authService } from "@/services/authService";
+import { soundService } from "@/services/soundService";
 import { examBlueprints, examSectionLabel } from "@/data/examBlueprints";
 import AppHeader from "@/components/AppHeader";
 import ScoreRing from "@/components/ScoreRing";
@@ -33,6 +34,10 @@ export default function ExamRunPage() {
   const [picked, setPicked] = useState<number | null>(null);
   const [result, setResult] = useState<ExamResult | null>(null);
   const [rewardImage, setRewardImage] = useState("");
+
+  useEffect(() => {
+    if (result) window.setTimeout(() => soundService.playForScore(result.percent), 250);
+  }, [result]);
 
   if (!valid) {
     return <div className="p-10 text-center text-inkSoft">未知測驗類型。<button className="block mx-auto mt-4 btn-secondary" onClick={() => router.push("/exam")}>回測驗中心</button></div>;

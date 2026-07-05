@@ -8,6 +8,7 @@ import type { LearningLanguageCode, User } from "@/types";
 import { authService } from "@/services/authService";
 import { learningService } from "@/services/learningService";
 import { speechService } from "@/services/speechService";
+import { soundService } from "@/services/soundService";
 import { wordReviewService, type WordReviewScore, type WordReviewSession } from "@/services/wordReviewService";
 import { trialAccessService, type AccessState } from "@/services/trialAccessService";
 import { trialUsageService, TRIAL_WORD_REVIEW_DAILY_LIMIT } from "@/services/trialUsageService";
@@ -390,6 +391,7 @@ export default function WordReviewPage() {
     setScore(result);
     setRewardImage(rewardImageForScore(result.score));
     setReadyToFinish(false);
+    window.setTimeout(() => soundService.playForScore(result.score), 250);
   }
 
   function speakCurrent() {
