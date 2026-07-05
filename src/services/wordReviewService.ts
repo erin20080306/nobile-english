@@ -301,7 +301,18 @@ function answerInitialHint(word: Word) {
   return `${letters.slice(0, visibleCount).join("")}${letters.length > visibleCount ? "..." : ""}`;
 }
 
+const GENERIC_PLACEHOLDER_ZH_PATTERN = /情境對話常見(名詞或名稱|動詞或動詞變化|形容詞|副詞)|常見(介系詞|連接詞|感嘆詞或招呼語|代名詞)|請搭配原句理解/;
+
+function hasGenericPlaceholderMeaning(word: Word) {
+  return GENERIC_PLACEHOLDER_ZH_PATTERN.test(String(word.zh || ""));
+}
+
 function isFriendlyForLevel(word: Word, level: EnglishLevel, language: LearningLanguageCode) {
+  // Words with an auto-generated placeholder meaning (no real Chinese
+  // definition, e.g. "情境對話常見名詞或名稱，請搭配原句理解。") are never
+  // usable for review questions at any level, since learners cannot tell
+  // what the word actually means.
+  if (hasGenericPlaceholderMeaning(word)) return false;
   if (level !== "Beginner" && level !== "Elementary") return true;
   const surface = word.word.trim();
   const maxSurface = level === "Beginner" ? 13 : 18;
