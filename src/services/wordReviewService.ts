@@ -562,8 +562,8 @@ export const wordReviewService = {
     if (questionKind === "wordFill") {
       const blanked = blankedExample(word);
       if (blanked) {
-        // Show the Chinese translation of the example sentence if available
-        return word.exampleZh || word.zh || "看短句填單字";
+        // Show the Chinese translation of the full example sentence
+        return sentenceZh(word) || "看短句填單字";
       }
       return "看意思選單字";
     }
