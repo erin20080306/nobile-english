@@ -1,4 +1,5 @@
 import type { EnglishLevel, LearningLanguageCode, Word } from "@/types";
+import { scenes } from "@/data/scenes";
 import { vocabularyService } from "./vocabularyService";
 import { learningService } from "./learningService";
 import { storageService, KEYS } from "./storageService";
@@ -207,18 +208,69 @@ function shortMeaning(word: Word) {
   return shortText(def, 64);
 }
 
-function blankedExample(word: Word) {
+function isPracticePrompt(example = "", zh = "") {
+  return (
+    /^try using\s+["“]/i.test(example.trim()) ||
+    /場景中的完整句子使用|放回場景句子|放進短句|放回原句|造一個短句|完整練習/.test(zh)
+  );
+}
+
+function sceneSentenceFor(word: Word) {
+  const target = word.word.trim();
+  if (!target || /\s/.test(target)) return null;
+  const escaped = target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const exact = new RegExp(`\\b${escaped}\\b`, "i");
+  for (const scene of scenes) {
+    for (const pattern of scene.keyPatterns) {
+      if (exact.test(pattern.en)) return pattern;
+    }
+    for (const line of scene.dialogue) {
+      if (exact.test(line.en)) return { en: line.en, zh: line.zh };
+    }
+  }
+  return null;
+}
+
+function genericFillSentence(word: Word) {
+  const target = word.word.trim();
+  const meaning = shortMeaning(word).replace(/[。.]$/, "");
+  if (word.pos === "adj.") return { en: `It is ${target}.`, zh: `它是${meaning}的。` };
+  if (word.pos === "adv.") return { en: `Please speak ${target}.`, zh: `請用${meaning}的方式說話。` };
+  if (word.pos === "v.") {
+    if (/ing$/i.test(target)) return { en: `I am ${target} now.`, zh: `我現在正在${meaning}。` };
+    if (/ed$/i.test(target)) return { en: `I ${target} today.`, zh: `我今天${meaning}。` };
+    return { en: `I can ${target}.`, zh: `我可以${meaning}。` };
+  }
+  const article = /^[aeiou]/i.test(target) ? "an" : "a";
+  return { en: `This is ${article} ${target}.`, zh: `這是一個${meaning}。` };
+}
+
+function fillSentenceFor(word: Word) {
   const target = word.word.trim();
   const example = String(word.example || "").replace(/\s+/g, " ").trim();
-  if (example && target) {
+  const exampleZh = String(word.exampleZh || "").replace(/\s+/g, " ").trim();
+  if (example && target && !isPracticePrompt(example, exampleZh)) {
     const escaped = target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const exact = new RegExp(`\\b${escaped}\\b`, "i");
-    if (exact.test(example)) return shortText(example.replace(exact, "____"), 90);
+    if (exact.test(example)) return { en: example, zh: exampleZh };
+  }
+  return sceneSentenceFor(word) || genericFillSentence(word);
+}
+
+function blankedExample(word: Word) {
+  const target = word.word.trim();
+  const sentence = fillSentenceFor(word).en;
+  if (sentence && target) {
+    const escaped = target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const exact = new RegExp(`\\b${escaped}\\b`, "i");
+    if (exact.test(sentence)) return shortText(sentence.replace(exact, "____"), 90);
   }
   return `____ = ${shortMeaning(word)}`;
 }
 
 function sentenceZh(word: Word) {
+  const sentence = fillSentenceFor(word);
+  if (containsCjk(sentence.zh)) return shortText(normalizeFillSentenceZh(word, sentence.zh), 90);
   const exampleZh = String(word.exampleZh || "").replace(/\s+/g, " ").trim();
   if (containsCjk(exampleZh)) return shortText(normalizeFillSentenceZh(word, exampleZh), 90);
   const zh = String(word.zh || "").replace(/\s+/g, " ").trim();
@@ -227,16 +279,12 @@ function sentenceZh(word: Word) {
 }
 
 function normalizeFillSentenceZh(word: Word, zh: string) {
-  const target = word.word.trim();
   const example = String(word.example || "").replace(/\s+/g, " ").trim();
   const isPracticePrompt = /^try using\s+["“]/i.test(example) || /放回場景句子|放進短句|放回原句|完整練習/.test(zh);
   if (isPracticePrompt) {
-    return "試著在場景中的完整句子使用「____」。";
+    return "";
   }
-  if (!target) return zh;
-  return zh
-    .replace(new RegExp(`「${target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}」`, "gi"), "「____」")
-    .replace(new RegExp(target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), "____");
+  return zh;
 }
 
 function answerInitialHint(word: Word) {
@@ -489,6 +537,10 @@ export const wordReviewService = {
   questionZhFor(word: Word, questionKind: WordReviewQuestionKind): string {
     if (questionKind === "wordFill") return sentenceZh(word);
     return "";
+  },
+
+  sentenceTranslationFor(word: Word): string {
+    return sentenceZh(word) || word.exampleZh || word.zh || "";
   },
 
   answerInitialHintFor(word: Word): string {

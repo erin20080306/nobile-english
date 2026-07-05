@@ -4,6 +4,7 @@ import { learnerDictionaryEntries } from "@/data/learnerDictionary";
 import { multilingualDictionaryEntries } from "@/data/multilingualDictionary";
 import { expandedMultilingualDictionaryEntries } from "@/data/expandedMultilingualDictionary";
 import { getLearningLanguage } from "@/data/learningLanguages";
+import { scenes } from "@/data/scenes";
 import { vocabularyService } from "./vocabularyService";
 
 import { storageService, KEYS } from "./storageService";
@@ -99,6 +100,15 @@ const preciseEnglishFallbacks: Record<string, Omit<Word, "word">> = {
     example: "You look a little rushed.",
     exampleZh: "你看起來有點趕。",
     related: ["rush", "hurry"],
+  },
+  iced: {
+    phonetic: "/aɪst/",
+    pos: "adj.",
+    enDef: "served cold with ice",
+    zh: "冰的；冰鎮的。點飲料時常說 iced tea / iced coffee。",
+    example: "I'd like an iced tea, please.",
+    exampleZh: "我想要一杯冰茶，謝謝。",
+    related: ["ice", "cold", "drink"],
   },
 };
 
@@ -252,6 +262,36 @@ function inferPartOfSpeech(word: string): Word["pos"] {
   return "n.";
 }
 
+function sceneExampleFor(word: string) {
+  const q = normalizeToken(word);
+  if (!q || /\s/.test(q)) return null;
+  const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const exact = new RegExp(`\\b${escaped}\\b`, "i");
+  for (const scene of scenes) {
+    for (const pattern of scene.keyPatterns) {
+      if (exact.test(pattern.en)) return pattern;
+    }
+    for (const line of scene.dialogue) {
+      if (exact.test(line.en)) return { en: line.en, zh: line.zh };
+    }
+  }
+  return null;
+}
+
+function genericEnglishExample(word: string, pos: Word["pos"], zh: string) {
+  const q = normalizeToken(word);
+  const meaning = (zh.split(/[；;,，、]/)[0] || "這個字").replace(/[。.]$/, "");
+  if (pos === "adj.") return { en: `It is ${q}.`, zh: `它是${meaning}的。` };
+  if (pos === "adv.") return { en: `Please speak ${q}.`, zh: `請用${meaning}的方式說話。` };
+  if (pos === "v.") {
+    if (/ing$/i.test(q)) return { en: `I am ${q} now.`, zh: `我現在正在${meaning}。` };
+    if (/ed$/i.test(q)) return { en: `I ${q} today.`, zh: `我今天${meaning}。` };
+    return { en: `I can ${q}.`, zh: `我可以${meaning}。` };
+  }
+  const article = /^[aeiou]/i.test(q) ? "an" : "a";
+  return { en: `This is ${article} ${q}.`, zh: `這是一個${meaning}。` };
+}
+
 function learnerFallback(word: string): Word | null {
   const q = normalizeToken(word);
   if (!/^[a-z][a-z'-]*$/.test(q) || q.length < 2) return null;
@@ -268,6 +308,7 @@ function learnerFallback(word: string): Word | null {
     "interj.": "常見感嘆詞或招呼語。",
     "pron.": "常見代名詞，用來代替人、事、物。",
   };
+  const fallbackExample = sceneExampleFor(q) || genericEnglishExample(q, pos, zhByPos[pos]);
 
   return {
     word: q,
@@ -275,8 +316,8 @@ function learnerFallback(word: string): Word | null {
     pos,
     enDef: "A common conversation word or word form used in real-life English scenes.",
     zh: zhByPos[pos],
-    example: `Try using "${q}" in a complete sentence from the scene.`,
-    exampleZh: "試著在場景中的完整句子使用這個單字。",
+    example: fallbackExample.en,
+    exampleZh: fallbackExample.zh,
     related: candidatesFor(q).filter((candidate) => candidate !== q).slice(0, 4),
   };
 }
