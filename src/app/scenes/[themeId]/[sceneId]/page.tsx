@@ -15,6 +15,7 @@ import { authService } from "@/services/authService";
 import { vocabularyService } from "@/services/vocabularyService";
 import { trialAccessService, type AccessState } from "@/services/trialAccessService";
 import { trialUsageService } from "@/services/trialUsageService";
+import { subscriptionReminderService } from "@/services/subscriptionReminderService";
 import { getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
 import ClickableText from "@/components/ClickableText";
@@ -274,9 +275,17 @@ export default function ScenePracticePage() {
     }
   }
 
+  function showLimitPrompt() {
+    const featureKey: "customScene" | "dialoguePractice" = activeScene?.themeId === "custom" ? "customScene" : "dialoguePractice";
+    if (subscriptionReminderService.shouldShowLimitReminder(currentUser?.id, featureKey, access, "session")) {
+      subscriptionReminderService.markLimitReminderShown(currentUser?.id, featureKey, "session");
+      setShowSubscriptionPrompt(true);
+    }
+  }
+
   function startConversation() {
     if (trialLocked) {
-      setShowSubscriptionPrompt(true);
+      showLimitPrompt();
       return;
     }
     setPhase("conversation");
@@ -577,8 +586,10 @@ export default function ScenePracticePage() {
       {access && showSubscriptionPrompt && (
         <SubscriptionLaunchPrompt
           access={access}
+          promptReason="limit"
+          featureName={activeScene?.themeId === "custom" ? "自訂場景" : "場景練習"}
           onSubscribe={() => router.push("/subscription")}
-          onContinueTrial={access.reason === "trial" ? () => setShowSubscriptionPrompt(false) : undefined}
+          onDismiss={() => setShowSubscriptionPrompt(false)}
         />
       )}
     </motion.div>

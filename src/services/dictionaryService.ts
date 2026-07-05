@@ -276,7 +276,7 @@ function learnerFallback(word: string): Word | null {
     enDef: "A common conversation word or word form used in real-life English scenes.",
     zh: zhByPos[pos],
     example: `Try using "${q}" in a complete sentence from the scene.`,
-    exampleZh: `試著把「${q}」放回場景句子中完整練習。`,
+    exampleZh: "試著在場景中的完整句子使用這個單字。",
     related: candidatesFor(q).filter((candidate) => candidate !== q).slice(0, 4),
   };
 }

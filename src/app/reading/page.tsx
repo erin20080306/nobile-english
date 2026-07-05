@@ -11,6 +11,7 @@ import { learningService } from "@/services/learningService";
 import { speechService } from "@/services/speechService";
 import { trialAccessService, type AccessState } from "@/services/trialAccessService";
 import { trialUsageService, TRIAL_READING_ARTICLE_LIMIT } from "@/services/trialUsageService";
+import { subscriptionReminderService } from "@/services/subscriptionReminderService";
 import { useUser } from "@/hooks/useUser";
 import WordSheet from "@/components/WordSheet";
 import ClickableText from "@/components/ClickableText";
@@ -106,6 +107,13 @@ export default function DailyReadingPage() {
 
   const languageInfo = getLearningLanguage(selectedLanguage);
 
+  function showReadingLimitPrompt(nextAccess: AccessState | null = access) {
+    if (subscriptionReminderService.shouldShowLimitReminder(user?.id, "readingArticle", nextAccess, "lifetime")) {
+      subscriptionReminderService.markLimitReminderShown(user?.id, "readingArticle", "lifetime");
+      setShowSubscriptionPrompt(true);
+    }
+  }
+
   useEffect(() => {
     if (!user) return;
     const settings = learningService.getSettings(user.id);
@@ -164,7 +172,7 @@ export default function DailyReadingPage() {
         !trialUsageService.canUseLifetime("readingArticle", TRIAL_READING_ARTICLE_LIMIT)
       ) {
         setArticle(null);
-        setShowSubscriptionPrompt(true);
+        showReadingLimitPrompt(nextAccess);
         return;
       }
       const res = await fetch(`/api/articles/today?language=${selectedLanguage}`);
@@ -532,8 +540,10 @@ export default function DailyReadingPage() {
         {access && showSubscriptionPrompt && (
           <SubscriptionLaunchPrompt
             access={access}
+            promptReason="limit"
+            featureName="每日文章"
             onSubscribe={() => router.push("/subscription")}
-            onContinueTrial={access.reason === "trial" ? () => setShowSubscriptionPrompt(false) : undefined}
+            onDismiss={() => setShowSubscriptionPrompt(false)}
           />
         )}
       </div>

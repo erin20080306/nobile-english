@@ -5,8 +5,10 @@ import { useRouter, useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { CheckCircle2, Clock, BookText, MessageSquare } from "lucide-react";
 import { sceneService } from "@/services/sceneService";
+import { authService } from "@/services/authService";
 import { trialAccessService, type AccessState } from "@/services/trialAccessService";
 import { trialUsageService } from "@/services/trialUsageService";
+import { subscriptionReminderService } from "@/services/subscriptionReminderService";
 import { sceneCardStyle } from "@/data/sceneVisuals";
 import AppHeader from "@/components/AppHeader";
 import SubscriptionLaunchPrompt from "@/components/SubscriptionLaunchPrompt";
@@ -26,10 +28,18 @@ export default function ThemeScenesPage() {
     trialAccessService.getAccessState(undefined, { fresh: true }).then(setAccess).catch(() => setAccess(null));
   }, []);
 
+  function showLimitPrompt() {
+    const userId = authService.getCurrentUser()?.id;
+    if (subscriptionReminderService.shouldShowLimitReminder(userId, "dialoguePractice", access, "session")) {
+      subscriptionReminderService.markLimitReminderShown(userId, "dialoguePractice", "session");
+      setShowSubscriptionPrompt(true);
+    }
+  }
+
   function openScene(sceneId: string, indexInTheme: number) {
     const scene = scenes[indexInTheme];
     if (scene && trialUsageService.isLimited(access) && !trialUsageService.canUseScene(scene, theme, indexInTheme)) {
-      setShowSubscriptionPrompt(true);
+      showLimitPrompt();
       return;
     }
     router.push(`/scenes/${themeId}/${sceneId}`);
@@ -92,8 +102,10 @@ export default function ThemeScenesPage() {
       {access && showSubscriptionPrompt && (
         <SubscriptionLaunchPrompt
           access={access}
+          promptReason="limit"
+          featureName="場景練習"
           onSubscribe={() => router.push("/subscription")}
-          onContinueTrial={access.reason === "trial" ? () => setShowSubscriptionPrompt(false) : undefined}
+          onDismiss={() => setShowSubscriptionPrompt(false)}
         />
       )}
     </motion.div>

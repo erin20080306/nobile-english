@@ -23,6 +23,7 @@ import SubscriptionLaunchPrompt from "@/components/SubscriptionLaunchPrompt";
 import { LevelBadge, ProgressBar, Toggle } from "@/components/ui";
 import { trialAccessService, type AccessState } from "@/services/trialAccessService";
 import { trialUsageService } from "@/services/trialUsageService";
+import { subscriptionReminderService, type SubscriptionPromptReason } from "@/services/subscriptionReminderService";
 
 const dailySentences = [
   { en: "Every day is a fresh start.", zh: "每一天都是嶄新的開始。" },
@@ -67,8 +68,10 @@ export default function Dashboard() {
   const [garden, setGarden] = useState<GardenState | null>(null);
   const [savedCount, setSavedCount] = useState(0);
   const [accessState, setAccessState] = useState<AccessState | null>(null);
-  const [subscriptionPromptDismissed, setSubscriptionPromptDismissed] = useState(false);
-  const [forcedSubscriptionPrompt, setForcedSubscriptionPrompt] = useState(false);
+  const [subscriptionPrompt, setSubscriptionPrompt] = useState<{
+    reason: SubscriptionPromptReason;
+    featureName?: string;
+  } | null>(null);
   const sentence = dailySentences[new Date().getDate() % dailySentences.length];
 
   useEffect(() => {
@@ -81,7 +84,13 @@ export default function Dashboard() {
     void learningService.syncRecords(user.id);
     trialAccessService
       .getAccessState(user, { fresh: true })
-      .then(setAccessState)
+      .then((state) => {
+        setAccessState(state);
+        if (subscriptionReminderService.shouldShowLoginReminder(user.id, state)) {
+          subscriptionReminderService.markLoginReminderShown(user.id);
+          setSubscriptionPrompt({ reason: state.reason === "trial_expired" ? "expired" : "login" });
+        }
+      })
       .catch(() => setAccessState(null));
   }, [user]);
 
@@ -123,7 +132,10 @@ export default function Dashboard() {
 
   function openCustomScene() {
     if (trialUsageService.isLimited(accessState)) {
-      setForcedSubscriptionPrompt(true);
+      if (subscriptionReminderService.shouldShowLimitReminder(user?.id, "customScene", accessState, "session")) {
+        subscriptionReminderService.markLimitReminderShown(user?.id, "customScene", "session");
+        setSubscriptionPrompt({ reason: "limit", featureName: "自訂場景" });
+      }
       return;
     }
     router.push("/custom-scene");
@@ -145,6 +157,11 @@ export default function Dashboard() {
           <h1 className="text-2xl font-extrabold text-ink">{user.name} 👋</h1>
         </div>
         <div className="flex flex-col items-end gap-1">
+          {accessState && !accessState.isSubscribed && (
+            <p className="rounded-full bg-white px-3 py-1 text-[10px] font-extrabold text-peachDeep shadow-softer">
+              {accessState.reason === "trial" ? `試用剩 ${accessState.trial.daysLeft} 天` : "試用已結束"}
+            </p>
+          )}
           <p className="text-[10px] font-extrabold text-lilacDeep">訂閱者可自由修改級別</p>
           <LevelBadge level={user.level} />
         </div>
@@ -329,18 +346,13 @@ export default function Dashboard() {
 
       <BottomNav />
 
-      {accessState && (!subscriptionPromptDismissed || forcedSubscriptionPrompt) && (
+      {accessState && subscriptionPrompt && (
         <SubscriptionLaunchPrompt
           access={accessState}
+          promptReason={subscriptionPrompt.reason}
+          featureName={subscriptionPrompt.featureName}
           onSubscribe={() => router.push("/subscription")}
-          onContinueTrial={
-            accessState.reason === "trial"
-              ? () => {
-                  setSubscriptionPromptDismissed(true);
-                  setForcedSubscriptionPrompt(false);
-                }
-              : undefined
-          }
+          onDismiss={() => setSubscriptionPrompt(null)}
         />
       )}
     </div>

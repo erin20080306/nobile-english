@@ -30,6 +30,7 @@ import { learningService } from "@/services/learningService";
 import { soundService } from "@/services/soundService";
 import { trialAccessService, type AccessState } from "@/services/trialAccessService";
 import { trialUsageService } from "@/services/trialUsageService";
+import { subscriptionReminderService } from "@/services/subscriptionReminderService";
 import { themeCharacterService } from "@/services/themeCharacterService";
 import { THEME_CHARACTERS } from "@/data/themeCharacters";
 import { useUser } from "@/hooks/useUser";
@@ -82,6 +83,7 @@ export default function GardenPage() {
   const [previewItem, setPreviewItem] = useState<GardenShopItem | null>(null);
   const [access, setAccess] = useState<AccessState | null>(null);
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(false);
+  const [subscriptionFeatureName, setSubscriptionFeatureName] = useState("農場功能");
   const [previewCharacterIndex, setPreviewCharacterIndex] = useState(0);
   const [themeCharacterState, setThemeCharacterState] = useState(themeCharacterService.getState());
 
@@ -137,9 +139,17 @@ export default function GardenPage() {
     refresh(code);
   }
 
+  function showLimitPrompt(feature: "gardenDailyBonus" | "gardenPurchase", featureName: string) {
+    if (subscriptionReminderService.shouldShowLimitReminder(user?.id, feature, access, "daily")) {
+      subscriptionReminderService.markLimitReminderShown(user?.id, feature, "daily");
+      setSubscriptionFeatureName(featureName);
+      setShowSubscriptionPrompt(true);
+    }
+  }
+
   function claimDaily() {
     if (trialLimited) {
-      setShowSubscriptionPrompt(true);
+      showLimitPrompt("gardenDailyBonus", "農場每日補給");
       return;
     }
     soundService.play("review");
@@ -154,7 +164,7 @@ export default function GardenPage() {
   function buyOrEquip(item: GardenShopItem) {
     const owned = garden?.ownedItemIds.includes(item.id);
     if (!owned && trialLimited) {
-      setShowSubscriptionPrompt(true);
+      showLimitPrompt("gardenPurchase", "農場商店");
       return;
     }
     soundService.play(owned ? "review" : "harvest");
@@ -730,8 +740,10 @@ export default function GardenPage() {
       {access && showSubscriptionPrompt && (
         <SubscriptionLaunchPrompt
           access={access}
+          promptReason="limit"
+          featureName={subscriptionFeatureName}
           onSubscribe={() => router.push("/subscription")}
-          onContinueTrial={access.reason === "trial" ? () => setShowSubscriptionPrompt(false) : undefined}
+          onDismiss={() => setShowSubscriptionPrompt(false)}
         />
       )}
     </div>

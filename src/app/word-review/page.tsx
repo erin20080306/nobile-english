@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, CheckCircle, Database, RotateCcw, Volume2 } from "lucide-react";
+import { ArrowLeft, CheckCircle, Database, Lightbulb, RotateCcw, Volume2 } from "lucide-react";
 import type { LearningLanguageCode, User } from "@/types";
 import { authService } from "@/services/authService";
 import { learningService } from "@/services/learningService";
@@ -11,6 +11,7 @@ import { speechService } from "@/services/speechService";
 import { wordReviewService, type WordReviewScore, type WordReviewSession } from "@/services/wordReviewService";
 import { trialAccessService, type AccessState } from "@/services/trialAccessService";
 import { trialUsageService, TRIAL_WORD_REVIEW_DAILY_LIMIT } from "@/services/trialUsageService";
+import { subscriptionReminderService } from "@/services/subscriptionReminderService";
 import { getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
@@ -270,6 +271,7 @@ export default function WordReviewPage() {
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState("");
   const [typedAnswer, setTypedAnswer] = useState("");
+  const [hintVisible, setHintVisible] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const [readyToFinish, setReadyToFinish] = useState(false);
   const [score, setScore] = useState<WordReviewScore | null>(null);
@@ -300,6 +302,7 @@ export default function WordReviewPage() {
   const questionPrompt = current ? wordReviewService.questionPromptFor(current.word, questionKind) : "";
   const questionHint = current ? wordReviewService.questionHintFor(current.word, questionKind) : "";
   const questionZh = current ? wordReviewService.questionZhFor(current.word, questionKind) : "";
+  const answerHint = current ? wordReviewService.answerInitialHintFor(current.word) : "";
   const contextSentence = current?.word.example?.trim() || "";
   const contextSentenceZh = current?.word.exampleZh?.trim() || questionZh || current?.word.zh?.trim() || "";
   const choicePool = useMemo(() => session?.words.map((item) => item.word) || [], [session]);
@@ -309,10 +312,17 @@ export default function WordReviewPage() {
   );
   const progress = session ? Math.round(((index + (revealed ? 1 : 0)) / Math.max(session.words.length, 1)) * 100) : 0;
 
+  function showLimitPrompt() {
+    if (subscriptionReminderService.shouldShowLimitReminder(user?.id, "wordReview", access, "daily")) {
+      subscriptionReminderService.markLimitReminderShown(user?.id, "wordReview", "daily");
+      setShowSubscriptionPrompt(true);
+    }
+  }
+
   async function startReview() {
     if (starting) return;
     if (trialUsageService.isLimited(access) && !trialUsageService.useDaily("wordReview", TRIAL_WORD_REVIEW_DAILY_LIMIT)) {
-      setShowSubscriptionPrompt(true);
+      showLimitPrompt();
       return;
     }
     void unlockAnswerAudio();
@@ -324,6 +334,7 @@ export default function WordReviewPage() {
       setIndex(0);
       setSelected("");
       setTypedAnswer("");
+      setHintVisible(false);
       setRevealed(false);
       setReadyToFinish(false);
       setScore(null);
@@ -369,6 +380,7 @@ export default function WordReviewPage() {
     setIndex((value) => value + 1);
     setSelected("");
     setTypedAnswer("");
+    setHintVisible(false);
     setRevealed(false);
   }
 
@@ -514,8 +526,10 @@ export default function WordReviewPage() {
                 <p className="font-semibold text-ink">
                   {current.word.example}
                 </p>
-                {(current.word.exampleZh || wordReviewService.questionZhFor(current.word, "wordFill") || current.word.zh) && (
-                  <p className="text-sm text-inkSoft">{current.word.exampleZh || wordReviewService.questionZhFor(current.word, "wordFill") || current.word.zh}</p>
+                {(isFillQuestion ? questionZh : current.word.exampleZh || wordReviewService.questionZhFor(current.word, "wordFill") || current.word.zh) && (
+                  <p className="text-sm text-inkSoft">
+                    {isFillQuestion ? questionZh : current.word.exampleZh || wordReviewService.questionZhFor(current.word, "wordFill") || current.word.zh}
+                  </p>
                 )}
               </div>
             )}
@@ -538,6 +552,23 @@ export default function WordReviewPage() {
                 autoCorrect="off"
                 className={`rounded-3xl bg-white p-4 text-lg font-bold text-ink shadow-softer outline-none ${revealed ? "opacity-70" : ""}`}
               />
+              {!revealed && answerHint && (
+                <div className="rounded-3xl bg-white/80 p-3 shadow-softer">
+                  <button
+                    type="button"
+                    onClick={() => setHintVisible((value) => !value)}
+                    className="flex items-center gap-2 text-sm font-black text-lilacDeep active:scale-95"
+                  >
+                    <Lightbulb size={16} />
+                    {hintVisible ? "隱藏提示" : "看提示"}
+                  </button>
+                  {hintVisible && (
+                    <p className="mt-2 text-sm font-bold text-inkSoft">
+                      答案英文開頭：<span className="text-ink">{answerHint}</span>
+                    </p>
+                  )}
+                </div>
+              )}
               {!revealed && (
                 <button onPointerDown={() => { void unlockAnswerAudio(); }} disabled={!typedAnswer.trim()} className="btn-primary w-full disabled:opacity-50">
                   送出答案
@@ -654,8 +685,10 @@ export default function WordReviewPage() {
       {access && showSubscriptionPrompt && (
         <SubscriptionLaunchPrompt
           access={access}
+          promptReason="limit"
+          featureName="單字複習"
           onSubscribe={() => router.push("/subscription")}
-          onContinueTrial={access.reason === "trial" ? () => setShowSubscriptionPrompt(false) : undefined}
+          onDismiss={() => setShowSubscriptionPrompt(false)}
         />
       )}
     </div>

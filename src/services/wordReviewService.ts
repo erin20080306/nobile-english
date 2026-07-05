@@ -220,10 +220,30 @@ function blankedExample(word: Word) {
 
 function sentenceZh(word: Word) {
   const exampleZh = String(word.exampleZh || "").replace(/\s+/g, " ").trim();
-  if (containsCjk(exampleZh)) return shortText(exampleZh, 90);
+  if (containsCjk(exampleZh)) return shortText(normalizeFillSentenceZh(word, exampleZh), 90);
   const zh = String(word.zh || "").replace(/\s+/g, " ").trim();
   if (containsCjk(zh)) return shortText(zh, 90);
   return "";
+}
+
+function normalizeFillSentenceZh(word: Word, zh: string) {
+  const target = word.word.trim();
+  const example = String(word.example || "").replace(/\s+/g, " ").trim();
+  const isPracticePrompt = /^try using\s+["“]/i.test(example) || /放回場景句子|放進短句|放回原句|完整練習/.test(zh);
+  if (isPracticePrompt) {
+    return "試著在場景中的完整句子使用「____」。";
+  }
+  if (!target) return zh;
+  return zh
+    .replace(new RegExp(`「${target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}」`, "gi"), "「____」")
+    .replace(new RegExp(target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), "____");
+}
+
+function answerInitialHint(word: Word) {
+  const letters = Array.from(word.word.trim());
+  if (letters.length === 0) return "";
+  const visibleCount = letters.length <= 3 ? 1 : 2;
+  return `${letters.slice(0, visibleCount).join("")}${letters.length > visibleCount ? "..." : ""}`;
 }
 
 function isFriendlyForLevel(word: Word, level: EnglishLevel, language: LearningLanguageCode) {
@@ -469,6 +489,10 @@ export const wordReviewService = {
   questionZhFor(word: Word, questionKind: WordReviewQuestionKind): string {
     if (questionKind === "wordFill") return sentenceZh(word);
     return "";
+  },
+
+  answerInitialHintFor(word: Word): string {
+    return answerInitialHint(word);
   },
 
   completeSession(session: WordReviewSession): WordReviewScore {

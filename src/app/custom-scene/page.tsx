@@ -7,8 +7,10 @@ import type { CustomScene, EnglishLevel, LearningLanguageCode } from "@/types";
 import { sceneService } from "@/services/sceneService";
 import { learningService } from "@/services/learningService";
 import { speechService } from "@/services/speechService";
+import { authService } from "@/services/authService";
 import { trialAccessService, type AccessState } from "@/services/trialAccessService";
 import { trialUsageService } from "@/services/trialUsageService";
+import { subscriptionReminderService } from "@/services/subscriptionReminderService";
 import { getLearningLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
 import CustomScenePreview from "@/components/CustomScenePreview";
@@ -54,6 +56,14 @@ export default function CustomScenePage() {
     setForm((f) => ({ ...f, [k]: v }));
   }
 
+  function showLimitPrompt() {
+    const userId = authService.getCurrentUser()?.id;
+    if (subscriptionReminderService.shouldShowLimitReminder(userId, "customScene", access, "session")) {
+      subscriptionReminderService.markLimitReminderShown(userId, "customScene", "session");
+      setShowSubscriptionPrompt(true);
+    }
+  }
+
   function toggleMic() {
     if (listening) {
       stopListenRef.current?.();
@@ -82,7 +92,7 @@ export default function CustomScenePage() {
 
   async function generate() {
     if (trialUsageService.isLimited(access)) {
-      setShowSubscriptionPrompt(true);
+      showLimitPrompt();
       return;
     }
     if (!form.situation.trim()) {
@@ -118,8 +128,10 @@ export default function CustomScenePage() {
         {access && showSubscriptionPrompt && (
           <SubscriptionLaunchPrompt
             access={access}
+            promptReason="limit"
+            featureName="自訂場景"
             onSubscribe={() => router.push("/subscription")}
-            onContinueTrial={access.reason === "trial" ? () => setShowSubscriptionPrompt(false) : undefined}
+            onDismiss={() => setShowSubscriptionPrompt(false)}
           />
         )}
       </div>
@@ -191,8 +203,10 @@ export default function CustomScenePage() {
       {access && showSubscriptionPrompt && (
         <SubscriptionLaunchPrompt
           access={access}
+          promptReason="limit"
+          featureName="自訂場景"
           onSubscribe={() => router.push("/subscription")}
-          onContinueTrial={access.reason === "trial" ? () => setShowSubscriptionPrompt(false) : undefined}
+          onDismiss={() => setShowSubscriptionPrompt(false)}
         />
       )}
     </div>
