@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { BookOpen, Film, PlayCircle, Sparkles, X } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, Film, PlayCircle, Sparkles, X } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import { useUser } from "@/hooks/useUser";
@@ -173,6 +173,17 @@ export default function ThemeCharacterVideosPage() {
 }
 
 function VideoTopicSection({ topic }: { topic: VideoTopic }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  function scrollVideos(direction: -1 | 1) {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+    const firstCard = scroller.querySelector<HTMLElement>("[data-video-card]");
+    const gap = 12;
+    const distance = firstCard ? firstCard.offsetWidth + gap : Math.min(scroller.clientWidth * 0.82, 360);
+    scroller.scrollBy({ left: direction * distance, behavior: "smooth" });
+  }
+
   return (
     <section>
       <div className="mb-3 flex items-end justify-between gap-3">
@@ -180,16 +191,35 @@ function VideoTopicSection({ topic }: { topic: VideoTopic }) {
           <p className="text-xs font-extrabold text-inkSoft">{topic.eyebrow}</p>
           <h2 className="text-xl font-extrabold text-ink">{topic.title}</h2>
         </div>
-        <span className="shrink-0 rounded-full bg-lilac px-3 py-1 text-xs font-extrabold text-lilacDeep">
-          {topic.videos.length} 部影片
-        </span>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="hidden rounded-full bg-lilac px-3 py-1 text-xs font-extrabold text-lilacDeep sm:inline-flex">
+            {topic.videos.length} 部影片
+          </span>
+          <button
+            type="button"
+            onClick={() => scrollVideos(-1)}
+            aria-label={`${topic.title} 上一部影片`}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-inkSoft shadow-softer active:scale-95 transition hover:text-lilacDeep"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollVideos(1)}
+            aria-label={`${topic.title} 下一部影片`}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-lilacDeep text-white shadow-softer active:scale-95 transition"
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
       </div>
 
-      <div className="-mx-5 overflow-x-auto px-5 pb-2 no-scrollbar snap-x snap-mandatory">
+      <div ref={scrollRef} className="-mx-5 overflow-x-auto px-5 pb-2 no-scrollbar snap-x snap-mandatory">
         <div className="flex gap-3">
           {topic.videos.map((video, index) => (
             <motion.article
               key={video.id}
+              data-video-card
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.04 }}
