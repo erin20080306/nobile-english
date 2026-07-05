@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient, missingSupabaseServerEnv } from "@/server/supabaseClient";
+import { notifySubscriptionSupport } from "@/server/subscriptionNotification";
 
 export const dynamic = "force-dynamic";
 
@@ -345,6 +346,26 @@ export async function POST(req: NextRequest) {
         })
         .ilike("email", payerEmail);
     }
+
+    await notifySubscriptionSupport({
+      platform: "paypal",
+      eventId,
+      eventType,
+      userId: customId || null,
+      userEmail: payerEmail || null,
+      payerEmail: payerEmail || null,
+      payerName: payerName || null,
+      productId: plan.productId,
+      planPeriod: plan.period,
+      amountTwd: plan.amountTwd,
+      currency,
+      expiresAt,
+      matchedBy: customId ? "custom_id" : payerEmail ? "payer_email" : "payment_record_only",
+      orderId: orderId || null,
+      captureId: captureId || null,
+    }).catch((error) => {
+      console.warn("[SUBSCRIPTION_NOTIFY] PayPal email failed", error instanceof Error ? error.message : String(error));
+    });
 
     return NextResponse.json({
       success: true,

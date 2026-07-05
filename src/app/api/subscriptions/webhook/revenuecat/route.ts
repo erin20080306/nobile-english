@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { notifySubscriptionSupport } from "@/server/subscriptionNotification";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
     // Find user by revenuecat_app_user_id
     const { data: profile } = await supabase
       .from("profiles")
-      .select("id")
+      .select("id, email")
       .eq("revenuecat_app_user_id", app_user_id)
       .single();
 
@@ -75,6 +76,23 @@ export async function POST(req: NextRequest) {
         subscription_updated_at: new Date().toISOString(),
       })
       .eq("id", profile.id);
+
+    if (subscriptionStatus === "active") {
+      await notifySubscriptionSupport({
+        platform: "revenuecat",
+        eventType: event_type,
+        userId: profile.id,
+        userEmail: profile.email || null,
+        productId: product_id || null,
+        planPeriod: null,
+        amountTwd: null,
+        currency: null,
+        expiresAt: subscriptionExpiresAt,
+        matchedBy: "revenuecat_app_user_id",
+      }).catch((error) => {
+        console.warn("[SUBSCRIPTION_NOTIFY] RevenueCat email failed", error instanceof Error ? error.message : String(error));
+      });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

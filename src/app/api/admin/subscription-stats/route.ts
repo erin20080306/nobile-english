@@ -134,7 +134,6 @@ export async function GET() {
       cloudSyncRows,
       cloudSyncUsers,
       latestCloudSync,
-      learningRecordRows,
       learningRecordTypeRows,
       googleSessions,
       googlePageActivity,
@@ -168,7 +167,6 @@ export async function GET() {
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle(),
-      supabase.from("learning_records").select("id", { count: "exact", head: true }),
       supabase.from("learning_records").select("type").limit(20000),
       supabase
         .from("app_user_sessions")
@@ -195,7 +193,6 @@ export async function GET() {
       cloudSyncRows.error,
       cloudSyncUsers.error,
       latestCloudSync.error,
-      learningRecordRows.error,
       learningRecordTypeRows.error,
       googleSessions.error,
     ].filter(Boolean);
@@ -219,6 +216,10 @@ export async function GET() {
       const type = String(row.type || "unknown");
       learningRecordsByType.set(type, (learningRecordsByType.get(type) || 0) + 1);
     });
+    const learningRecordTypeList = Array.from(learningRecordsByType.entries())
+      .map(([type, count]) => ({ type, count }))
+      .sort((a, b) => b.count - a.count);
+    const learningRecordTotal = learningRecordTypeList.reduce((sum, item) => sum + item.count, 0);
 
     return NextResponse.json({
       appUsers: {
@@ -234,10 +235,8 @@ export async function GET() {
       cloudSync: {
         users: cloudSyncUserKeys.size,
         dataRows: cloudSyncRows.count ?? 0,
-        learningRecords: learningRecordRows.count ?? 0,
-        learningRecordsByType: Array.from(learningRecordsByType.entries())
-          .map(([type, count]) => ({ type, count }))
-          .sort((a, b) => b.count - a.count),
+        learningRecords: learningRecordTotal,
+        learningRecordsByType: learningRecordTypeList,
         latestUpdatedAt: latestCloudSync.data?.updated_at ?? null,
       },
       googleActivity: {
