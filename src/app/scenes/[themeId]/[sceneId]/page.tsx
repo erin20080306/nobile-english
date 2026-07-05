@@ -232,12 +232,14 @@ export default function ScenePracticePage() {
       .filter((item) => item.meaning);
     gardenService.addSceneWords(targetLanguage, practicedWords);
 
-    // Automatically save practiced words to user's vocabulary
+    // Automatically save practiced words to user's vocabulary. Uses
+    // lookupForSave (Gemini/OpenAI-backed) so unknown words get a real
+    // Chinese meaning instead of a generic "情境對話常見..." placeholder
+    // that would be unusable later in word review questions.
     practicedWords.forEach((item) => {
-      const { entry } = dictionaryService.lookup(item.word, targetLanguage);
-      if (entry) {
-        vocabularyService.addToReview(entry, `${activeScene!.name}場景練習`);
-      }
+      void dictionaryService.lookupForSave(item.word, targetLanguage).then((entry) => {
+        if (entry) vocabularyService.addToReview(entry, `${activeScene!.name}場景練習`);
+      });
     });
 
     const shouldShowSceneReview = sceneReviewService.isDue();

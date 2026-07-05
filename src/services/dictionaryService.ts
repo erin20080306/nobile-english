@@ -292,6 +292,15 @@ function genericEnglishExample(word: string, pos: Word["pos"], zh: string) {
   return { en: `This is ${article} ${q}.`, zh: `這是一個${meaning}。` };
 }
 
+function isGenericPlaceholderEntry(entry: Word): boolean {
+  const zh = String(entry.zh || "");
+  return (
+    zh.includes("情境對話") ||
+    zh.includes("請搭配原句理解") ||
+    /^常見(介系詞|連接詞|感嘆詞或招呼語|代名詞)/.test(zh)
+  );
+}
+
 function learnerFallback(word: string): Word | null {
   const q = normalizeToken(word);
   if (!/^[a-z][a-z'-]*$/.test(q) || q.length < 2) return null;
@@ -604,6 +613,40 @@ export const dictionaryService = {
   // Placeholder for future remote API integration (kept server-side via route).
   async lookupRemote(_word: string): Promise<Word | null> {
     return null;
+  },
+
+  // Used when auto-saving words from scene/dialogue practice (e.g. via
+  // vocabularyService.addToReview). A plain `lookup()` can return a generic
+  // learnerFallback entry (e.g. zh: "情境對話常見動詞或動詞變化，表示動作或
+  // 狀態。") for words the local dictionary doesn't know, which is useless as
+  // a review answer. This asks the Gemini/OpenAI-backed /api/dictionary route
+  // for a real, context-aware definition before the word is saved, falling
+  // back to the local entry only if the AI call fails.
+  async lookupForSave(word: string, language: LearningLanguageCode, sentence?: string): Promise<Word | null> {
+    const result = this.lookup(word, language);
+    const needsAi = result.fromFallback || (result.entry ? isGenericPlaceholderEntry(result.entry) : true);
+    if (!needsAi) return result.entry;
+    if (typeof window === "undefined") return result.entry;
+
+    try {
+      const response = await fetch("/api/dictionary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          word,
+          language,
+          sentence,
+          localEntry: result.entry,
+          fromFallback: result.fromFallback,
+        }),
+      });
+      if (!response.ok) return result.entry;
+      const data = await response.json();
+      if (data?.entry) return data.entry as Word;
+    } catch {
+      // Keep the app usable with the local (possibly generic) entry.
+    }
+    return result.entry;
   },
 
   // ---- Saved sentences ----

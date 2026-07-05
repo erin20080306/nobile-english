@@ -457,8 +457,13 @@ function buildSessionFromPool(options: WordReviewOptions, poolWords: Word[]): Wo
   const count = clamp(options.count, 1, 30);
   const learnedPercent = clamp(options.learnedPercent, 0, 100);
   const pool = normalizePoolWords(poolWords, language).filter((word) => isFriendlyForLevel(word, options.level, language));
-  const saved = savedLearnedWords(language);
-  const learned = uniqueWords([...saved, ...memoryWords(language, pool, memory)]);
+  // Saved words and words from past review sessions can come from scene/dialogue
+  // practice, where an unknown word is looked up via the learner dictionary
+  // fallback and stored with a generic placeholder meaning (e.g. "情境對話常見
+  // 名詞或名稱，請搭配原句理解。"). Filter those out here too, since they never
+  // went through the database pool's isFriendlyForLevel check above.
+  const saved = savedLearnedWords(language).filter((word) => !hasGenericPlaceholderMeaning(word));
+  const learned = uniqueWords([...saved, ...memoryWords(language, pool, memory).filter((word) => !hasGenericPlaceholderMeaning(word))]);
   const learnedTarget = Math.min(learned.length, Math.round(count * (learnedPercent / 100)));
   const excluded = new Set<string>();
   const selectedLearned = takeWords(sortLearned(learned, memory, language), learnedTarget, excluded, language);

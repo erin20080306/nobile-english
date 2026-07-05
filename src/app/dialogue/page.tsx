@@ -318,13 +318,15 @@ function Chat({ scene, onExit }: { scene: Scene; onExit: () => void }) {
       minutes: 8,
     });
 
-    // Automatically save conversation words to user's vocabulary
+    // Automatically save conversation words to user's vocabulary. Uses
+    // lookupForSave (Gemini/OpenAI-backed) so unknown words get a real
+    // Chinese meaning instead of a generic "情境對話常見..." placeholder
+    // that would be unusable later in word review questions.
     if (result.conversationWords && result.conversationWords.length > 0) {
       result.conversationWords.forEach((word) => {
-        const { entry } = dictionaryService.lookup(word, targetLanguage);
-        if (entry) {
-          vocabularyService.addToReview(entry, `${scene.name}對話練習`);
-        }
+        void dictionaryService.lookupForSave(word, targetLanguage).then((entry) => {
+          if (entry) vocabularyService.addToReview(entry, `${scene.name}對話練習`);
+        });
       });
     }
 
