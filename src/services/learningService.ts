@@ -173,7 +173,7 @@ export const learningService = {
   },
 
   // ---- Level test scoring ----
-  scoreLevelTest(score: number, total: number, dailyMinutes: number): LevelTestResult {
+  scoreLevelTest(score: number, total: number, dailyMinutes: number, selfRatedLevel?: EnglishLevel): LevelTestResult {
     const pct = (score / total) * 100;
     let level: EnglishLevel = "Beginner";
     let cefr: CEFRLevel = "A1";
@@ -192,6 +192,18 @@ export const learningService = {
     } else {
       level = "Beginner";
       cefr = "A1";
+    }
+
+    if (selfRatedLevel) {
+      level = selfRatedLevel;
+      const cefrByLevel: Record<EnglishLevel, CEFRLevel> = {
+        Beginner: "A1",
+        Elementary: "A2",
+        Intermediate: "B1",
+        "Upper-Intermediate": "B2",
+        Advanced: "C1",
+      };
+      cefr = cefrByLevel[selfRatedLevel];
     }
 
     const suggestionMap: Record<EnglishLevel, string> = {

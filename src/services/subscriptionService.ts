@@ -91,6 +91,7 @@ export const subscriptionService = {
             platform: data.platform || "web",
             productId: data.productId || "",
             willRenew: data.status === "active",
+            promoTrial: data.promoTrial || null,
           };
         }
       } catch {
@@ -104,6 +105,7 @@ export const subscriptionService = {
       platform: "web",
       productId: "",
       willRenew: false,
+      promoTrial: null,
     };
   },
 

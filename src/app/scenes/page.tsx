@@ -28,17 +28,17 @@ export default function ScenesPage() {
     trialAccessService.getAccessState(undefined, { fresh: true }).then(setAccess).catch(() => setAccess(null));
   }, []);
 
-  function showLimitPrompt() {
+  function showLimitPrompt(scope: "session" | "lifetime" = "session") {
     const userId = authService.getCurrentUser()?.id;
-    if (subscriptionReminderService.shouldShowLimitReminder(userId, "customScene", access, "session")) {
-      subscriptionReminderService.markLimitReminderShown(userId, "customScene", "session");
+    if (subscriptionReminderService.shouldShowLimitReminder(userId, "customScene", access, scope)) {
+      subscriptionReminderService.markLimitReminderShown(userId, "customScene", scope);
       setShowSubscriptionPrompt(true);
     }
   }
 
-  function openCustomScene(sceneId: string) {
-    if (trialUsageService.isLimited(access)) {
-      showLimitPrompt();
+  async function openCustomScene(sceneId: string) {
+    if (trialUsageService.isLimited(access) && !trialUsageService.isPromoTrial(access)) {
+      showLimitPrompt("session");
       return;
     }
     router.push(`/scenes/custom/${sceneId}`);

@@ -93,6 +93,7 @@ export default function ScenePracticePage() {
   const indexInTheme = scene ? sceneService.getScenesByTheme(scene.themeId).findIndex((item) => item.id === scene.id) : -1;
   const trialLocked = Boolean(
     scene &&
+      !trialUsageService.isPromoTrial(access) &&
       trialUsageService.isLimited(access) &&
       (scene.themeId === "custom" || !trialUsageService.canUseScene(scene, theme, indexInTheme))
   );
@@ -266,7 +267,34 @@ export default function ScenePracticePage() {
     router.push("/results");
   }
 
-  function startStagedPractice() {
+  function promoFeatureKeyForScene(): "customScene" | "scenePractice" {
+    return activeScene?.themeId === "custom" ? "customScene" : "scenePractice";
+  }
+
+  function skipFreshGeneratedCustomSceneCharge() {
+    if (activeScene?.themeId !== "custom" || typeof window === "undefined") return false;
+    const key = `promo_custom_scene_generated:${activeScene.id}`;
+    if (window.sessionStorage.getItem(key) !== "1") return false;
+    window.sessionStorage.removeItem(key);
+    return true;
+  }
+
+  async function consumePromoSceneUse() {
+    if (!trialUsageService.isPromoTrial(access)) return true;
+    if (skipFreshGeneratedCustomSceneCharge()) return true;
+    const usage = await trialUsageService.usePromoFeature(access, promoFeatureKeyForScene());
+    return usage.ok;
+  }
+
+  async function startStagedPractice() {
+    if (trialLocked) {
+      showLimitPrompt();
+      return;
+    }
+    if (!(await consumePromoSceneUse())) {
+      showLimitPrompt("lifetime");
+      return;
+    }
     setCurrentStageIndex(0);
     setPhase("staged");
   }
@@ -279,17 +307,21 @@ export default function ScenePracticePage() {
     }
   }
 
-  function showLimitPrompt() {
-    const featureKey: "customScene" | "dialoguePractice" = activeScene?.themeId === "custom" ? "customScene" : "dialoguePractice";
-    if (subscriptionReminderService.shouldShowLimitReminder(currentUser?.id, featureKey, access, "session")) {
-      subscriptionReminderService.markLimitReminderShown(currentUser?.id, featureKey, "session");
+  function showLimitPrompt(scope: "session" | "lifetime" = "session") {
+    const featureKey: "customScene" | "scenePractice" = promoFeatureKeyForScene();
+    if (subscriptionReminderService.shouldShowLimitReminder(currentUser?.id, featureKey, access, scope)) {
+      subscriptionReminderService.markLimitReminderShown(currentUser?.id, featureKey, scope);
       setShowSubscriptionPrompt(true);
     }
   }
 
-  function startConversation() {
+  async function startConversation() {
     if (trialLocked) {
       showLimitPrompt();
+      return;
+    }
+    if (!(await consumePromoSceneUse())) {
+      showLimitPrompt("lifetime");
       return;
     }
     setPhase("conversation");

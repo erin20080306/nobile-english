@@ -10,6 +10,7 @@ type SubscriptionStatusPayload = {
   productId: string | null;
   expiresAt: string | null;
   entitlement: string | null;
+  promoTrial?: PromoTrialPayload | null;
 };
 
 type PaypalSubscriptionRow = {
@@ -17,6 +18,22 @@ type PaypalSubscriptionRow = {
   product_id: string | null;
   expires_at: string | null;
   plan_period: string | null;
+};
+
+type PromoTrialRow = {
+  promo_code: string;
+  starts_at: string;
+  expires_at: string;
+  max_feature_uses: number | null;
+};
+
+type PromoTrialPayload = {
+  code: string;
+  startsAt: string;
+  expiresAt: string;
+  daysLeft: number;
+  maxFeatureUses: number;
+  isActive: boolean;
 };
 
 function inactivePayload(): SubscriptionStatusPayload {
@@ -27,6 +44,7 @@ function inactivePayload(): SubscriptionStatusPayload {
     productId: null,
     expiresAt: null,
     entitlement: null,
+    promoTrial: null,
   };
 }
 
@@ -43,6 +61,19 @@ function chooseLaterActive(
   const currentTime = current.expires_at ? new Date(current.expires_at).getTime() : 0;
   const candidateTime = candidate.expires_at ? new Date(candidate.expires_at).getTime() : 0;
   return candidateTime > currentTime ? candidate : current;
+}
+
+function promoPayload(row: PromoTrialRow): PromoTrialPayload {
+  const expiresAt = new Date(row.expires_at);
+  const remainingMs = expiresAt.getTime() - Date.now();
+  return {
+    code: row.promo_code,
+    startsAt: row.starts_at,
+    expiresAt: row.expires_at,
+    daysLeft: Math.max(0, Math.ceil(remainingMs / 86400000)),
+    maxFeatureUses: Number(row.max_feature_uses) || 20,
+    isActive: remainingMs > 0,
+  };
 }
 
 export async function GET(req: NextRequest) {
@@ -116,6 +147,29 @@ export async function GET(req: NextRequest) {
         productId: paypalMatch.product_id,
         expiresAt: paypalMatch.expires_at,
         entitlement: "premium",
+      });
+    }
+
+    const { data: promo, error: promoError } = await supabase
+      .from("promo_trial_redemptions")
+      .select("promo_code, starts_at, expires_at, max_feature_uses")
+      .eq("user_id", userId)
+      .eq("status", "active")
+      .gt("expires_at", new Date().toISOString())
+      .order("expires_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!promoError && promo) {
+      const payload = promoPayload(promo as PromoTrialRow);
+      return NextResponse.json({
+        isActive: false,
+        platform: "web",
+        status: "active",
+        productId: "promo_trial_30d",
+        expiresAt: payload.expiresAt,
+        entitlement: "promo_trial",
+        promoTrial: payload,
       });
     }
 

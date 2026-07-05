@@ -314,17 +314,23 @@ export default function WordReviewPage() {
   );
   const progress = session ? Math.round(((index + (revealed ? 1 : 0)) / Math.max(session.words.length, 1)) * 100) : 0;
 
-  function showLimitPrompt() {
-    if (subscriptionReminderService.shouldShowLimitReminder(user?.id, "wordReview", access, "daily")) {
-      subscriptionReminderService.markLimitReminderShown(user?.id, "wordReview", "daily");
+  function showLimitPrompt(scope: "daily" | "lifetime" = "daily") {
+    if (subscriptionReminderService.shouldShowLimitReminder(user?.id, "wordReview", access, scope)) {
+      subscriptionReminderService.markLimitReminderShown(user?.id, "wordReview", scope);
       setShowSubscriptionPrompt(true);
     }
   }
 
   async function startReview() {
     if (starting) return;
-    if (trialUsageService.isLimited(access) && !trialUsageService.useDaily("wordReview", TRIAL_WORD_REVIEW_DAILY_LIMIT)) {
-      showLimitPrompt();
+    if (trialUsageService.isPromoTrial(access)) {
+      const usage = await trialUsageService.usePromoFeature(access, "wordReview");
+      if (!usage.ok) {
+        showLimitPrompt("lifetime");
+        return;
+      }
+    } else if (trialUsageService.isLimited(access) && !trialUsageService.useDaily("wordReview", TRIAL_WORD_REVIEW_DAILY_LIMIT)) {
+      showLimitPrompt("daily");
       return;
     }
     void unlockAnswerAudio();

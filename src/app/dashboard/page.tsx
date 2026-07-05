@@ -175,8 +175,8 @@ export default function Dashboard() {
     setGarden(gardenService.getState(code));
   }
 
-  function openCustomScene() {
-    if (trialUsageService.isLimited(accessState)) {
+  async function openCustomScene() {
+    if (trialUsageService.isLimited(accessState) && !trialUsageService.isPromoTrial(accessState)) {
       if (subscriptionReminderService.shouldShowLimitReminder(user?.id, "customScene", accessState, "session")) {
         subscriptionReminderService.markLimitReminderShown(user?.id, "customScene", "session");
         setSubscriptionPrompt({ reason: "limit", featureName: "自訂場景" });
@@ -204,7 +204,11 @@ export default function Dashboard() {
         <div className="flex flex-col items-end gap-1">
           {accessState && !accessState.isSubscribed && (
             <p className="rounded-full bg-white px-3 py-1 text-[10px] font-extrabold text-peachDeep shadow-softer">
-              {accessState.reason === "trial" ? `試用剩 ${accessState.trial.daysLeft} 天` : "試用已結束"}
+              {accessState.reason === "promo_trial"
+                ? `優惠試用剩 ${accessState.promoTrial?.daysLeft ?? 0} 天`
+                : accessState.reason === "trial"
+                  ? `試用剩 ${accessState.trial.daysLeft} 天`
+                  : "試用已結束"}
             </p>
           )}
           <p className="text-[10px] font-extrabold text-lilacDeep">訂閱者可自由修改級別</p>

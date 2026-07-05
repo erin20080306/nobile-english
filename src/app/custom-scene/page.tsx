@@ -56,10 +56,10 @@ export default function CustomScenePage() {
     setForm((f) => ({ ...f, [k]: v }));
   }
 
-  function showLimitPrompt() {
+  function showLimitPrompt(scope: "session" | "lifetime" = "session") {
     const userId = authService.getCurrentUser()?.id;
-    if (subscriptionReminderService.shouldShowLimitReminder(userId, "customScene", access, "session")) {
-      subscriptionReminderService.markLimitReminderShown(userId, "customScene", "session");
+    if (subscriptionReminderService.shouldShowLimitReminder(userId, "customScene", access, scope)) {
+      subscriptionReminderService.markLimitReminderShown(userId, "customScene", scope);
       setShowSubscriptionPrompt(true);
     }
   }
@@ -91,8 +91,14 @@ export default function CustomScenePage() {
   }
 
   async function generate() {
-    if (trialUsageService.isLimited(access)) {
-      showLimitPrompt();
+    if (trialUsageService.isPromoTrial(access)) {
+      const usage = await trialUsageService.usePromoFeature(access, "customScene");
+      if (!usage.ok) {
+        showLimitPrompt("lifetime");
+        return;
+      }
+    } else if (trialUsageService.isLimited(access)) {
+      showLimitPrompt("session");
       return;
     }
     if (!form.situation.trim()) {
@@ -102,6 +108,9 @@ export default function CustomScenePage() {
     setGenerating(true);
     try {
       const c = await sceneService.createCustomScene({ ...form, targetLanguage });
+      if (trialUsageService.isPromoTrial(access)) {
+        window.sessionStorage.setItem(`promo_custom_scene_generated:${c.scene.id}`, "1");
+      }
       setCreated(c);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } finally {

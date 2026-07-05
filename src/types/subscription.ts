@@ -48,6 +48,16 @@ export interface PremiumEntitlement {
   platform: SubscriptionPlatform;
   productId: string;
   willRenew: boolean;
+  promoTrial?: PromoTrialInfo | null;
+}
+
+export interface PromoTrialInfo {
+  code: string;
+  startsAt: string;
+  expiresAt: string;
+  daysLeft: number;
+  maxFeatureUses: number;
+  isActive: boolean;
 }
 
 export interface SubscriptionProfile {

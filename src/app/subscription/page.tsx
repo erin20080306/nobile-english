@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { ArrowRight, Check, Crown, Info, RefreshCw, Settings, Sparkles } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
+import { authService } from "@/services/authService";
 import { subscriptionService } from "@/services/subscriptionService";
 import { trialAccessService, type AccessState, TRIAL_DAYS } from "@/services/trialAccessService";
 import type { SubscriptionOffering } from "@/types/subscription";
 
 const PRELAUNCH_PROMO_CODE = "qwe811122@661012";
+const THIRTY_DAY_PROMO_CODE = "qwe931016@";
 const PRELAUNCH_PAYMENT_LINKS = {
   monthly: {
     price: 399,
@@ -33,8 +35,10 @@ export default function SubscriptionPage() {
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
+  const [redeemingPromo, setRedeemingPromo] = useState(false);
   const [access, setAccess] = useState<AccessState | null>(null);
   const [promoCode, setPromoCode] = useState("");
+  const [promoMessage, setPromoMessage] = useState("");
 
   useEffect(() => {
     void load();
@@ -59,6 +63,10 @@ export default function SubscriptionPage() {
     return promoCode.trim().toLowerCase() === PRELAUNCH_PROMO_CODE;
   }
 
+  function isTrialPromoCode() {
+    return promoCode.trim().toLowerCase() === THIRTY_DAY_PROMO_CODE;
+  }
+
   function getPaymentTarget(offering: SubscriptionOffering) {
     const payment = PRELAUNCH_PAYMENT_LINKS[offering.period];
     const promoApplied = isPromoApplied();
@@ -73,6 +81,39 @@ export default function SubscriptionPage() {
     const target = getPaymentTarget(offering);
     setPurchasing(offering.productId);
     window.location.assign(target.url);
+  }
+
+  async function handleRedeemTrialPromo() {
+    const user = authService.getCurrentUser();
+    if (!user?.id || !user.email) {
+      setPromoMessage("請先登入 Google 帳號後再兌換。");
+      return;
+    }
+    setRedeemingPromo(true);
+    setPromoMessage("");
+    try {
+      const response = await fetch("/api/promo-trials/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          email: user.email,
+          code: promoCode,
+        }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.ok) {
+        setPromoMessage(String(data?.message || "優惠碼兌換失敗。"));
+        return;
+      }
+      trialAccessService.clearCache();
+      await load();
+      setPromoMessage("已啟用 30 天優惠試用，練習、閱讀、農場補給與商店每日各最多 20 次。");
+    } catch {
+      setPromoMessage("優惠碼兌換失敗，請稍後再試。");
+    } finally {
+      setRedeemingPromo(false);
+    }
   }
 
   async function handleRestore() {
@@ -103,6 +144,7 @@ export default function SubscriptionPage() {
 
   const isSubscribed = Boolean(access?.isSubscribed);
   const trialActive = access?.reason === "trial";
+  const promoTrialActive = access?.reason === "promo_trial";
   const trialExpired = access?.reason === "trial_expired";
 
   return (
@@ -130,12 +172,14 @@ export default function SubscriptionPage() {
             </span>
             <div>
               <p className="text-xl font-extrabold text-ink">
-                {isSubscribed ? "Premium 已啟用" : trialExpired ? "試用已結束" : `${TRIAL_DAYS} 天免費試用`}
+                {isSubscribed ? "Premium 已啟用" : promoTrialActive ? "30 天優惠試用中" : trialExpired ? "試用已結束" : `${TRIAL_DAYS} 天免費試用`}
               </p>
               <p className="text-sm font-semibold text-inkSoft">
                 {isSubscribed
                   ? "你已可使用完整導師語音與練習功能。"
-                  : trialActive
+                  : promoTrialActive
+                    ? `剩 ${access?.promoTrial?.daysLeft ?? 0} 天，練習、閱讀、農場補給與商店每日各最多 ${access?.promoTrial?.maxFeatureUses ?? 20} 次。`
+                    : trialActive
                     ? `剩 ${access?.trial.daysLeft ?? 0} 天，訂閱後解鎖即時 AI 導師角色語音。`
                     : "訂閱後即可繼續完整練習。"}
               </p>
@@ -152,12 +196,30 @@ export default function SubscriptionPage() {
               id="promo-code"
               value={promoCode}
               onChange={(event) => setPromoCode(event.target.value)}
-              placeholder="輸入優惠碼"
+              placeholder="輸入優惠碼或 30 天試用碼"
               className="mt-1 w-full rounded-2xl bg-cream px-3 py-2 text-sm font-bold text-ink outline-none focus:ring-2 focus:ring-lilacDeep"
             />
             {promoCode.trim() && (
-              <p className={`mt-1 text-xs font-bold ${isPromoApplied() ? "text-mintDeep" : "text-peachDeep"}`}>
-                {isPromoApplied() ? "優惠碼已套用" : "優惠碼不符合"}
+              <p className={`mt-1 text-xs font-bold ${isPromoApplied() || isTrialPromoCode() ? "text-mintDeep" : "text-peachDeep"}`}>
+                {isPromoApplied()
+                  ? "付款優惠碼已套用"
+                  : isTrialPromoCode()
+                    ? "30 天試用碼可兌換：限 2 位，練習、閱讀、農場每日各 20 次"
+                    : "優惠碼不符合"}
+              </p>
+            )}
+            {isTrialPromoCode() && (
+              <button
+                onClick={() => { void handleRedeemTrialPromo(); }}
+                disabled={redeemingPromo || promoTrialActive || isSubscribed}
+                className="mt-3 w-full rounded-3xl bg-mintDeep py-3 text-sm font-extrabold text-white shadow-softer active:scale-95 disabled:opacity-60"
+              >
+                {promoTrialActive ? "30 天試用已啟用" : redeemingPromo ? "兌換中..." : "兌換 30 天免費試用"}
+              </button>
+            )}
+            {promoMessage && (
+              <p className={`mt-2 text-xs font-bold ${promoMessage.startsWith("已啟用") ? "text-mintDeep" : "text-peachDeep"}`}>
+                {promoMessage}
               </p>
             )}
           </div>

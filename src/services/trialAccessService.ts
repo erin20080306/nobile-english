@@ -1,6 +1,7 @@
 import type { User } from "@/types";
 import { authService } from "./authService";
 import { subscriptionService } from "./subscriptionService";
+import type { PromoTrialInfo } from "@/types/subscription";
 
 export const TRIAL_DAYS = 7;
 export const ADMIN_EMAIL = "erin20080306@gmail.com";
@@ -18,9 +19,10 @@ export interface TrialInfo {
 export interface AccessState {
   isSubscribed: boolean;
   trial: TrialInfo;
+  promoTrial?: PromoTrialInfo | null;
   shouldShowSubscriptionPrompt: boolean;
   tutorVoiceMode: TutorVoiceAccessMode;
-  reason: "subscribed" | "trial" | "trial_expired";
+  reason: "subscribed" | "trial" | "promo_trial" | "trial_expired";
   showReason?: "limit_reached" | "cooldown_expired";
 }
 
@@ -74,6 +76,7 @@ export const trialAccessService = {
       const state: AccessState = {
         isSubscribed: true,
         trial,
+        promoTrial: null,
         shouldShowSubscriptionPrompt: false,
         tutorVoiceMode: "generate",
         reason: "subscribed",
@@ -84,6 +87,7 @@ export const trialAccessService = {
 
     const entitlement = await subscriptionService.getEntitlement().catch(() => null);
     const isSubscribed = Boolean(entitlement?.isActive);
+    const promoTrial = entitlement?.promoTrial?.isActive ? entitlement.promoTrial : null;
 
     // 檢查冷卻機制
     const lastDismissed = localStorage.getItem(PROMPT_DISMISSAL_KEY);
@@ -93,14 +97,25 @@ export const trialAccessService = {
       ? {
           isSubscribed: true,
           trial,
+          promoTrial: null,
           shouldShowSubscriptionPrompt: false,
           tutorVoiceMode: "generate",
           reason: "subscribed",
         }
+      : promoTrial
+        ? {
+            isSubscribed: false,
+            trial,
+            promoTrial,
+            shouldShowSubscriptionPrompt: false,
+            tutorVoiceMode: "cache-only",
+            reason: "promo_trial",
+          }
       : trial.isActive
         ? {
             isSubscribed: false,
             trial,
+            promoTrial: null,
             shouldShowSubscriptionPrompt: false, // 試用用戶不顯示提示
             tutorVoiceMode: "cache-only",
             reason: "trial",
@@ -108,6 +123,7 @@ export const trialAccessService = {
         : {
             isSubscribed: false,
             trial,
+            promoTrial: null,
             shouldShowSubscriptionPrompt: !isCooldownActive || Boolean(options?.forceShow),
             tutorVoiceMode: "blocked",
             reason: "trial_expired",

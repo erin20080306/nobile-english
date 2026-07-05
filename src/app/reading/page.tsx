@@ -167,8 +167,17 @@ export default function DailyReadingPage() {
     try {
       const nextAccess = await trialAccessService.getAccessState(user, { fresh: true }).catch(() => null);
       setAccess(nextAccess);
-      if (
-        trialUsageService.isLimited(nextAccess) &&
+      const isPromoTrial = trialUsageService.isPromoTrial(nextAccess);
+      const isStandardTrialLimited = trialUsageService.isLimited(nextAccess) && !isPromoTrial;
+      if (isPromoTrial) {
+        const usage = await trialUsageService.usePromoFeature(nextAccess, "readingArticle");
+        if (!usage.ok) {
+          setArticle(null);
+          showReadingLimitPrompt(nextAccess);
+          return;
+        }
+      } else if (
+        isStandardTrialLimited &&
         !trialUsageService.canUseLifetime("readingArticle", TRIAL_READING_ARTICLE_LIMIT)
       ) {
         setArticle(null);
@@ -178,7 +187,7 @@ export default function DailyReadingPage() {
       const res = await fetch(`/api/articles/today?language=${selectedLanguage}`);
       const nextArticle = res.ok ? await res.json() : null;
       setArticle(nextArticle);
-      if (nextArticle && trialUsageService.isLimited(nextAccess)) {
+      if (nextArticle && isStandardTrialLimited) {
         trialUsageService.useLifetime("readingArticle", TRIAL_READING_ARTICLE_LIMIT);
       }
     } catch {

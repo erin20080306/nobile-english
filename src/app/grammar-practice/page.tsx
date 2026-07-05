@@ -110,8 +110,15 @@ export default function GrammarPracticePage() {
     if (starting) return;
     const nextAccess = access || await trialAccessService.getAccessState(user, { fresh: true }).catch(() => null);
     if (nextAccess !== access) setAccess(nextAccess);
-    const isTrialLimited = trialUsageService.isLimited(nextAccess);
-    if (isTrialLimited && !trialUsageService.canUseLifetime("grammarPractice", TRIAL_GRAMMAR_PRACTICE_LIMIT)) {
+    const isPromoTrial = trialUsageService.isPromoTrial(nextAccess);
+    const isTrialLimited = trialUsageService.isLimited(nextAccess) && !isPromoTrial;
+    if (isPromoTrial) {
+      const usage = await trialUsageService.usePromoFeature(nextAccess, "grammarPractice");
+      if (!usage.ok) {
+        showLimitPrompt(nextAccess);
+        return;
+      }
+    } else if (isTrialLimited && !trialUsageService.canUseLifetime("grammarPractice", TRIAL_GRAMMAR_PRACTICE_LIMIT)) {
       showLimitPrompt(nextAccess);
       return;
     }
@@ -417,7 +424,11 @@ export default function GrammarPracticePage() {
           <p className="mt-3 rounded-3xl bg-white/80 px-4 py-2 text-xs font-extrabold text-lilacDeep shadow-softer">
             {lastGrammarScoreText}
           </p>
-          {access && trialUsageService.isLimited(access) && (
+          {access && trialUsageService.isPromoTrial(access) ? (
+            <p className="mt-2 rounded-3xl bg-white/80 px-4 py-2 text-xs font-extrabold text-peachDeep shadow-softer">
+              30 天優惠試用中：文法練習每日最多 {access.promoTrial?.maxFeatureUses ?? 20} 次
+            </p>
+          ) : access && trialUsageService.isLimited(access) && (
             <p className="mt-2 rounded-3xl bg-white/80 px-4 py-2 text-xs font-extrabold text-peachDeep shadow-softer">
               試用文法練習剩 {grammarTrialLeft} / {TRIAL_GRAMMAR_PRACTICE_LIMIT} 次
             </p>

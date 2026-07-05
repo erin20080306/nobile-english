@@ -99,7 +99,10 @@ export default function GardenPage() {
 
   const currentLanguage = getLearningLanguage(language);
   const trialLimited = trialUsageService.isLimited(access);
-  const canClaim = garden ? gardenService.canClaimDailyBonus(language) && !trialLimited : false;
+  const promoTrial = trialUsageService.isPromoTrial(access);
+  const standardTrialLimited = trialLimited && !promoTrial;
+  const dailyBonusAvailable = garden ? gardenService.canClaimDailyBonus(language) : false;
+  const canClaim = dailyBonusAvailable && !standardTrialLimited;
   const advice = garden ? gardenService.getAdvice(garden) : "";
   const pairCount = useMemo(() => new Set(deck.map((card) => card.pairId)).size, [deck]);
   const reviewCardCount = gardenService.getReviewCardCount(language);
@@ -147,8 +150,15 @@ export default function GardenPage() {
     }
   }
 
-  function claimDaily() {
-    if (trialLimited) {
+  async function claimDaily() {
+    if (!dailyBonusAvailable && !standardTrialLimited) return;
+    if (promoTrial) {
+      const usage = await trialUsageService.usePromoFeature(access, "gardenDailyBonus");
+      if (!usage.ok) {
+        showLimitPrompt("gardenDailyBonus", "農場每日補給");
+        return;
+      }
+    } else if (standardTrialLimited) {
       showLimitPrompt("gardenDailyBonus", "農場每日補給");
       return;
     }
@@ -161,11 +171,19 @@ export default function GardenPage() {
     setGarden(gardenService.claimLeagueReward(language, type, user?.name));
   }
 
-  function buyOrEquip(item: GardenShopItem) {
+  async function buyOrEquip(item: GardenShopItem) {
     const owned = garden?.ownedItemIds.includes(item.id);
-    if (!owned && trialLimited) {
-      showLimitPrompt("gardenPurchase", "農場商店");
-      return;
+    if (!owned) {
+      if (promoTrial) {
+        const usage = await trialUsageService.usePromoFeature(access, "gardenPurchase");
+        if (!usage.ok) {
+          showLimitPrompt("gardenPurchase", "農場商店");
+          return;
+        }
+      } else if (standardTrialLimited) {
+        showLimitPrompt("gardenPurchase", "農場商店");
+        return;
+      }
     }
     soundService.play(owned ? "review" : "harvest");
     setGarden(owned ? gardenService.equipItem(language, item.id) : gardenService.buyItem(language, item.id));
@@ -374,7 +392,7 @@ export default function GardenPage() {
       <div className="px-5 mt-4 grid grid-cols-2 gap-3">
         <button
           onClick={claimDaily}
-          disabled={!canClaim && !trialLimited}
+          disabled={!dailyBonusAvailable && !standardTrialLimited}
           className={`rounded-3xl px-4 py-3 text-left font-extrabold shadow-softer active:scale-95 transition ${
             canClaim ? "bg-lilacDeep text-white" : "bg-white text-inkSoft"
           }`}

@@ -38,7 +38,12 @@ export default function ThemeScenesPage() {
 
   function openScene(sceneId: string, indexInTheme: number) {
     const scene = scenes[indexInTheme];
-    if (scene && trialUsageService.isLimited(access) && !trialUsageService.canUseScene(scene, theme, indexInTheme)) {
+    if (
+      scene &&
+      !trialUsageService.isPromoTrial(access) &&
+      trialUsageService.isLimited(access) &&
+      !trialUsageService.canUseScene(scene, theme, indexInTheme)
+    ) {
       showLimitPrompt();
       return;
     }
@@ -65,7 +70,10 @@ export default function ThemeScenesPage() {
       <div className="px-5 grid gap-3">
         {scenes.map((s, i) => {
           const done = progress[s.id]?.completed;
-          const locked = trialUsageService.isLimited(access) && !trialUsageService.canUseScene(s, theme, i);
+          const locked =
+            !trialUsageService.isPromoTrial(access) &&
+            trialUsageService.isLimited(access) &&
+            !trialUsageService.canUseScene(s, theme, i);
           return (
             <motion.button
               key={s.id}

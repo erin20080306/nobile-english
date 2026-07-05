@@ -5,6 +5,7 @@ import type { AccessState } from "./trialAccessService";
 
 export type TrialUsageKey =
   | "dialoguePractice"
+  | "scenePractice"
   | "wordReview"
   | "grammarPractice"
   | "readingArticle"
@@ -23,6 +24,7 @@ export const TRIAL_WORD_REVIEW_DAILY_LIMIT = 1;
 export const TRIAL_GRAMMAR_PRACTICE_LIMIT = 10;
 export const TRIAL_READING_ARTICLE_LIMIT = 1;
 export const TRIAL_SCENES_PER_BEGINNER_THEME = 3;
+export const PROMO_TRIAL_FEATURE_LIMIT = 20;
 
 function todayKey() {
   const now = new Date();
@@ -62,6 +64,38 @@ function isLimited(access?: AccessState | null) {
 export const trialUsageService = {
   todayKey,
   isLimited,
+
+  isPromoTrial(access?: AccessState | null) {
+    return access?.reason === "promo_trial" && Boolean(access.promoTrial?.isActive);
+  },
+
+  async usePromoFeature(access: AccessState | null | undefined, key: TrialUsageKey) {
+    if (!this.isPromoTrial(access)) return { ok: true, remainingCount: null as number | null };
+    const user = authService.getCurrentUser();
+    if (!user?.id || !access?.promoTrial?.code) {
+      return { ok: false, errorCode: "INVALID_REQUEST", message: "尚未登入。", remainingCount: 0 };
+    }
+    try {
+      const response = await fetch("/api/promo-trials/use", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          code: access.promoTrial.code,
+          featureKey: key,
+        }),
+      });
+      const data = await response.json().catch(() => null);
+      return {
+        ok: response.ok && Boolean(data?.ok),
+        errorCode: String(data?.errorCode || ""),
+        message: String(data?.message || ""),
+        remainingCount: typeof data?.remainingCount === "number" ? data.remainingCount : 0,
+      };
+    } catch {
+      return { ok: false, errorCode: "NETWORK_ERROR", message: "無法檢查試用額度。", remainingCount: 0 };
+    }
+  },
 
   getDailyCount(key: TrialUsageKey) {
     const state = loadState();

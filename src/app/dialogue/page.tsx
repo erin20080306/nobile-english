@@ -59,23 +59,29 @@ function DialogueInner() {
     setIsFreeMode(false);
   }
 
-  function showLimitPrompt(featureName = "對話練習") {
+  function showLimitPrompt(featureName = "對話練習", scope: "daily" | "lifetime" | "session" = "daily") {
     const currentUser = authService.getCurrentUser();
-    if (subscriptionReminderService.shouldShowLimitReminder(currentUser?.id, "dialoguePractice", access, "daily")) {
-      subscriptionReminderService.markLimitReminderShown(currentUser?.id, "dialoguePractice", "daily");
+    if (subscriptionReminderService.shouldShowLimitReminder(currentUser?.id, "dialoguePractice", access, scope)) {
+      subscriptionReminderService.markLimitReminderShown(currentUser?.id, "dialoguePractice", scope);
       setSubscriptionFeatureName(featureName);
       setShowSubscriptionPrompt(true);
     }
   }
 
-  function pickScene(nextScene: Scene) {
-    if (trialUsageService.isLimited(access)) {
+  async function pickScene(nextScene: Scene) {
+    if (trialUsageService.isPromoTrial(access)) {
+      const usage = await trialUsageService.usePromoFeature(access, "dialoguePractice");
+      if (!usage.ok) {
+        showLimitPrompt("對話練習", "lifetime");
+        return;
+      }
+    } else if (trialUsageService.isLimited(access)) {
       const theme = sceneService.getTheme(nextScene.themeId);
       const indexInTheme = sceneService.getScenesByTheme(nextScene.themeId).findIndex((item) => item.id === nextScene.id);
       const sceneAllowed = trialUsageService.canUseScene(nextScene, theme, indexInTheme);
       const dailyAllowed = trialUsageService.canUseDaily("dialoguePractice", TRIAL_DIALOGUE_DAILY_LIMIT);
       if (!sceneAllowed || !dailyAllowed || !trialUsageService.useDaily("dialoguePractice", TRIAL_DIALOGUE_DAILY_LIMIT)) {
-        showLimitPrompt(sceneAllowed ? "對話練習" : "場景練習");
+        showLimitPrompt(sceneAllowed ? "對話練習" : "場景練習", "daily");
         return;
       }
     }
@@ -83,9 +89,15 @@ function DialogueInner() {
     setScene({ ...nextScene, targetLanguage: nextScene.targetLanguage || language });
   }
 
-  function startFreeMode() {
-    if (trialUsageService.isLimited(access)) {
-      showLimitPrompt("自由對話");
+  async function startFreeMode() {
+    if (trialUsageService.isPromoTrial(access)) {
+      const usage = await trialUsageService.usePromoFeature(access, "dialoguePractice");
+      if (!usage.ok) {
+        showLimitPrompt("自由對話", "lifetime");
+        return;
+      }
+    } else if (trialUsageService.isLimited(access)) {
+      showLimitPrompt("自由對話", "daily");
       return;
     }
     setIsFreeMode(true);
@@ -216,7 +228,7 @@ function ScenerPicker({
           </button>
           <button
             onClick={() => {
-              if (trialUsageService.isLimited(access)) onLocked();
+              if (trialUsageService.isLimited(access) && !trialUsageService.isPromoTrial(access)) onLocked();
               else router.push("/custom-scene");
             }}
             className="w-full card !p-4 text-left transition-colors bg-white"
@@ -235,7 +247,10 @@ function ScenerPicker({
               <p className="font-bold text-ink mb-2">{t.emoji} {t.name}</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {scenes.map((s, indexInTheme) => {
-                  const locked = trialUsageService.isLimited(access) && !trialUsageService.canUseScene(s, t, indexInTheme);
+                  const locked =
+                    trialUsageService.isLimited(access) &&
+                    !trialUsageService.isPromoTrial(access) &&
+                    !trialUsageService.canUseScene(s, t, indexInTheme);
                   return (
                     <button
                       key={s.id}

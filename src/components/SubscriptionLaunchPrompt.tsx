@@ -27,7 +27,12 @@ export default function SubscriptionLaunchPrompt({
 
   const resolvedReason: SubscriptionPromptReason =
     promptReason || (access.reason === "trial_expired" ? "expired" : access.showReason === "limit_reached" ? "limit" : "login");
-  const trialDaysText = access.reason === "trial" ? `試用剩 ${access.trial.daysLeft} 天` : "試用已結束";
+  const trialDaysText =
+    access.reason === "promo_trial"
+      ? `30 天優惠試用剩 ${access.promoTrial?.daysLeft ?? 0} 天`
+      : access.reason === "trial"
+        ? `試用剩 ${access.trial.daysLeft} 天`
+        : "試用已結束";
   const title =
     resolvedReason === "limit"
       ? `${featureName || "此功能"}試用額度已用完`
@@ -82,6 +87,7 @@ export default function SubscriptionLaunchPrompt({
               <Feature>每日 2 次對話、每日 1 次單字複習</Feature>
               <Feature>文法拖曳練習試用共 10 次</Feature>
               <Feature>每日文章可聽各國語言，試用額度共 1 次</Feature>
+              <Feature>優惠碼 30 天試用：練習、閱讀、農場補給與商店每日各最多 20 次</Feature>
               <Feature>主題人物影片不限額瀏覽</Feature>
               <Feature muted>即時 AI 導師角色語音以已快取音檔為主</Feature>
             </ul>
