@@ -395,6 +395,7 @@ export default function WordReviewPage() {
   function finishReview() {
     if (!session) return;
     const result = wordReviewService.completeSession(session);
+    void learningService.syncRecords(user?.id || authService.getCurrentUser()?.id || "");
     setScore(result);
     setRewardImage(rewardImageForScore(result.score));
     setReadyToFinish(false);

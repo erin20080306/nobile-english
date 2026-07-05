@@ -63,6 +63,7 @@ export default function ExamRunPage() {
         completed: true,
         minutes: 10,
       });
+      void learningService.syncRecords(authService.getCurrentUser()?.id || "");
       setRewardImage(rewardImageForScore(r.percent));
       setResult(r);
     }

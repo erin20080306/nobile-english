@@ -335,6 +335,7 @@ function Chat({ scene, onExit }: { scene: Scene; onExit: () => void }) {
       completed: true,
       minutes: 8,
     });
+    void learningService.syncRecords(currentUser?.id || storageService.get<string>(KEYS.session, ""));
 
     // Automatically save conversation words to user's vocabulary. Uses
     // lookupForSave (Gemini/OpenAI-backed) so unknown words get a real
@@ -500,6 +501,7 @@ function FreeChat({ targetLanguage, onExit }: { targetLanguage: LearningLanguage
       completed: true,
       minutes: 10,
     });
+    void learningService.syncRecords(authService.getCurrentUser()?.id || storageService.get<string>(KEYS.session, ""));
     storageService.set(KEYS.lastResult, {
       kind: "dialogue",
       title: `自由對話（${languageInfo.zhName}）`,

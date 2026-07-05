@@ -65,6 +65,7 @@ interface AdminSubscriptionStats {
     users: number;
     dataRows: number;
     learningRecords: number;
+    learningRecordsByType?: Array<{ type: string; count: number }>;
     latestUpdatedAt: string | null;
   };
   googleActivity?: {
@@ -124,6 +125,19 @@ function formatAdminDate(value?: string | null): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function learningRecordTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    scene: "場景",
+    dialogue: "對話",
+    exam: "測驗",
+    custom: "自訂",
+    word: "單字",
+    reading_article: "每日文章",
+    grammar: "文法",
+  };
+  return labels[type] || type;
 }
 
 export default function AdminPage() {
@@ -611,6 +625,15 @@ export default function AdminPage() {
                   <p className="mt-2 text-xs font-bold text-inkSoft">
                     最近同步：{formatAdminDate(subscriptionStats.cloudSync.latestUpdatedAt)}
                   </p>
+                  {subscriptionStats.cloudSync.learningRecordsByType?.length ? (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {subscriptionStats.cloudSync.learningRecordsByType.map((item) => (
+                        <span key={item.type} className="rounded-full bg-white px-2.5 py-1 text-[10px] font-extrabold text-inkSoft">
+                          {learningRecordTypeLabel(item.type)} {item.count}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               )}
               {statsExpanded && subscriptionStats.googleActivity && (

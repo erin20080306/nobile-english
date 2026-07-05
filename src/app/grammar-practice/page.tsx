@@ -190,6 +190,7 @@ export default function GrammarPracticePage() {
     const nextIndex = questionIndex + 1;
     if (nextIndex >= totalQuestions) {
       const finalScore = grammarPracticeService.completeSession(session, nextResults);
+      void learningService.syncRecords(user?.id || authService.getCurrentUser()?.id || "");
       setScore(finalScore);
       setRewardImage(rewardImageForScore(finalScore.score));
       setComplete(true);
