@@ -203,7 +203,13 @@ function shortText(text = "", max = 72) {
 
 function shortMeaning(word: Word) {
   const zh = String(word.zh || "").trim();
-  if (containsCjk(zh)) return shortText(zh.split(/[；;,，、]/)[0] || zh, 30);
+  if (containsCjk(zh)) {
+    // Split by common separators and take the first meaning, excluding scenario context
+    const meanings = zh.split(/[；;,，、]/);
+    // Filter out scenario-related phrases
+    const cleanMeaning = meanings[0]?.replace(/場景|情境|短句|練習|使用/g, "").trim() || zh;
+    return shortText(cleanMeaning, 30);
+  }
   const def = String(word.enDef || zh || word.word).trim();
   return shortText(def, 64);
 }

@@ -471,21 +471,6 @@ export default function WordReviewPage() {
                       </p>
                     )}
                     <p className="mt-1 text-inkSoft">{questionHint}</p>
-                    {isWordChoice && (contextSentence || contextSentenceZh) && (
-                      <div className="mt-3 rounded-3xl bg-cream p-3">
-                        <p className="text-xs font-bold text-inkSoft">完整句</p>
-                        {contextSentence && (
-                          <p className="mt-1 text-base font-semibold leading-relaxed text-ink">
-                            {contextSentence}
-                          </p>
-                        )}
-                        {contextSentenceZh && (
-                          <p className="mt-1 text-sm font-bold leading-relaxed text-inkSoft">
-                            {contextSentenceZh}
-                          </p>
-                        )}
-                      </div>
-                    )}
                   </>
                 ) : (
                   <>
@@ -522,14 +507,18 @@ export default function WordReviewPage() {
                     <p className="text-sm text-inkSoft">{current.word.phonetic} · {current.word.pos}</p>
                   </div>
                 )}
-                <p className="text-xs font-bold text-inkSoft">例句</p>
-                <p className="font-semibold text-ink">
-                  {current.word.example}
-                </p>
-                {(isFillQuestion ? questionZh : current.word.exampleZh || wordReviewService.questionZhFor(current.word, "wordFill") || current.word.zh) && (
-                  <p className="text-sm text-inkSoft">
-                    {isFillQuestion ? questionZh : current.word.exampleZh || wordReviewService.questionZhFor(current.word, "wordFill") || current.word.zh}
-                  </p>
+                {isFillQuestion && (
+                  <>
+                    <p className="text-xs font-bold text-inkSoft">例句</p>
+                    <p className="font-semibold text-ink">
+                      {current.word.example}
+                    </p>
+                    {questionZh && (
+                      <p className="text-sm text-inkSoft">
+                        {questionZh}
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             )}
