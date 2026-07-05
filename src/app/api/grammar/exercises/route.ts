@@ -20,12 +20,12 @@ const LANGUAGE_NAMES: Record<LearningLanguageCode, string> = {
 };
 
 const CEFR_RANK: Record<string, number> = { A1: 1, A2: 2, B1: 3, B2: 4, C1: 5, C2: 6 };
-const LEVEL_MAX_CEFR: Record<EnglishLevel, number> = {
-  Beginner: 2,
-  Elementary: 3,
-  Intermediate: 4,
-  "Upper-Intermediate": 5,
-  Advanced: 6,
+const LEVEL_CEFR_RANGE: Record<EnglishLevel, { min: number; max: number }> = {
+  Beginner: { min: 1, max: 1 },
+  Elementary: { min: 1, max: 2 },
+  Intermediate: { min: 2, max: 3 },
+  "Upper-Intermediate": { min: 3, max: 4 },
+  Advanced: { min: 4, max: 6 },
 };
 
 function isCefrAllowed(cefrLevel: string | null | undefined, level: EnglishLevel) {
@@ -34,9 +34,10 @@ function isCefrAllowed(cefrLevel: string | null | undefined, level: EnglishLevel
   if (!rank) {
     // Unknown CEFR entries are often rare/archaic dictionary quotations, so
     // only let them through for the higher levels where that's acceptable.
-    return level === "Intermediate" || level === "Upper-Intermediate" || level === "Advanced";
+    return level === "Upper-Intermediate" || level === "Advanced";
   }
-  return rank <= LEVEL_MAX_CEFR[level];
+  const range = LEVEL_CEFR_RANGE[level];
+  return rank >= range.min && rank <= range.max;
 }
 
 function parseLanguage(value: string | null): LearningLanguageCode {
@@ -151,6 +152,30 @@ function wordCount(text: string, language: LearningLanguageCode) {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
+function maxSentenceUnits(language: LearningLanguageCode, level: EnglishLevel) {
+  const isCjk = language === "ja" || language === "ko" || language === "zh";
+  const latinLimits: Record<EnglishLevel, number> = {
+    Beginner: 5,
+    Elementary: 7,
+    Intermediate: 9,
+    "Upper-Intermediate": 11,
+    Advanced: 13,
+  };
+  const cjkLimits: Record<EnglishLevel, number> = {
+    Beginner: 14,
+    Elementary: 18,
+    Intermediate: 24,
+    "Upper-Intermediate": 30,
+    Advanced: 36,
+  };
+  return isCjk ? cjkLimits[level] : latinLimits[level];
+}
+
+function isSentenceLevelFit(text: string, language: LearningLanguageCode, level: EnglishLevel) {
+  const units = wordCount(text, language);
+  return units >= 3 && units <= maxSentenceUnits(language, level) && isReasonableSentence(text, language, level);
+}
+
 // Filters out dictionary quotations that are technically valid sentences but
 // a poor fit for a sentence-ordering game (extremely long single words,
 // archaic spelling artifacts, etc). Intentionally simple/heuristic rather
@@ -180,18 +205,13 @@ async function fetchDictionarySentences(
     .limit(500);
   if (error || !data) return [];
 
-  const minWords = 3;
-  const isCjk = language === "ja" || language === "ko" || language === "zh";
-  const maxWords = isCjk ? 24 : level === "Beginner" ? 8 : level === "Elementary" ? 10 : 12;
   const candidates: Array<{ text: string; zh: string; hasZh: boolean }> = [];
 
   for (const row of data as Array<{ examples_json: unknown; cefr_level: string | null }>) {
     if (!isCefrAllowed(row.cefr_level, level)) continue;
     const examples = normalizePartOfSpeechExamples(row.examples_json);
     for (const example of examples) {
-      const words = wordCount(example.text, language);
-      if (words < minWords || words > maxWords) continue;
-      if (!isReasonableSentence(example.text, language, level)) continue;
+      if (!isSentenceLevelFit(example.text, language, level)) continue;
       const key = sentenceKey(example.text);
       if (!key || existingKeys.has(key)) continue;
       existingKeys.add(key);
@@ -201,7 +221,11 @@ async function fetchDictionarySentences(
 
   // Prefer sentences that already have a Chinese translation so the practice
   // prompt is never blank; only fall back to untranslated ones if needed.
-  candidates.sort((a, b) => Number(b.hasZh) - Number(a.hasZh));
+  candidates.sort((a, b) => {
+    const zhScore = Number(b.hasZh) - Number(a.hasZh);
+    if (zhScore !== 0) return zhScore;
+    return wordCount(a.text, language) - wordCount(b.text, language);
+  });
   return candidates.slice(0, need).map(({ text, zh }) => ({ text, zh }));
 }
 
@@ -211,8 +235,7 @@ function collectSceneSentences(level: EnglishLevel, need: number, existingKeys: 
   const pool = matching.length ? matching : scenes;
   for (const scene of pool) {
     for (const line of scene.dialogue) {
-      const words = wordCount(line.en, "en");
-      if (words < 3 || words > 12) continue;
+      if (!isSentenceLevelFit(line.en, "en", level)) continue;
       const key = sentenceKey(line.en);
       if (!key || existingKeys.has(key)) continue;
       existingKeys.add(key);
@@ -311,9 +334,12 @@ export async function GET(req: Request) {
         .select("*")
         .eq("language_code", language)
         .eq("level", level)
-        .limit(limit * 3);
-      cachedRows = (data || []) as ExerciseRow[];
-      cachedRows.forEach((row) => existingKeys.add(row.sentence_key));
+        .limit(500);
+      const rows = (data || []) as ExerciseRow[];
+      rows.forEach((row) => existingKeys.add(row.sentence_key));
+      cachedRows = rows
+        .filter((row) => isSentenceLevelFit(row.text_target, language, level))
+        .slice(0, limit * 3);
     } catch {
       cachedRows = [];
     }
@@ -356,6 +382,7 @@ export async function GET(req: Request) {
       } else {
         const translated = await translateScenesWithGemini(sceneSentences, language);
         translated.forEach((sentence) => {
+          if (!isSentenceLevelFit(sentence.text, language, level)) return;
           const key = sentenceKey(sentence.text);
           if (!key || existingKeys.has(key)) return;
           existingKeys.add(key);

@@ -59,6 +59,8 @@ export default function GrammarPracticePage() {
   const [rewardImage, setRewardImage] = useState("");
 
   const answerZoneRef = useRef<HTMLDivElement | null>(null);
+  const resultsRef = useRef<GrammarQuestionResult[]>([]);
+  const recordedQuestionKeysRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const currentUser = authService.getCurrentUser();
@@ -93,6 +95,7 @@ export default function GrammarPracticePage() {
 
   async function startPractice() {
     if (starting) return;
+    speechService.unlockAudio();
     setStarting(true);
     setPoolStatus("正在準備句子...");
     try {
@@ -104,6 +107,8 @@ export default function GrammarPracticePage() {
       setSession(result.session);
       setQuestionIndex(0);
       setResults([]);
+      resultsRef.current = [];
+      recordedQuestionKeysRef.current = new Set();
       setComplete(false);
       setScore(null);
       startQuestion(0, result.session);
@@ -131,24 +136,31 @@ export default function GrammarPracticePage() {
   function finishQuestion(mistakes: number, finalTokens: string[]) {
     if (!session || !exercise) return;
     if (!grammarPracticeService.isCorrectArrangement(finalTokens, exercise, language)) return;
-    grammarPracticeService.recordCompletion(language, exercise, mistakes);
-    const nextResults = [...results, { exerciseId: exercise.id, mistakes }];
-    setResults(nextResults);
+    const recordKey = `${questionIndex}:${exercise.id}`;
+    if (!recordedQuestionKeysRef.current.has(recordKey)) {
+      recordedQuestionKeysRef.current.add(recordKey);
+      grammarPracticeService.recordCompletion(language, exercise, mistakes);
+      const nextResults = [...resultsRef.current, { exerciseId: exercise.id, mistakes }];
+      resultsRef.current = nextResults;
+      setResults(nextResults);
+    }
     speakSentence();
+  }
 
-    window.setTimeout(() => {
-      const nextIndex = questionIndex + 1;
-      if (nextIndex >= totalQuestions) {
-        const finalScore = grammarPracticeService.completeSession(session, nextResults);
-        setScore(finalScore);
-        setRewardImage(rewardImageForScore(finalScore.score));
-        setComplete(true);
-        window.setTimeout(() => soundService.playForScore(finalScore.score), 250);
-      } else {
-        setQuestionIndex(nextIndex);
-        startQuestion(nextIndex, session);
-      }
-    }, 1300);
+  function advanceQuestion() {
+    if (!session || !exercise || !answerIsCorrect) return;
+    const nextResults = resultsRef.current.length ? resultsRef.current : results;
+    const nextIndex = questionIndex + 1;
+    if (nextIndex >= totalQuestions) {
+      const finalScore = grammarPracticeService.completeSession(session, nextResults);
+      setScore(finalScore);
+      setRewardImage(rewardImageForScore(finalScore.score));
+      setComplete(true);
+      window.setTimeout(() => soundService.playForScore(finalScore.score), 250);
+      return;
+    }
+    setQuestionIndex(nextIndex);
+    startQuestion(nextIndex, session);
   }
 
   function handleDrop(tile: BankTile, event: MouseEvent | TouchEvent | PointerEvent) {
@@ -280,10 +292,15 @@ export default function GrammarPracticePage() {
               {!placed.length && <span className="text-sm font-semibold text-inkSoft">拖曳下方單字到這裡排出句子…</span>}
               {answerIsCorrect && (
                 <span className="chip bg-mintDeep text-white flex items-center gap-1 text-xs">
-                  <Check size={14} /> 正確！自動播放語音中
+                  <Check size={14} /> 正確！聽完後可前往下一題
                 </span>
               )}
             </div>
+            {answerIsCorrect && (
+              <button onClick={advanceQuestion} className="mt-4 btn-primary w-full">
+                {questionIndex + 1 >= totalQuestions ? "完成練習" : "下一題"}
+              </button>
+            )}
           </div>
 
           <div className="rounded-[30px] bg-white/80 p-4 shadow-softer">

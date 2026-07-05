@@ -164,7 +164,12 @@ export const grammarPracticeService = {
     memory.lastOptions = { language: options.language, count: options.count, reviewWrongPercent: options.reviewWrongPercent };
     saveMemory(memory);
 
-    const withKeys = exercises.map((exercise) => ({
+    const levelMatchedExercises =
+      options.level === "Beginner" || options.level === "Elementary"
+        ? [...exercises].sort((a, b) => a.tokens.length - b.tokens.length)
+        : exercises;
+
+    const withKeys = levelMatchedExercises.map((exercise) => ({
       exercise,
       key: normalizeKey(options.language, exercise.textTarget),
     }));
@@ -172,7 +177,11 @@ export const grammarPracticeService = {
     const wrongPool = withKeys
       .filter((item) => (memory.byKey[item.key]?.wrongCount || 0) > 0)
       .sort((a, b) => (memory.byKey[b.key]?.wrongCount || 0) - (memory.byKey[a.key]?.wrongCount || 0));
-    const freshPool = shuffle(withKeys.filter((item) => !(memory.byKey[item.key]?.wrongCount > 0)));
+    const freshCandidates = withKeys.filter((item) => !(memory.byKey[item.key]?.wrongCount > 0));
+    const freshPool =
+      options.level === "Beginner" || options.level === "Elementary"
+        ? freshCandidates
+        : shuffle(freshCandidates);
 
     const wantWrong = Math.min(wrongPool.length, Math.round((options.count * options.reviewWrongPercent) / 100));
     const selected = wrongPool.slice(0, wantWrong);
