@@ -243,11 +243,21 @@ export const grammarPracticeService = {
     const totalTokens = session.questions.reduce((sum, q) => sum + q.exercise.tokens.length, 0);
     const perfectCount = results.filter((item) => item.mistakes === 0).length;
     const accuracy = totalTokens + totalMistakes > 0 ? Math.round((100 * totalTokens) / (totalTokens + totalMistakes)) : 100;
+    const sentenceLines = session.questions.map((question) => ({
+      role: "user" as const,
+      en: this.sentenceText(question.exercise, session.language),
+      zh: question.exercise.textZh,
+    }));
 
     learningService.addRecord({
       type: "grammar",
       targetLanguage: session.language,
       title: `文法練習 · ${session.level}`,
+      enContent: sentenceLines.map((line) => line.en).join(" / "),
+      zhContent: sentenceLines.map((line) => line.zh).join(" / "),
+      userAnswer: sentenceLines.map((line) => line.en).join(" / "),
+      suggestion: "已保存本次排句練習句子，可在學習紀錄查看中文並播放。",
+      transcript: sentenceLines,
       score: accuracy,
       completed: true,
       minutes: Math.max(1, Math.round(total * 0.6)),

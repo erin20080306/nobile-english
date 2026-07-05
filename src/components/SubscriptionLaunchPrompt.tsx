@@ -80,6 +80,7 @@ export default function SubscriptionLaunchPrompt({
               <Feature>AI 導師文字回覆可正常體驗</Feature>
               <Feature>初級場景可體驗每個主題前 3 個場景</Feature>
               <Feature>每日 2 次對話、每日 1 次單字複習</Feature>
+              <Feature>文法拖曳練習試用共 10 次</Feature>
               <Feature>每日文章可聽各國語言，試用額度共 1 次</Feature>
               <Feature>主題人物影片不限額瀏覽</Feature>
               <Feature muted>即時 AI 導師角色語音以已快取音檔為主</Feature>

@@ -6,6 +6,7 @@ import type { AccessState } from "./trialAccessService";
 export type TrialUsageKey =
   | "dialoguePractice"
   | "wordReview"
+  | "grammarPractice"
   | "readingArticle"
   | "gardenDailyBonus"
   | "gardenPurchase"
@@ -19,6 +20,7 @@ interface TrialUsageState {
 
 export const TRIAL_DIALOGUE_DAILY_LIMIT = 2;
 export const TRIAL_WORD_REVIEW_DAILY_LIMIT = 1;
+export const TRIAL_GRAMMAR_PRACTICE_LIMIT = 10;
 export const TRIAL_READING_ARTICLE_LIMIT = 1;
 export const TRIAL_SCENES_PER_BEGINNER_THEME = 3;
 

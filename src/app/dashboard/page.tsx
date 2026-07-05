@@ -148,6 +148,7 @@ export default function Dashboard() {
   const learnedWordCount = wordReviewService.getLearnedWordCount(settings.targetLanguage);
   const comprehensionPercent = wordReviewService.getComprehensionPercent(settings.targetLanguage);
   const comprehensionCefr = wordReviewService.getComprehensionCefr(settings.targetLanguage);
+  const lastGrammarRecord = learningService.getLatestRecord("grammar", settings.targetLanguage);
 
   function updateSetting(patch: Partial<UserSettings>) {
     const next = { ...settings!, ...patch };
@@ -279,6 +280,11 @@ export default function Dashboard() {
           </div>
           <div className="mt-3"><ProgressBar value={comprehensionPercent} /></div>
           <p className="mt-1 text-xs font-semibold text-inkSoft">理解程度約 {comprehensionPercent}%（以 C1 詞彙量為滿分基準）</p>
+          <p className="mt-2 rounded-2xl bg-cream px-3 py-2 text-xs font-extrabold text-inkSoft">
+            {lastGrammarRecord
+              ? `上次文法練習：${lastGrammarRecord.score} 分 · ${new Date(lastGrammarRecord.date).toLocaleDateString()}`
+              : "尚無文法練習分數"}
+          </p>
         </div>
       </div>
 

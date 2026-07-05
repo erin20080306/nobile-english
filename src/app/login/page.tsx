@@ -99,10 +99,6 @@ export default function LoginPage() {
 
         {error && <p className="text-peachDeep text-sm font-semibold text-center">{error}</p>}
       </div>
-
-      <p className="text-center text-xs text-inkSoft mt-6">
-        一個帳號只能綁定 1 支手機；同一支手機可切換多位學習者。
-      </p>
     </motion.div>
   );
 }

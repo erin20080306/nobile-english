@@ -9,6 +9,9 @@ import { authService } from "@/services/authService";
 import { learningService } from "@/services/learningService";
 import { speechService } from "@/services/speechService";
 import { soundService } from "@/services/soundService";
+import { trialAccessService, type AccessState } from "@/services/trialAccessService";
+import { trialUsageService, TRIAL_GRAMMAR_PRACTICE_LIMIT } from "@/services/trialUsageService";
+import { subscriptionReminderService } from "@/services/subscriptionReminderService";
 import {
   grammarPracticeService,
   type GrammarExercise,
@@ -22,6 +25,7 @@ import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import CheerImage from "@/components/CheerImage";
 import ScoreRing from "@/components/ScoreRing";
+import SubscriptionLaunchPrompt from "@/components/SubscriptionLaunchPrompt";
 
 const countOptions = [10, 20, 30];
 const reviewOptions = [0, 25, 50, 75, 100];
@@ -57,6 +61,8 @@ export default function GrammarPracticePage() {
   const [complete, setComplete] = useState(false);
   const [score, setScore] = useState<GrammarScore | null>(null);
   const [rewardImage, setRewardImage] = useState("");
+  const [access, setAccess] = useState<AccessState | null>(null);
+  const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(false);
 
   const answerZoneRef = useRef<HTMLDivElement | null>(null);
   const resultsRef = useRef<GrammarQuestionResult[]>([]);
@@ -70,6 +76,7 @@ export default function GrammarPracticePage() {
     setLanguage(last?.language || settings.targetLanguage || "en");
     setCount(last?.count || 10);
     setReviewWrongPercent(typeof last?.reviewWrongPercent === "number" ? last.reviewWrongPercent : 50);
+    trialAccessService.getAccessState(currentUser, { fresh: true }).then(setAccess).catch(() => setAccess(null));
   }, []);
 
   const level = user?.level || "Beginner";
@@ -78,6 +85,12 @@ export default function GrammarPracticePage() {
   const exercise = question?.exercise;
   const totalQuestions = session?.questions.length || 0;
   const progress = totalQuestions ? Math.round((questionIndex / totalQuestions) * 100) : 0;
+  const lastGrammarRecord = learningService.getLatestRecord("grammar", language);
+  const lastGrammarScoreText = lastGrammarRecord
+    ? `上次文法練習：${lastGrammarRecord.score} 分 · ${new Date(lastGrammarRecord.date).toLocaleDateString()}`
+    : "尚無文法練習分數";
+  const grammarTrialUsed = trialUsageService.getLifetimeCount("grammarPractice");
+  const grammarTrialLeft = Math.max(0, TRIAL_GRAMMAR_PRACTICE_LIMIT - grammarTrialUsed);
 
   const targetSentence = useMemo(() => (exercise ? grammarPracticeService.sentenceText(exercise, language) : ""), [exercise, language]);
   const answerIsCorrect = useMemo(
@@ -95,6 +108,13 @@ export default function GrammarPracticePage() {
 
   async function startPractice() {
     if (starting) return;
+    const nextAccess = access || await trialAccessService.getAccessState(user, { fresh: true }).catch(() => null);
+    if (nextAccess !== access) setAccess(nextAccess);
+    const isTrialLimited = trialUsageService.isLimited(nextAccess);
+    if (isTrialLimited && !trialUsageService.canUseLifetime("grammarPractice", TRIAL_GRAMMAR_PRACTICE_LIMIT)) {
+      showLimitPrompt(nextAccess);
+      return;
+    }
     speechService.unlockAudio();
     setStarting(true);
     setPoolStatus("正在準備句子...");
@@ -103,6 +123,9 @@ export default function GrammarPracticePage() {
       if (!result.session.questions.length) {
         setPoolStatus("目前找不到可用的句子，請稍後再試。");
         return;
+      }
+      if (isTrialLimited) {
+        trialUsageService.useLifetime("grammarPractice", TRIAL_GRAMMAR_PRACTICE_LIMIT);
       }
       setSession(result.session);
       setQuestionIndex(0);
@@ -123,6 +146,13 @@ export default function GrammarPracticePage() {
       setPoolStatus("讀取題庫失敗，請檢查網路後再試一次。");
     } finally {
       setStarting(false);
+    }
+  }
+
+  function showLimitPrompt(nextAccess: AccessState | null = access) {
+    if (subscriptionReminderService.shouldShowLimitReminder(user?.id, "grammarPractice", nextAccess, "lifetime")) {
+      subscriptionReminderService.markLimitReminderShown(user?.id, "grammarPractice", "lifetime");
+      setShowSubscriptionPrompt(true);
     }
   }
 
@@ -229,6 +259,15 @@ export default function GrammarPracticePage() {
           </button>
         </div>
         <BottomNav />
+        {access && showSubscriptionPrompt && (
+          <SubscriptionLaunchPrompt
+            access={access}
+            promptReason="limit"
+            featureName="文法練習"
+            onSubscribe={() => router.push("/subscription")}
+            onDismiss={() => setShowSubscriptionPrompt(false)}
+          />
+        )}
       </div>
     );
   }
@@ -303,9 +342,9 @@ export default function GrammarPracticePage() {
             )}
           </div>
 
-          <div className="rounded-[30px] bg-white/80 p-4 shadow-softer">
-            <p className="text-xs font-bold text-inkSoft mb-3">單字庫（含混淆詞）</p>
-            <div className="flex flex-wrap gap-2">
+          <div className="h-[154px] shrink-0 overflow-hidden rounded-[24px] bg-white/85 p-3 shadow-softer">
+            <p className="text-xs font-bold text-inkSoft mb-2">單字庫（含混淆詞）</p>
+            <div className="flex h-[112px] flex-wrap content-start items-start gap-2 overflow-y-auto overscroll-contain pb-1 pr-1">
               <AnimatePresence>
                 {bank.map((tile) => (
                   <motion.div
@@ -319,7 +358,7 @@ export default function GrammarPracticePage() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.7 }}
                     whileDrag={{ scale: 1.08, zIndex: 20, boxShadow: "0 12px 24px rgba(0,0,0,0.18)" }}
-                    className={`relative select-none touch-none rounded-2xl px-4 py-2 font-bold shadow-softer cursor-grab active:cursor-grabbing ${
+                    className={`relative inline-flex min-h-10 max-w-full select-none touch-none items-center justify-center rounded-2xl px-3 py-2 text-[15px] font-bold leading-none shadow-softer cursor-grab active:cursor-grabbing ${
                       tile.status === "correct"
                         ? "bg-mintDeep text-white"
                         : tile.status === "wrong"
@@ -345,6 +384,15 @@ export default function GrammarPracticePage() {
           </div>
         </div>
         <BottomNav />
+        {access && showSubscriptionPrompt && (
+          <SubscriptionLaunchPrompt
+            access={access}
+            promptReason="limit"
+            featureName="文法練習"
+            onSubscribe={() => router.push("/subscription")}
+            onDismiss={() => setShowSubscriptionPrompt(false)}
+          />
+        )}
       </div>
     );
   }
@@ -364,8 +412,16 @@ export default function GrammarPracticePage() {
             </div>
           </div>
           <p className="mt-4 text-sm font-semibold text-inkSoft">
-            句子來自資料庫例句與情境對話，並加入額外混淆詞。拖曳單字排出正確句子，完成後自動播放語音並進入下一題。
+            句子來自資料庫例句與情境對話，並加入額外混淆詞。拖曳單字排出正確句子，完成後自動播放語音，再按下一題繼續。
           </p>
+          <p className="mt-3 rounded-3xl bg-white/80 px-4 py-2 text-xs font-extrabold text-lilacDeep shadow-softer">
+            {lastGrammarScoreText}
+          </p>
+          {access && trialUsageService.isLimited(access) && (
+            <p className="mt-2 rounded-3xl bg-white/80 px-4 py-2 text-xs font-extrabold text-peachDeep shadow-softer">
+              試用文法練習剩 {grammarTrialLeft} / {TRIAL_GRAMMAR_PRACTICE_LIMIT} 次
+            </p>
+          )}
         </div>
 
         <div className="card !p-4">
@@ -412,6 +468,15 @@ export default function GrammarPracticePage() {
         {poolStatus && <p className="text-center text-xs font-bold text-inkSoft">{poolStatus}</p>}
       </div>
       <BottomNav />
+      {access && showSubscriptionPrompt && (
+        <SubscriptionLaunchPrompt
+          access={access}
+          promptReason="limit"
+          featureName="文法練習"
+          onSubscribe={() => router.push("/subscription")}
+          onDismiss={() => setShowSubscriptionPrompt(false)}
+        />
+      )}
     </div>
   );
 }

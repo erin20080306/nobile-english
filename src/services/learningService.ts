@@ -147,6 +147,13 @@ export const learningService = {
   getRecords(): LearningRecord[] {
     return storageService.get<LearningRecord[]>(KEYS.records, []);
   },
+  getLatestRecord(type: LearningRecord["type"], language?: LearningLanguageCode): LearningRecord | null {
+    const records = this.getRecords();
+    return records.find((record) => {
+      if (record.type !== type) return false;
+      return !language || (record.targetLanguage || "en") === language;
+    }) || null;
+  },
   addRecord(rec: Omit<LearningRecord, "id" | "date">) {
     const records = this.getRecords();
     const full: LearningRecord = {
