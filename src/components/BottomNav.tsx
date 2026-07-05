@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, LayoutGrid, MessagesSquare, BookText, User } from "lucide-react";
+import { BookText, Film, Home, LayoutGrid, MessagesSquare, User } from "lucide-react";
 
 const items = [
   { href: "/dashboard", label: "首頁", icon: Home },
   { href: "/scenes", label: "場景", icon: LayoutGrid },
   { href: "/dialogue", label: "對話", icon: MessagesSquare },
+  { href: "/videos", label: "影片", icon: Film },
   { href: "/records", label: "紀錄", icon: BookText },
   { href: "/settings", label: "設定", icon: User },
 ];
@@ -24,7 +25,7 @@ export default function BottomNav() {
             <Link
               key={it.href}
               href={it.href}
-              className="flex flex-col items-center gap-0.5 px-3 py-1 active:scale-90 transition"
+              className="flex flex-col items-center gap-0.5 px-2 py-1 active:scale-90 transition"
             >
               <span
                 className={`h-9 w-9 rounded-2xl flex items-center justify-center transition ${

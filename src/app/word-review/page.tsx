@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, CheckCircle, Database, RotateCcw, Volume2 } from "lucide-react";
+import { ArrowLeft, CheckCircle, Database, Lightbulb, RotateCcw, Volume2 } from "lucide-react";
 import type { LearningLanguageCode, User } from "@/types";
 import { authService } from "@/services/authService";
 import { learningService } from "@/services/learningService";
@@ -11,6 +11,7 @@ import { speechService } from "@/services/speechService";
 import { wordReviewService, type WordReviewScore, type WordReviewSession } from "@/services/wordReviewService";
 import { trialAccessService, type AccessState } from "@/services/trialAccessService";
 import { trialUsageService, TRIAL_WORD_REVIEW_DAILY_LIMIT } from "@/services/trialUsageService";
+import { subscriptionReminderService } from "@/services/subscriptionReminderService";
 import { getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
@@ -52,17 +53,18 @@ function writeAscii(view: DataView, offset: number, text: string) {
 function answerTonePlan(correct: boolean): AnswerTone[] {
   return correct
     ? [
-        // "登登登登" idol-entrance fanfare: four punchy same-pitch stabs
-        // (fast attack, fast decay) building anticipation, then a quick
-        // ascending flourish into a bright sustained victory ring.
-        { frequency: 587.33, duration: 0.1, decayRate: 15 }, // D5 登
-        { frequency: 587.33, duration: 0.1, decayRate: 15 }, // D5 登
-        { frequency: 587.33, duration: 0.1, decayRate: 15 }, // D5 登
-        { frequency: 587.33, duration: 0.16, decayRate: 11, accent: 1.1 }, // D5 登 (anchor)
-        { frequency: 1046.5, duration: 0.08, decayRate: 9 }, // C6 climb
-        { frequency: 1318.5, duration: 0.08, decayRate: 9 }, // E6
-        { frequency: 1568.0, duration: 0.08, decayRate: 9 }, // G6
-        { frequency: 2093.0, duration: 0.46, decayRate: 3.2, accent: 1.15 }, // C7 big reveal ring
+        // Lottery-style prize fanfare: playful stepping notes, a quick
+        // sparkle run, then a longer bright ring so it feels celebratory
+        // instead of a single short ding.
+        { frequency: 523.25, duration: 0.1, decayRate: 10 }, // C5
+        { frequency: 659.25, duration: 0.1, decayRate: 10 }, // E5
+        { frequency: 783.99, duration: 0.12, decayRate: 9.5 }, // G5
+        { frequency: 1046.5, duration: 0.18, decayRate: 7.5, accent: 1.1 }, // C6
+        { frequency: 880.0, duration: 0.08, decayRate: 9 }, // A5 sparkle
+        { frequency: 1046.5, duration: 0.08, decayRate: 8.5 }, // C6
+        { frequency: 1318.51, duration: 0.1, decayRate: 7.5 }, // E6
+        { frequency: 1567.98, duration: 0.12, decayRate: 6.5, accent: 1.08 }, // G6
+        { frequency: 2093.0, duration: 0.62, decayRate: 2.7, accent: 1.18 }, // C7 victory ring
       ]
     : [
         { frequency: 349.23, duration: 0.16 },
@@ -102,7 +104,7 @@ function makeAnswerSoundUrl(correct: boolean) {
   if (answerSoundUrls[key]) return answerSoundUrls[key] || "";
 
   const tones = answerTonePlan(correct);
-  const sampleRate = 16000;
+  const sampleRate = 22050;
   const duration = tones.reduce((sum, tone) => sum + tone.duration, 0);
   const sampleCount = Math.floor(sampleRate * duration);
   const dataBytes = sampleCount * 2;
@@ -269,6 +271,7 @@ export default function WordReviewPage() {
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState("");
   const [typedAnswer, setTypedAnswer] = useState("");
+  const [hintVisible, setHintVisible] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const [readyToFinish, setReadyToFinish] = useState(false);
   const [score, setScore] = useState<WordReviewScore | null>(null);
@@ -298,6 +301,10 @@ export default function WordReviewPage() {
   const isFillQuestion = questionKind === "wordFill";
   const questionPrompt = current ? wordReviewService.questionPromptFor(current.word, questionKind) : "";
   const questionHint = current ? wordReviewService.questionHintFor(current.word, questionKind) : "";
+  const questionZh = current ? wordReviewService.questionZhFor(current.word, questionKind) : "";
+  const answerHint = current ? wordReviewService.answerInitialHintFor(current.word) : "";
+  const contextSentence = current?.word.example?.trim() || "";
+  const contextSentenceZh = current?.word.exampleZh?.trim() || questionZh || current?.word.zh?.trim() || "";
   const choicePool = useMemo(() => session?.words.map((item) => item.word) || [], [session]);
   const choices = useMemo(
     () => current ? wordReviewService.choicesFor(current.word, session?.language || language, current.questionKind, choicePool) : [],
@@ -305,10 +312,17 @@ export default function WordReviewPage() {
   );
   const progress = session ? Math.round(((index + (revealed ? 1 : 0)) / Math.max(session.words.length, 1)) * 100) : 0;
 
+  function showLimitPrompt() {
+    if (subscriptionReminderService.shouldShowLimitReminder(user?.id, "wordReview", access, "daily")) {
+      subscriptionReminderService.markLimitReminderShown(user?.id, "wordReview", "daily");
+      setShowSubscriptionPrompt(true);
+    }
+  }
+
   async function startReview() {
     if (starting) return;
     if (trialUsageService.isLimited(access) && !trialUsageService.useDaily("wordReview", TRIAL_WORD_REVIEW_DAILY_LIMIT)) {
-      setShowSubscriptionPrompt(true);
+      showLimitPrompt();
       return;
     }
     void unlockAnswerAudio();
@@ -320,6 +334,7 @@ export default function WordReviewPage() {
       setIndex(0);
       setSelected("");
       setTypedAnswer("");
+      setHintVisible(false);
       setRevealed(false);
       setReadyToFinish(false);
       setScore(null);
@@ -365,6 +380,7 @@ export default function WordReviewPage() {
     setIndex((value) => value + 1);
     setSelected("");
     setTypedAnswer("");
+    setHintVisible(false);
     setRevealed(false);
   }
 
@@ -449,7 +465,27 @@ export default function WordReviewPage() {
                 {isWordChoice || isFillQuestion ? (
                   <>
                     <h2 className={`${isFillQuestion ? "text-3xl" : "text-4xl"} mt-4 font-black text-ink break-words`}>{questionPrompt}</h2>
+                    {isFillQuestion && questionZh && (
+                      <p className="mt-2 rounded-2xl bg-cream px-3 py-2 text-sm font-bold text-inkSoft">
+                        {questionZh}
+                      </p>
+                    )}
                     <p className="mt-1 text-inkSoft">{questionHint}</p>
+                    {isWordChoice && (contextSentence || contextSentenceZh) && (
+                      <div className="mt-3 rounded-3xl bg-cream p-3">
+                        <p className="text-xs font-bold text-inkSoft">完整句</p>
+                        {contextSentence && (
+                          <p className="mt-1 text-base font-semibold leading-relaxed text-ink">
+                            {contextSentence}
+                          </p>
+                        )}
+                        {contextSentenceZh && (
+                          <p className="mt-1 text-sm font-bold leading-relaxed text-inkSoft">
+                            {contextSentenceZh}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </>
                 ) : (
                   <>
@@ -488,10 +524,12 @@ export default function WordReviewPage() {
                 )}
                 <p className="text-xs font-bold text-inkSoft">例句</p>
                 <p className="font-semibold text-ink">
-                  {(isWordChoice || isFillQuestion) ? wordReviewService.questionPromptFor(current.word, "wordFill") : current.word.example}
+                  {current.word.example}
                 </p>
-                {(current.word.exampleZh || current.word.zh) && (
-                  <p className="text-sm text-inkSoft">{current.word.exampleZh || current.word.zh}</p>
+                {(isFillQuestion ? questionZh : current.word.exampleZh || wordReviewService.questionZhFor(current.word, "wordFill") || current.word.zh) && (
+                  <p className="text-sm text-inkSoft">
+                    {isFillQuestion ? questionZh : current.word.exampleZh || wordReviewService.questionZhFor(current.word, "wordFill") || current.word.zh}
+                  </p>
                 )}
               </div>
             )}
@@ -514,6 +552,23 @@ export default function WordReviewPage() {
                 autoCorrect="off"
                 className={`rounded-3xl bg-white p-4 text-lg font-bold text-ink shadow-softer outline-none ${revealed ? "opacity-70" : ""}`}
               />
+              {!revealed && answerHint && (
+                <div className="rounded-3xl bg-white/80 p-3 shadow-softer">
+                  <button
+                    type="button"
+                    onClick={() => setHintVisible((value) => !value)}
+                    className="flex items-center gap-2 text-sm font-black text-lilacDeep active:scale-95"
+                  >
+                    <Lightbulb size={16} />
+                    {hintVisible ? "隱藏提示" : "看提示"}
+                  </button>
+                  {hintVisible && (
+                    <p className="mt-2 text-sm font-bold text-inkSoft">
+                      答案英文開頭：<span className="text-ink">{answerHint}</span>
+                    </p>
+                  )}
+                </div>
+              )}
               {!revealed && (
                 <button onPointerDown={() => { void unlockAnswerAudio(); }} disabled={!typedAnswer.trim()} className="btn-primary w-full disabled:opacity-50">
                   送出答案
@@ -630,8 +685,10 @@ export default function WordReviewPage() {
       {access && showSubscriptionPrompt && (
         <SubscriptionLaunchPrompt
           access={access}
+          promptReason="limit"
+          featureName="單字複習"
           onSubscribe={() => router.push("/subscription")}
-          onContinueTrial={access.reason === "trial" ? () => setShowSubscriptionPrompt(false) : undefined}
+          onDismiss={() => setShowSubscriptionPrompt(false)}
         />
       )}
     </div>

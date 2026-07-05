@@ -7,7 +7,7 @@ import {
   BookOpen, Zap, CheckCircle, AlertCircle, Clock,
   RefreshCw, Globe, Users, ArrowLeft, Settings,
   Database, Volume2, Send, ChevronRight, KeyRound, ExternalLink,
-  Cpu, BarChart3,
+  Cpu, BarChart3, Cloud, ChevronDown,
 } from "lucide-react";
 import { LEARNING_LANGUAGES } from "@/data/learningLanguages";
 import { useUser } from "@/hooks/useUser";
@@ -61,6 +61,31 @@ interface AdminSubscriptionStats {
     storeOrProfile: number;
     paypal: number;
   };
+  cloudSync?: {
+    users: number;
+    dataRows: number;
+    learningRecords: number;
+    latestUpdatedAt: string | null;
+  };
+  googleActivity?: {
+    pageActivityAvailable: boolean;
+    error?: string;
+    users: Array<{
+      userId: string;
+      email: string;
+      name: string | null;
+      firstSeenAt: string | null;
+      lastSeenAt: string | null;
+      totalPageVisits: number;
+      pages: Array<{
+        path: string;
+        title: string | null;
+        visitCount: number;
+        firstSeenAt: string | null;
+        lastSeenAt: string | null;
+      }>;
+    }>;
+  };
 }
 
 function apiRequestUrl(path: string): string {
@@ -89,6 +114,18 @@ async function readApiJson<T = Record<string, unknown>>(response: Response): Pro
   }
 }
 
+function formatAdminDate(value?: string | null): string {
+  if (!value) return "尚無";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "尚無";
+  return date.toLocaleString("zh-TW", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const { user, ready } = useUser({ requireOnboarded: true });
@@ -107,6 +144,7 @@ export default function AdminPage() {
   const [apiUsageLoading, setApiUsageLoading] = useState(false);
   const [subscriptionStats, setSubscriptionStats] = useState<AdminSubscriptionStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [statsExpanded, setStatsExpanded] = useState(false);
 
   useEffect(() => {
     if (!ready) return;
@@ -516,32 +554,114 @@ export default function AdminPage() {
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-lilacDeep" />
             </div>
           ) : subscriptionStats ? (
-            <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-xl bg-lilacLight px-3 py-2">
-                <p className="text-xs font-bold text-lilacDeep">登入 App 使用者</p>
-                <p className="text-2xl font-extrabold text-ink">{subscriptionStats.appUsers.total}</p>
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-xl bg-lilacLight px-3 py-2">
+                  <p className="text-xs font-bold text-lilacDeep">登入 App 使用者</p>
+                  <p className="text-2xl font-extrabold text-ink">{subscriptionStats.appUsers.total}</p>
+                </div>
+                <div className="rounded-xl bg-mintLight px-3 py-2">
+                  <p className="text-xs font-bold text-mintDeep">訂閱人數</p>
+                  <p className="text-2xl font-extrabold text-ink">{subscriptionStats.subscribers.total}</p>
+                </div>
+                <div className="rounded-xl bg-sand px-3 py-2">
+                  <p className="text-xs font-bold text-inkSoft">今日活躍</p>
+                  <p className="text-lg font-extrabold text-ink">{subscriptionStats.appUsers.activeToday}</p>
+                </div>
+                <div className="rounded-xl bg-sand px-3 py-2">
+                  <p className="text-xs font-bold text-inkSoft">30 天活躍</p>
+                  <p className="text-lg font-extrabold text-ink">{subscriptionStats.appUsers.activeThirtyDays}</p>
+                </div>
+                <div className="rounded-xl bg-sand px-3 py-2">
+                  <p className="text-xs font-bold text-inkSoft">PayPal 訂閱</p>
+                  <p className="text-lg font-extrabold text-ink">{subscriptionStats.subscribers.paypal}</p>
+                </div>
+                <div className="rounded-xl bg-sand px-3 py-2">
+                  <p className="text-xs font-bold text-inkSoft">商店/Profile</p>
+                  <p className="text-lg font-extrabold text-ink">{subscriptionStats.subscribers.storeOrProfile}</p>
+                </div>
               </div>
-              <div className="rounded-xl bg-mintLight px-3 py-2">
-                <p className="text-xs font-bold text-mintDeep">訂閱人數</p>
-                <p className="text-2xl font-extrabold text-ink">{subscriptionStats.subscribers.total}</p>
-              </div>
-              <div className="rounded-xl bg-sand px-3 py-2">
-                <p className="text-xs font-bold text-inkSoft">今日活躍</p>
-                <p className="text-lg font-extrabold text-ink">{subscriptionStats.appUsers.activeToday}</p>
-              </div>
-              <div className="rounded-xl bg-sand px-3 py-2">
-                <p className="text-xs font-bold text-inkSoft">30 天活躍</p>
-                <p className="text-lg font-extrabold text-ink">{subscriptionStats.appUsers.activeThirtyDays}</p>
-              </div>
-              <div className="rounded-xl bg-sand px-3 py-2">
-                <p className="text-xs font-bold text-inkSoft">PayPal 訂閱</p>
-                <p className="text-lg font-extrabold text-ink">{subscriptionStats.subscribers.paypal}</p>
-              </div>
-              <div className="rounded-xl bg-sand px-3 py-2">
-                <p className="text-xs font-bold text-inkSoft">商店/Profile</p>
-                <p className="text-lg font-extrabold text-ink">{subscriptionStats.subscribers.storeOrProfile}</p>
-              </div>
-            </div>
+              <button
+                type="button"
+                onClick={() => setStatsExpanded((value) => !value)}
+                className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-lilacLight px-3 py-2 text-xs font-extrabold text-lilacDeep active:scale-[0.98] transition"
+              >
+                {statsExpanded ? "收合詳細紀錄" : "展開詳細紀錄"}
+                <ChevronDown size={14} className={`transition ${statsExpanded ? "rotate-180" : ""}`} />
+              </button>
+              {statsExpanded && subscriptionStats.cloudSync && (
+                <div className="mt-3 rounded-xl bg-cream px-3 py-3">
+                  <p className="mb-2 flex items-center gap-1.5 text-xs font-extrabold text-ink">
+                    <Cloud size={14} className="text-lilacDeep" /> 帳號雲端同步
+                  </p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-xl bg-white px-2 py-2">
+                      <p className="text-[10px] font-bold text-inkSoft">同步帳號</p>
+                      <p className="text-lg font-extrabold text-ink">{subscriptionStats.cloudSync.users}</p>
+                    </div>
+                    <div className="rounded-xl bg-white px-2 py-2">
+                      <p className="text-[10px] font-bold text-inkSoft">App 資料列</p>
+                      <p className="text-lg font-extrabold text-ink">{subscriptionStats.cloudSync.dataRows}</p>
+                    </div>
+                    <div className="rounded-xl bg-white px-2 py-2">
+                      <p className="text-[10px] font-bold text-inkSoft">學習紀錄</p>
+                      <p className="text-lg font-extrabold text-ink">{subscriptionStats.cloudSync.learningRecords}</p>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-xs font-bold text-inkSoft">
+                    最近同步：{formatAdminDate(subscriptionStats.cloudSync.latestUpdatedAt)}
+                  </p>
+                </div>
+              )}
+              {statsExpanded && subscriptionStats.googleActivity && (
+                <div className="mt-3 rounded-xl bg-cream px-3 py-3">
+                  <p className="mb-2 flex items-center gap-1.5 text-xs font-extrabold text-ink">
+                    <Users size={14} className="text-lilacDeep" /> 其他 Google 帳號活動
+                  </p>
+                  {!subscriptionStats.googleActivity.pageActivityAvailable && (
+                    <p className="mb-2 rounded-xl bg-peachLight px-2 py-2 text-xs font-bold text-peachDeep">
+                      尚未建立頁面活動表：{subscriptionStats.googleActivity.error || "請執行 app_user_page_activity migration"}
+                    </p>
+                  )}
+                  {subscriptionStats.googleActivity.users.length ? (
+                    <div className="space-y-2">
+                      {subscriptionStats.googleActivity.users.map((activity) => (
+                        <div key={activity.email} className="rounded-xl bg-white px-3 py-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-extrabold text-ink">{activity.email}</p>
+                              <p className="text-[10px] font-bold text-inkSoft">
+                                首次：{formatAdminDate(activity.firstSeenAt)} · 最後：{formatAdminDate(activity.lastSeenAt)}
+                              </p>
+                            </div>
+                            <span className="rounded-full bg-lilacLight px-2 py-1 text-[10px] font-extrabold text-lilacDeep">
+                              {activity.totalPageVisits} 次
+                            </span>
+                          </div>
+                          {activity.pages.length ? (
+                            <div className="mt-2 space-y-1">
+                              {activity.pages.slice(0, 4).map((page) => (
+                                <div key={`${activity.email}:${page.path}`} className="flex items-center gap-2 rounded-lg bg-cream px-2 py-1">
+                                  <span className="min-w-0 flex-1 truncate text-[10px] font-bold text-inkSoft">
+                                    {page.path}
+                                  </span>
+                                  <span className="text-[10px] font-extrabold text-ink">{page.visitCount} 次</span>
+                                  <span className="text-[10px] font-bold text-inkSoft">{formatAdminDate(page.lastSeenAt)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="mt-2 text-[10px] font-bold text-inkSoft">已有 Google 登入紀錄，尚無頁面活動紀錄。</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs font-bold text-inkSoft">目前沒有其他 Google 帳號活動。</p>
+                  )}
+                </div>
+              )}
+            </>
           ) : (
             <p className="text-sm font-bold text-peachDeep">無法讀取統計資料，請確認 Supabase migration 已執行。</p>
           )}

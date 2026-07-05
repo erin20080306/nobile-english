@@ -23,13 +23,14 @@ import {
   X,
 } from "lucide-react";
 import type { GardenLeagueEntry, GardenPlot, GardenShopCategory, GardenShopItem, GardenState, LearningLanguageCode } from "@/types";
-import type { ThemeCharacterId } from "@/data/themeCharacters";
+import type { ThemeCharacter, ThemeCharacterId } from "@/data/themeCharacters";
 import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
 import { gardenService, GARDEN_CROPS, GARDEN_SHOP_ITEMS } from "@/services/gardenService";
 import { learningService } from "@/services/learningService";
 import { soundService } from "@/services/soundService";
 import { trialAccessService, type AccessState } from "@/services/trialAccessService";
 import { trialUsageService } from "@/services/trialUsageService";
+import { subscriptionReminderService } from "@/services/subscriptionReminderService";
 import { themeCharacterService } from "@/services/themeCharacterService";
 import { THEME_CHARACTERS } from "@/data/themeCharacters";
 import { useUser } from "@/hooks/useUser";
@@ -82,6 +83,7 @@ export default function GardenPage() {
   const [previewItem, setPreviewItem] = useState<GardenShopItem | null>(null);
   const [access, setAccess] = useState<AccessState | null>(null);
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(false);
+  const [subscriptionFeatureName, setSubscriptionFeatureName] = useState("農場功能");
   const [previewCharacterIndex, setPreviewCharacterIndex] = useState(0);
   const [themeCharacterState, setThemeCharacterState] = useState(themeCharacterService.getState());
 
@@ -115,6 +117,7 @@ export default function GardenPage() {
   const equippedItems = (garden?.equippedItemIds || []).map((id) => gardenService.getShopItem(id)).filter(Boolean) as GardenShopItem[];
   const equippedAccessories = (garden?.equippedAccessoryIds || []).map((id) => gardenService.getShopItem(id)).filter(Boolean) as GardenShopItem[];
   const selectedThemeCharacter = themeCharacterService.getSelectedCharacter();
+  const previewThemeCharacter = THEME_CHARACTERS[previewCharacterIndex] || selectedThemeCharacter;
   const shopByCategory: Record<GardenShopCategory, GardenShopItem[]> = {
     house: GARDEN_SHOP_ITEMS.filter((item) => item.category === "house"),
     item: GARDEN_SHOP_ITEMS.filter((item) => item.category === "item"),
@@ -136,9 +139,17 @@ export default function GardenPage() {
     refresh(code);
   }
 
+  function showLimitPrompt(feature: "gardenDailyBonus" | "gardenPurchase", featureName: string) {
+    if (subscriptionReminderService.shouldShowLimitReminder(user?.id, feature, access, "daily")) {
+      subscriptionReminderService.markLimitReminderShown(user?.id, feature, "daily");
+      setSubscriptionFeatureName(featureName);
+      setShowSubscriptionPrompt(true);
+    }
+  }
+
   function claimDaily() {
     if (trialLimited) {
-      setShowSubscriptionPrompt(true);
+      showLimitPrompt("gardenDailyBonus", "農場每日補給");
       return;
     }
     soundService.play("review");
@@ -153,7 +164,7 @@ export default function GardenPage() {
   function buyOrEquip(item: GardenShopItem) {
     const owned = garden?.ownedItemIds.includes(item.id);
     if (!owned && trialLimited) {
-      setShowSubscriptionPrompt(true);
+      showLimitPrompt("gardenPurchase", "農場商店");
       return;
     }
     soundService.play(owned ? "review" : "harvest");
@@ -341,6 +352,9 @@ export default function GardenPage() {
           <div className="relative mt-4">
             <p className="text-xs font-bold text-inkSoft">小小學伴</p>
             <h2 className="text-xl font-extrabold text-ink">我的語言夥伴</h2>
+            <p className="mt-1 text-sm font-extrabold text-lilacDeep">
+              公仔名稱：{previewThemeCharacter.zhName}（{previewThemeCharacter.name}）
+            </p>
             <p className="mt-1 text-sm leading-relaxed text-inkSoft">
               目前穿搭：{equippedOutfit?.name || "基本上衣"}
               {equippedAccessories.length > 0 ? `，飾品 ${equippedAccessories.map((item) => item.name).join("、")}` : "，尚未配戴飾品"}
@@ -726,8 +740,10 @@ export default function GardenPage() {
       {access && showSubscriptionPrompt && (
         <SubscriptionLaunchPrompt
           access={access}
+          promptReason="limit"
+          featureName={subscriptionFeatureName}
           onSubscribe={() => router.push("/subscription")}
-          onContinueTrial={access.reason === "trial" ? () => setShowSubscriptionPrompt(false) : undefined}
+          onDismiss={() => setShowSubscriptionPrompt(false)}
         />
       )}
     </div>
@@ -749,7 +765,7 @@ function BuddyFarmStage({
   accessories: GardenShopItem[];
   house?: GardenShopItem;
   items: GardenShopItem[];
-  themeCharacter?: { imageSrc: string };
+  themeCharacter?: ThemeCharacter;
   previewIndex: number;
   onPreviewChange: (index: number) => void;
   canChange: boolean;
@@ -842,8 +858,11 @@ function BuddyFarmStage({
   );
 }
 
-function BuddyDoll({ outfit, accessories, themeCharacter }: { outfit?: GardenShopItem; accessories: GardenShopItem[]; themeCharacter?: { imageSrc: string } }) {
-  const dollImage = outfit?.dollImageSrc || outfit?.imageSrc || themeCharacter?.imageSrc || "/assets/garden/doll-base.png";
+function BuddyDoll({ outfit, accessories, themeCharacter }: { outfit?: GardenShopItem; accessories: GardenShopItem[]; themeCharacter?: ThemeCharacter }) {
+  const isFatDuck = themeCharacter?.id === "fat-duck";
+  const dollImage = isFatDuck
+    ? outfit?.dollImageSrc || outfit?.imageSrc || themeCharacter?.imageSrc || "/assets/garden/doll-base.png"
+    : themeCharacter?.imageSrc || "/assets/garden/doll-base.png";
 
   return (
     <div className="relative h-72 w-52 [perspective:900px]">
@@ -855,7 +874,7 @@ function BuddyDoll({ outfit, accessories, themeCharacter }: { outfit?: GardenSho
         <div className="absolute bottom-1 left-1/2 h-8 w-32 -translate-x-1/2 rounded-full bg-ink/20 blur-sm" />
         <img
           src={dollImage}
-          alt={outfit?.name || "小小學伴"}
+          alt={themeCharacter?.name || outfit?.name || "小小學伴"}
           className="relative h-full w-full object-contain drop-shadow-[0_14px_14px_rgba(64,56,79,0.2)]"
         />
         <div className="absolute -right-2 top-5 flex flex-col gap-1.5">

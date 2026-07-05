@@ -22,10 +22,21 @@ const SYNC_KEYS: string[] = [
   KEYS.sceneProgress,
   KEYS.sceneReviewCounter,
   KEYS.gardenStates,
+  KEYS.themeCharacterState,
   KEYS.customScenes,
+  KEYS.customScenePlanCache,
   KEYS.lastResult,
   KEYS.feedbackReports,
   KEYS.wordReviewMemory,
+  KEYS.trialUsage,
+  KEYS.shadowingPattern,
+  KEYS.perfectScoreToggle,
+  "selected_tutor_id",
+  "selected_tutor_id_en",
+  "selected_tutor_id_ja",
+  "selected_tutor_id_ko",
+  "selected_tutor_id_it",
+  "selected_tutor_id_es",
   // Redundant backup of the full practice-history array. The dedicated
   // learning_records table sync (learningRecordSyncService) is queued and
   // can be lost if the app/local storage is wiped before it flushes (e.g.

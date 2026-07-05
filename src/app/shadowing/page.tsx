@@ -12,27 +12,47 @@ import { learningService } from "@/services/learningService";
 import { storageService, KEYS } from "@/services/storageService";
 import { getSelectedTutor } from "@/components/TutorSelector";
 import AppHeader from "@/components/AppHeader";
-import type { LearningLanguageCode } from "@/types";
+import type { DialogueTranscriptLine, LearningLanguageCode } from "@/types";
 
 interface ShadowingSentence {
   en: string;
   zh: string;
 }
 
+interface ShadowingPatternPayload {
+  targetLanguage?: LearningLanguageCode;
+  sceneId?: string;
+  sceneName?: string;
+  sceneEnName?: string;
+  themeId?: string;
+  allPatterns?: ShadowingSentence[];
+  currentIndex?: number;
+}
+
+interface ShadowingAttempt {
+  en: string;
+  zh: string;
+  transcript: string;
+  score: number;
+}
+
 export default function ShadowingPage() {
   const router = useRouter();
   const [sentences, setSentences] = useState<ShadowingSentence[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [startIndex, setStartIndex] = useState(0);
   const [phase, setPhase] = useState<"loading" | "idle" | "playing" | "recording" | "evaluating" | "result" | "complete">("loading");
   const [userTranscript, setUserTranscript] = useState("");
   const [score, setScore] = useState<number | null>(null);
   const [feedback, setFeedback] = useState("");
   const [useManualInput, setUseManualInput] = useState(false);
   const [scores, setScores] = useState<number[]>([]);
-  const [targetLanguage, setTargetLanguage] = useState<any>("en");
+  const [attempts, setAttempts] = useState<Record<number, ShadowingAttempt>>({});
+  const [targetLanguage, setTargetLanguage] = useState<LearningLanguageCode>("en");
   const [tutor, setTutor] = useState(() => getSelectedTutor("en" as LearningLanguageCode));
 
   const stopListenRef = useRef<(() => void) | null>(null);
+  const completionSavedRef = useRef(false);
   const languageInfo = getLearningLanguage(targetLanguage);
   const speechSupported = voiceRecorderService.isSupported();
   const tutorSpeaking = phase === "playing";
@@ -40,7 +60,7 @@ export default function ShadowingPage() {
   useEffect(() => {
     // Load shadowing sentences from storage (from scene page) or default
     const loadSentences = () => {
-      const patternData = storageService.get<any>(KEYS.shadowingPattern, null);
+      const patternData = storageService.get<ShadowingPatternPayload | null>(KEYS.shadowingPattern, null);
       
       if (patternData && patternData.allPatterns) {
         // Load from scene pattern data. Fill-in-the-blank patterns (e.g.
@@ -54,10 +74,12 @@ export default function ShadowingPage() {
           originalIndex,
           Math.max(allPatterns.length - 1, 0)
         );
-        setTargetLanguage(patternData.targetLanguage || "en");
+        const language = patternData.targetLanguage || "en";
+        setTargetLanguage(language);
         setSentences(allPatterns);
         setCurrentIndex(startIndex);
-        setTutor(getSelectedTutor(patternData.targetLanguage as LearningLanguageCode));
+        setStartIndex(startIndex);
+        setTutor(getSelectedTutor(language));
         setPhase("idle");
       } else {
         // Default sentences for standalone access
@@ -73,6 +95,7 @@ export default function ShadowingPage() {
           { en: "That's a great idea!", zh: "那是個好主意！" },
         ];
         setSentences(defaultSentences);
+        setStartIndex(0);
         setPhase("idle");
       }
     };
@@ -317,10 +340,23 @@ export default function ShadowingPage() {
 
   function evaluatePronunciation(transcriptOverride?: string) {
     setPhase("evaluating");
+    if (!currentSentence) {
+      setPhase("idle");
+      return;
+    }
     const transcript = transcriptOverride ?? userTranscript;
     const similarity = calculateSimilarity(currentSentence.en, transcript);
     setScore(similarity);
     setFeedback(getFeedbackText(similarity));
+    setAttempts((prev) => ({
+      ...prev,
+      [currentIndex]: {
+        en: currentSentence.en,
+        zh: currentSentence.zh,
+        transcript,
+        score: similarity,
+      },
+    }));
     setScores((prev) => [...prev, similarity]);
     setPhase("result");
   }
@@ -358,6 +394,51 @@ export default function ShadowingPage() {
     setUseManualInput((prev) => !prev);
   }
 
+  useEffect(() => {
+    if (phase !== "complete" || completionSavedRef.current) return;
+
+    const practiced = sentences
+      .map((sentence, index) => attempts[index] || null)
+      .filter((item): item is ShadowingAttempt => Boolean(item));
+    if (!practiced.length) return;
+
+    completionSavedRef.current = true;
+    const averageScore = Math.round(practiced.reduce((sum, item) => sum + item.score, 0) / practiced.length);
+    const minutes = Math.max(1, Math.ceil(practiced.length * 0.75));
+    const patternData = storageService.get<ShadowingPatternPayload | null>(KEYS.shadowingPattern, null);
+    const sceneName = patternData?.sceneName || "跟讀練習";
+    const title = patternData?.sceneName
+      ? `${patternData.sceneName}（跟讀練習）`
+      : `${getLearningLanguage(targetLanguage).zhName}跟讀練習`;
+    const transcript: DialogueTranscriptLine[] = practiced.map((item) => ({
+      role: "user",
+      en: item.en,
+      zh: item.zh,
+      naturalness: item.score,
+      betterWay: item.en,
+      grammarTip: getFeedbackText(item.score),
+      zhExplain: item.transcript ? `辨識結果：${item.transcript}` : `跟讀分數 ${item.score}%`,
+    }));
+
+    learningService.touchActivity(minutes, Math.max(5, practiced.length * 4));
+    learningService.addRecord({
+      type: "scene",
+      targetLanguage,
+      title,
+      sceneName,
+      enContent: practiced.map((item) => item.en).join(" / "),
+      zhContent: practiced.map((item) => item.zh).join(" / "),
+      userAnswer: practiced.map((item) => item.transcript || item.en).join(" / "),
+      suggestion: `跟讀平均相似度 ${averageScore}%，共完成 ${practiced.length} 句。`,
+      transcript,
+      score: averageScore,
+      completed: true,
+      minutes,
+    });
+    void learningService.syncRecords(storageService.get<string>(KEYS.session, ""));
+    storageService.remove(KEYS.shadowingPattern);
+  }, [attempts, phase, sentences, targetLanguage]);
+
   if (phase === "loading") {
     return (
       <div className="min-h-[100dvh] flex items-center justify-center">
@@ -367,18 +448,12 @@ export default function ShadowingPage() {
   }
 
   if (phase === "complete") {
-    const averageScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
-    
-    // Save scores back to storage for the scene page to pick up
-    const patternData = storageService.get<any>(KEYS.shadowingPattern, null);
-    if (patternData && patternData.onComplete) {
-      // Save each individual score
-      scores.forEach((score, index) => {
-        patternData.onComplete(score);
-      });
-    }
-    // Clear the pattern data
-    storageService.remove(KEYS.shadowingPattern);
+    const completedScores = sentences
+      .slice(startIndex)
+      .map((_, offset) => attempts[startIndex + offset]?.score)
+      .filter((value): value is number => typeof value === "number");
+    const displayScores = completedScores.length ? completedScores : scores;
+    const averageScore = displayScores.length > 0 ? Math.round(displayScores.reduce((a, b) => a + b, 0) / displayScores.length) : 0;
     
     return (
       <div className="min-h-[100dvh] flex flex-col">
@@ -393,7 +468,7 @@ export default function ShadowingPage() {
             <h2 className="text-2xl font-black text-ink mb-2">練習完成！</h2>
             <p className="text-inkSoft mb-6">平均相似度：{averageScore}%</p>
             <div className="space-y-2">
-              {scores.map((s, i) => (
+              {displayScores.map((s, i) => (
                 <div key={i} className="flex items-center justify-between bg-white rounded-2xl px-4 py-2">
                   <span className="text-sm text-inkSoft">句子 {i + 1}</span>
                   <span className={`font-bold ${s >= 75 ? "text-mintDeep" : s >= 50 ? "text-lilacDeep" : "text-peachDeep"}`}>

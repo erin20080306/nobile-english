@@ -23,6 +23,7 @@ import SubscriptionLaunchPrompt from "@/components/SubscriptionLaunchPrompt";
 import { LevelBadge, ProgressBar, Toggle } from "@/components/ui";
 import { trialAccessService, type AccessState } from "@/services/trialAccessService";
 import { trialUsageService } from "@/services/trialUsageService";
+import { subscriptionReminderService, type SubscriptionPromptReason } from "@/services/subscriptionReminderService";
 
 const dailySentences = [
   { en: "Every day is a fresh start.", zh: "每一天都是嶄新的開始。" },
@@ -33,24 +34,29 @@ const dailySentences = [
 
 const recByLevel: Record<EnglishLevel, { id: string; label: string }[]> = {
   Beginner: [
-    { id: "daily-1", label: "打招呼" }, { id: "cafe-1", label: "咖啡廳點餐" },
-    { id: "shopping-1", label: "購物詢價" }, { id: "airport-4", label: "機場英文" },
+    { id: "level-a1-1", label: "打招呼" },
+    { id: "level-a1-2", label: "點飲料" },
+    { id: "level-a1-3", label: "買東西" },
   ],
   Elementary: [
-    { id: "travel-1", label: "旅遊問路" }, { id: "social-1", label: "認識新朋友" },
-    { id: "airport-6", label: "飯店入住" }, { id: "phone-4", label: "電話預約" },
+    { id: "level-a2-1", label: "問路" },
+    { id: "level-a2-2", label: "電話預約" },
+    { id: "level-a2-3", label: "飯店入住" },
   ],
   Intermediate: [
-    { id: "work-1", label: "職場會議" }, { id: "interview-1", label: "英文面試" },
-    { id: "airport-6", label: "旅館入住" }, { id: "phone-5", label: "客訴處理" },
+    { id: "level-b1-1", label: "看醫生" },
+    { id: "level-b1-2", label: "小組計畫" },
+    { id: "level-b1-3", label: "表達不同意" },
   ],
   "Upper-Intermediate": [
-    { id: "work-6", label: "商務簡報" }, { id: "exam-1", label: "考試英文" },
-    { id: "interview-6", label: "薪資談判" }, { id: "phone-8", label: "技術支援" },
+    { id: "level-b2-1", label: "客訴處理" },
+    { id: "level-b2-2", label: "簡報開場" },
+    { id: "level-b2-3", label: "協商期限" },
   ],
   Advanced: [
-    { id: "work-7", label: "客戶溝通" }, { id: "exam-9", label: "寫作開頭" },
-    { id: "interview-5", label: "情境問題" }, { id: "work-6", label: "商務簡報" },
+    { id: "level-c1-1", label: "策略會議" },
+    { id: "level-c1-2", label: "敏感回饋" },
+    { id: "level-c1-3", label: "高階面試" },
   ],
 };
 
@@ -62,8 +68,10 @@ export default function Dashboard() {
   const [garden, setGarden] = useState<GardenState | null>(null);
   const [savedCount, setSavedCount] = useState(0);
   const [accessState, setAccessState] = useState<AccessState | null>(null);
-  const [subscriptionPromptDismissed, setSubscriptionPromptDismissed] = useState(false);
-  const [forcedSubscriptionPrompt, setForcedSubscriptionPrompt] = useState(false);
+  const [subscriptionPrompt, setSubscriptionPrompt] = useState<{
+    reason: SubscriptionPromptReason;
+    featureName?: string;
+  } | null>(null);
   const sentence = dailySentences[new Date().getDate() % dailySentences.length];
 
   useEffect(() => {
@@ -76,7 +84,13 @@ export default function Dashboard() {
     void learningService.syncRecords(user.id);
     trialAccessService
       .getAccessState(user, { fresh: true })
-      .then(setAccessState)
+      .then((state) => {
+        setAccessState(state);
+        if (subscriptionReminderService.shouldShowLoginReminder(user.id, state)) {
+          subscriptionReminderService.markLoginReminderShown(user.id);
+          setSubscriptionPrompt({ reason: state.reason === "trial_expired" ? "expired" : "login" });
+        }
+      })
       .catch(() => setAccessState(null));
   }, [user]);
 
@@ -118,7 +132,10 @@ export default function Dashboard() {
 
   function openCustomScene() {
     if (trialUsageService.isLimited(accessState)) {
-      setForcedSubscriptionPrompt(true);
+      if (subscriptionReminderService.shouldShowLimitReminder(user?.id, "customScene", accessState, "session")) {
+        subscriptionReminderService.markLimitReminderShown(user?.id, "customScene", "session");
+        setSubscriptionPrompt({ reason: "limit", featureName: "自訂場景" });
+      }
       return;
     }
     router.push("/custom-scene");
@@ -139,7 +156,15 @@ export default function Dashboard() {
           <p className="text-inkSoft text-sm">歡迎回來</p>
           <h1 className="text-2xl font-extrabold text-ink">{user.name} 👋</h1>
         </div>
-        <LevelBadge level={user.level} />
+        <div className="flex flex-col items-end gap-1">
+          {accessState && !accessState.isSubscribed && (
+            <p className="rounded-full bg-white px-3 py-1 text-[10px] font-extrabold text-peachDeep shadow-softer">
+              {accessState.reason === "trial" ? `試用剩 ${accessState.trial.daysLeft} 天` : "試用已結束"}
+            </p>
+          )}
+          <p className="text-[10px] font-extrabold text-lilacDeep">訂閱者可自由修改級別</p>
+          <LevelBadge level={user.level} />
+        </div>
       </div>
 
       {/* Hero encouragement with cheer image */}
@@ -321,18 +346,13 @@ export default function Dashboard() {
 
       <BottomNav />
 
-      {accessState && (!subscriptionPromptDismissed || forcedSubscriptionPrompt) && (
+      {accessState && subscriptionPrompt && (
         <SubscriptionLaunchPrompt
           access={accessState}
+          promptReason={subscriptionPrompt.reason}
+          featureName={subscriptionPrompt.featureName}
           onSubscribe={() => router.push("/subscription")}
-          onContinueTrial={
-            accessState.reason === "trial"
-              ? () => {
-                  setSubscriptionPromptDismissed(true);
-                  setForcedSubscriptionPrompt(false);
-                }
-              : undefined
-          }
+          onDismiss={() => setSubscriptionPrompt(null)}
         />
       )}
     </div>

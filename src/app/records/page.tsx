@@ -255,6 +255,7 @@ function RecordList({ items, onOpen, showChinese, playingId, onSpeak }: { items:
       {items.map((r) => {
         const playKey = `rec-${r.id}`;
         const isPlaying = playingId === playKey;
+        const isShadowingRecord = r.type === "scene" && r.title.includes("跟讀");
         return (
           <button key={r.id} onClick={() => onOpen(r)} className="card !p-4 w-full text-left active:scale-[0.99] transition">
             <div className="flex items-center justify-between">
@@ -269,7 +270,7 @@ function RecordList({ items, onOpen, showChinese, playingId, onSpeak }: { items:
             {showChinese && r.suggestion && <p className="text-sm text-inkSoft mt-1">建議：{r.suggestion}</p>}
             <div className="mt-2 flex flex-wrap gap-2">
               <span className="inline-flex items-center gap-1 text-xs font-bold text-lilacDeep">
-                <MessageSquare size={13} /> {r.type === "word" ? "查看單字結果" : "查看完整對話紀錄"}
+                <MessageSquare size={13} /> {r.type === "word" ? "查看單字結果" : isShadowingRecord ? "查看跟讀句子" : "查看完整對話紀錄"}
               </span>
               <button
                 type="button"
@@ -329,6 +330,7 @@ function CollapsibleRecordList({ items, onOpen, showChinese, playingId, onSpeak,
 }
 
 function RecordDetail({ record, showChinese, onClose, playingId, onSpeak, onSpeakFull }: { record: LearningRecord; showChinese: boolean; onClose: () => void; playingId: string | null; onSpeak: (key: string, text: string, lang: LearningLanguageCode) => void; onSpeakFull: (key: string, record: LearningRecord) => void }) {
+  const isShadowingRecord = record.type === "scene" && record.title.includes("跟讀");
   const fallbackSource = record.type === "word" ? record.enContent || record.userAnswer || "" : record.userAnswer || "";
   const fallbackLines = fallbackSource
     .split(" / ")
@@ -344,7 +346,7 @@ function RecordDetail({ record, showChinese, onClose, playingId, onSpeak, onSpea
       <div className="min-h-full px-5 py-6 pb-24">
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-bold text-inkSoft">{record.type === "word" ? "單字練習結果" : "完整對話紀錄"}</p>
+            <p className="text-xs font-bold text-inkSoft">{record.type === "word" ? "單字練習結果" : isShadowingRecord ? "跟讀練習紀錄" : "完整對話紀錄"}</p>
             <h2 className="text-2xl font-black text-ink break-words">{record.title}</h2>
             <p className="text-sm text-inkSoft">{new Date(record.date).toLocaleString()} · {record.score} 分</p>
           </div>

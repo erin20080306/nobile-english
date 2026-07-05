@@ -14,6 +14,7 @@ import { vocabularyService } from "@/services/vocabularyService";
 import { dictionaryService } from "@/services/dictionaryService";
 import { trialAccessService, type AccessState } from "@/services/trialAccessService";
 import { trialUsageService, TRIAL_DIALOGUE_DAILY_LIMIT } from "@/services/trialUsageService";
+import { subscriptionReminderService } from "@/services/subscriptionReminderService";
 import { sceneCardStyle } from "@/data/sceneVisuals";
 import { LEARNING_LANGUAGES, getLearningLanguage } from "@/data/learningLanguages";
 import AppHeader from "@/components/AppHeader";
@@ -42,6 +43,7 @@ function DialogueInner() {
   const [language, setLanguage] = useState<LearningLanguageCode>("en");
   const [access, setAccess] = useState<AccessState | null>(null);
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(false);
+  const [subscriptionFeatureName, setSubscriptionFeatureName] = useState("對話練習");
 
   useEffect(() => {
     setLanguage(learningService.getCurrentLanguage());
@@ -56,6 +58,15 @@ function DialogueInner() {
     setIsFreeMode(false);
   }
 
+  function showLimitPrompt(featureName = "對話練習") {
+    const currentUser = authService.getCurrentUser();
+    if (subscriptionReminderService.shouldShowLimitReminder(currentUser?.id, "dialoguePractice", access, "daily")) {
+      subscriptionReminderService.markLimitReminderShown(currentUser?.id, "dialoguePractice", "daily");
+      setSubscriptionFeatureName(featureName);
+      setShowSubscriptionPrompt(true);
+    }
+  }
+
   function pickScene(nextScene: Scene) {
     if (trialUsageService.isLimited(access)) {
       const theme = sceneService.getTheme(nextScene.themeId);
@@ -63,7 +74,7 @@ function DialogueInner() {
       const sceneAllowed = trialUsageService.canUseScene(nextScene, theme, indexInTheme);
       const dailyAllowed = trialUsageService.canUseDaily("dialoguePractice", TRIAL_DIALOGUE_DAILY_LIMIT);
       if (!sceneAllowed || !dailyAllowed || !trialUsageService.useDaily("dialoguePractice", TRIAL_DIALOGUE_DAILY_LIMIT)) {
-        setShowSubscriptionPrompt(true);
+        showLimitPrompt(sceneAllowed ? "對話練習" : "場景練習");
         return;
       }
     }
@@ -73,7 +84,7 @@ function DialogueInner() {
 
   function startFreeMode() {
     if (trialUsageService.isLimited(access)) {
-      setShowSubscriptionPrompt(true);
+      showLimitPrompt("自由對話");
       return;
     }
     setIsFreeMode(true);
@@ -91,13 +102,15 @@ function DialogueInner() {
           language={language}
           onLanguageChange={changeLanguage}
           access={access}
-          onLocked={() => setShowSubscriptionPrompt(true)}
+          onLocked={() => showLimitPrompt("場景練習")}
         />
         {access && showSubscriptionPrompt && (
           <SubscriptionLaunchPrompt
             access={access}
+            promptReason="limit"
+            featureName={subscriptionFeatureName}
             onSubscribe={() => router.push("/subscription")}
-            onContinueTrial={access.reason === "trial" ? () => setShowSubscriptionPrompt(false) : undefined}
+            onDismiss={() => setShowSubscriptionPrompt(false)}
           />
         )}
       </>

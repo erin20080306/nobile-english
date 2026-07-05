@@ -6,8 +6,10 @@ import { motion } from "framer-motion";
 import { ChevronRight, Wand2 } from "lucide-react";
 import type { CustomScene } from "@/types";
 import { sceneService } from "@/services/sceneService";
+import { authService } from "@/services/authService";
 import { trialAccessService, type AccessState } from "@/services/trialAccessService";
 import { trialUsageService } from "@/services/trialUsageService";
+import { subscriptionReminderService } from "@/services/subscriptionReminderService";
 import { sceneCardStyle } from "@/data/sceneVisuals";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
@@ -26,9 +28,17 @@ export default function ScenesPage() {
     trialAccessService.getAccessState(undefined, { fresh: true }).then(setAccess).catch(() => setAccess(null));
   }, []);
 
+  function showLimitPrompt() {
+    const userId = authService.getCurrentUser()?.id;
+    if (subscriptionReminderService.shouldShowLimitReminder(userId, "customScene", access, "session")) {
+      subscriptionReminderService.markLimitReminderShown(userId, "customScene", "session");
+      setShowSubscriptionPrompt(true);
+    }
+  }
+
   function openCustomScene(sceneId: string) {
     if (trialUsageService.isLimited(access)) {
-      setShowSubscriptionPrompt(true);
+      showLimitPrompt();
       return;
     }
     router.push(`/scenes/custom/${sceneId}`);
@@ -104,8 +114,10 @@ export default function ScenesPage() {
       {access && showSubscriptionPrompt && (
         <SubscriptionLaunchPrompt
           access={access}
+          promptReason="limit"
+          featureName="自訂場景"
           onSubscribe={() => router.push("/subscription")}
-          onContinueTrial={access.reason === "trial" ? () => setShowSubscriptionPrompt(false) : undefined}
+          onDismiss={() => setShowSubscriptionPrompt(false)}
         />
       )}
     </motion.div>
