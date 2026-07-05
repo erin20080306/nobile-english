@@ -371,23 +371,60 @@ function choiceScore(text: string, seed: number) {
   return Array.from(text).reduce((sum, char) => sum + char.charCodeAt(0), seed);
 }
 
+function isSimpleFillExample(word: Word): boolean {
+  const example = String(word.example || "").replace(/\s+/g, " ").trim();
+  const target = word.word.trim();
+  
+  // Check if example is too long (more than 12 words)
+  if (wordCount(example) > 12) return false;
+  
+  // Check if the target word appears in a simple context
+  // Avoid complex tense changes or grammar structures
+  const escaped = target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const exact = new RegExp(`\\b${escaped}\\b`, "i");
+  if (!exact.test(example)) return false;
+  
+  // Check for complex grammar patterns that might confuse learners
+  const complexPatterns = [
+    /\bwas\b.*\bgoing\b/i,  // was going to
+    /\bhave\b.*\bbeen\b/i,  // have been
+    /\bhad\b.*\bbeen\b/i,   // had been
+    /\bwill\b.*\bhave\b/i,  // will have
+    /\bwould\b.*\bhave\b/i, // would have
+    /\bif\b.*\bwould\b/i,   // conditional
+    /\bbecause\b.*\bso\b/i, // complex reasoning
+  ];
+  
+  for (const pattern of complexPatterns) {
+    if (pattern.test(example)) return false;
+  }
+  
+  return true;
+}
+
 function pickQuestionKinds(words: Word[], level: EnglishLevel): WordReviewQuestionKind[] {
   const beginnerLike = level === "Beginner" || level === "Elementary";
-  // Only count words that have valid examples for fill-in-the-blank
-  const wordsWithExamples = words.filter((word) => blankedExample(word) !== null);
+  // Only count words that have valid and simple examples for fill-in-the-blank
+  const wordsWithSimpleExamples = words.filter((word) => {
+    const blanked = blankedExample(word);
+    return blanked !== null && isSimpleFillExample(word);
+  });
   const fillCount = beginnerLike
-    ? wordsWithExamples.length >= 8 ? 2 : wordsWithExamples.length >= 4 ? 1 : 0
-    : wordsWithExamples.length >= 5 ? Math.max(1, Math.round(wordsWithExamples.length * 0.25)) : wordsWithExamples.length >= 3 ? 1 : 0;
+    ? wordsWithSimpleExamples.length >= 8 ? 2 : wordsWithSimpleExamples.length >= 4 ? 1 : 0
+    : wordsWithSimpleExamples.length >= 5 ? Math.max(1, Math.round(wordsWithSimpleExamples.length * 0.25)) : wordsWithSimpleExamples.length >= 3 ? 1 : 0;
   const wordChoiceCount = beginnerLike
     ? words.length >= 3 ? Math.max(1, Math.round(words.length * 0.45)) : 1
     : words.length >= 4 ? Math.max(1, Math.round(words.length * 0.25)) : words.length >= 2 ? 1 : 0;
   const shuffledIndexes = words
     .map((_, index) => index)
     .sort(() => Math.random() - 0.5);
-  // Only assign fill-in-the-blank to words that have valid examples
+  // Only assign fill-in-the-blank to words that have valid and simple examples
   const fillIndexes = new Set(
     shuffledIndexes
-      .filter((index) => blankedExample(words[index]) !== null)
+      .filter((index) => {
+        const blanked = blankedExample(words[index]);
+        return blanked !== null && isSimpleFillExample(words[index]);
+      })
       .slice(0, fillCount)
   );
   const wordChoiceIndexes = new Set(shuffledIndexes.slice(fillCount, fillCount + wordChoiceCount));
