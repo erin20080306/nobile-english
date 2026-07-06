@@ -98,7 +98,7 @@ export default function GrammarPracticePage() {
     [exercise, language, placed]
   );
   const wordBankSize = Math.max(exercise?.tokens.length || 0, bank.length);
-  const wordBankHeightClass = wordBankSize >= 9 ? "h-[224px]" : wordBankSize >= 6 ? "h-[188px]" : "h-[156px]";
+  const wordBankHeightClass = wordBankSize >= 9 ? "h-[276px]" : wordBankSize >= 6 ? "h-[228px]" : "h-[176px]";
 
   function startQuestion(nextIndex: number, activeSession: GrammarSession) {
     const nextQuestion = activeSession.questions[nextIndex];
@@ -354,7 +354,7 @@ export default function GrammarPracticePage() {
 
           <div className={`grid ${wordBankHeightClass} shrink-0 grid-rows-[auto_1fr] overflow-hidden rounded-[24px] bg-white/85 p-3 shadow-softer`}>
             <p className="text-xs font-bold text-inkSoft">單字庫（含混淆詞）</p>
-            <div key={`bank-${questionIndex}`} className="mt-2 flex min-h-0 flex-wrap content-start items-start justify-start gap-1.5 overflow-hidden">
+            <div key={`bank-${questionIndex}`} className="mt-2 flex min-h-0 flex-wrap content-start items-start justify-start gap-2 overflow-hidden">
               <AnimatePresence>
                 {bank.map((tile) => (
                   <motion.div
@@ -368,7 +368,7 @@ export default function GrammarPracticePage() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.7 }}
                     whileDrag={{ scale: 1.08, zIndex: 20, boxShadow: "0 12px 24px rgba(0,0,0,0.18)" }}
-                    className={`relative inline-flex min-h-7 max-w-full select-none touch-none items-center justify-center rounded-xl px-2 py-1 text-center text-[12px] font-bold leading-tight shadow-softer cursor-grab active:cursor-grabbing ${
+                    className={`relative inline-flex min-h-10 max-w-full select-none touch-none items-center justify-center rounded-2xl px-3 py-2 text-center text-sm font-bold leading-tight shadow-softer cursor-grab active:cursor-grabbing ${
                       tile.status === "correct"
                         ? "bg-mintDeep text-white"
                         : tile.status === "wrong"
