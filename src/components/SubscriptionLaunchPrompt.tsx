@@ -56,13 +56,13 @@ export default function SubscriptionLaunchPrompt({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/45 px-4 pb-4 backdrop-blur-sm sm:items-center sm:pb-0">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/45 p-3 backdrop-blur-sm sm:p-4">
       <motion.div
         initial={{ opacity: 0, y: 24, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        className="w-full max-w-md overflow-hidden rounded-[30px] bg-white shadow-soft"
+        className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-md flex-col overflow-hidden rounded-[30px] bg-white shadow-soft sm:max-h-[calc(100dvh-2rem)]"
       >
-        <div className="relative bg-gradient-to-br from-lilac via-white to-mint p-5">
+        <div className="relative shrink-0 bg-gradient-to-br from-lilac via-white to-mint p-5">
           <button
             onClick={handleDismiss}
             className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-2xl bg-white/80 text-inkSoft shadow-softer active:scale-95"
@@ -77,7 +77,7 @@ export default function SubscriptionLaunchPrompt({
           <p className="mt-1 text-sm font-semibold leading-relaxed text-inkSoft">{subtitle}</p>
         </div>
 
-        <div className="space-y-4 p-5">
+        <div className="min-h-0 space-y-4 overflow-y-auto p-4 sm:p-5">
           <div className="rounded-[24px] bg-cream p-4">
             <p className="text-sm font-extrabold text-ink">試用期可以使用</p>
             <ul className="mt-3 space-y-2 text-sm font-semibold text-ink">

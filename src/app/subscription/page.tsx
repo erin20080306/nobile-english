@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowRight, Check, Crown, Info, RefreshCw, Settings, Sparkles } from "lucide-react";
+import { ArrowRight, Check, Crown, RefreshCw, Settings, Sparkles } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import { authService } from "@/services/authService";
 import { subscriptionService } from "@/services/subscriptionService";
@@ -290,17 +290,6 @@ export default function SubscriptionPage() {
             <Feature>AI 導師即時回覆可產生 Neural 角色語音並快取</Feature>
             <Feature>場景練習、對話練習、文章、單字完整播放</Feature>
           </ul>
-        </div>
-
-        <div className="card bg-cream">
-          <p className="mb-2 flex items-center gap-2 font-extrabold text-ink">
-            <Info size={18} className="text-peachDeep" />
-            試用期限制
-          </p>
-          <p className="text-sm font-semibold leading-relaxed text-inkSoft">
-            試用期只有 7 天。為了控制成本，試用期間 AI 導師即時語音只播放已快取音檔；
-            如果沒有快取，會顯示文字回覆或使用裝置內建語音。訂閱後才會為你的新回覆產生導師角色語音。
-          </p>
         </div>
 
         <div className="flex gap-2">
