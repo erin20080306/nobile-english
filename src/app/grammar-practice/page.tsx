@@ -350,9 +350,9 @@ export default function GrammarPracticePage() {
             )}
           </div>
 
-          <div className="shrink-0 rounded-[24px] bg-white/85 p-3 shadow-softer">
+          <div className="h-[178px] shrink-0 overflow-hidden rounded-[24px] bg-white/85 p-3 shadow-softer">
             <p className="text-xs font-bold text-inkSoft mb-2">單字庫（含混淆詞）</p>
-            <div className="flex min-h-[92px] max-h-[156px] flex-wrap content-start items-start gap-2 overflow-y-auto overscroll-contain pb-2 pr-1">
+            <div className="flex h-[132px] flex-wrap content-start items-start gap-1.5 overflow-hidden">
               <AnimatePresence>
                 {bank.map((tile) => (
                   <motion.div
@@ -366,7 +366,7 @@ export default function GrammarPracticePage() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.7 }}
                     whileDrag={{ scale: 1.08, zIndex: 20, boxShadow: "0 12px 24px rgba(0,0,0,0.18)" }}
-                    className={`relative inline-flex min-h-10 max-w-full select-none touch-none items-center justify-center rounded-2xl px-3 py-2 text-[15px] font-bold leading-none shadow-softer cursor-grab active:cursor-grabbing ${
+                    className={`relative inline-flex min-h-8 max-w-full select-none touch-none items-center justify-center rounded-2xl px-2.5 py-1.5 text-center text-[13px] font-bold leading-tight shadow-softer cursor-grab active:cursor-grabbing ${
                       tile.status === "correct"
                         ? "bg-mintDeep text-white"
                         : tile.status === "wrong"

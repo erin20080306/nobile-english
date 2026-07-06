@@ -96,7 +96,8 @@ function shuffle<T>(items: T[]): T[] {
 }
 
 function distractorCountFor(tokenCount: number) {
-  return Math.max(2, Math.min(4, Math.round(tokenCount / 3)));
+  if (tokenCount <= 6) return 2;
+  return 1;
 }
 
 function nowIso() {
