@@ -299,7 +299,7 @@ export default function GrammarPracticePage() {
           </div>
         </div>
 
-        <div className="px-5 mt-5 space-y-4">
+        <div className="px-5 mt-5 space-y-4 pb-28">
           <div className="rounded-[34px] bg-white p-5 shadow-soft">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -350,9 +350,9 @@ export default function GrammarPracticePage() {
             )}
           </div>
 
-          <div className="h-[154px] shrink-0 overflow-hidden rounded-[24px] bg-white/85 p-3 shadow-softer">
+          <div className="shrink-0 rounded-[24px] bg-white/85 p-3 shadow-softer">
             <p className="text-xs font-bold text-inkSoft mb-2">單字庫（含混淆詞）</p>
-            <div className="flex h-[112px] flex-wrap content-start items-start gap-2 overflow-y-auto overscroll-contain pb-1 pr-1">
+            <div className="flex min-h-[92px] max-h-[156px] flex-wrap content-start items-start gap-2 overflow-y-auto overscroll-contain pb-2 pr-1">
               <AnimatePresence>
                 {bank.map((tile) => (
                   <motion.div
