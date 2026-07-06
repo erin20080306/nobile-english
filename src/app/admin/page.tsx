@@ -61,6 +61,32 @@ interface AdminSubscriptionStats {
     storeOrProfile: number;
     paypal: number;
   };
+  promoTrials?: {
+    available: boolean;
+    error?: string;
+    total: number;
+    active: number;
+    expired: number;
+    redemptions: Array<{
+      id: string;
+      promoCode: string;
+      userId: string;
+      userEmail: string;
+      status: string;
+      startsAt: string | null;
+      expiresAt: string | null;
+      trialDays: number;
+      maxFeatureUses: number;
+      redeemedSlot: number;
+      createdAt: string | null;
+      daysLeft: number;
+      isActive: boolean;
+      todayUsage: {
+        total: number;
+        features: Array<{ featureKey: string; usedCount: number }>;
+      };
+    }>;
+  };
   cloudSync?: {
     users: number;
     dataRows: number;
@@ -138,6 +164,27 @@ function learningRecordTypeLabel(type: string): string {
     grammar: "文法",
   };
   return labels[type] || type;
+}
+
+function promoTrialFeatureLabel(type: string): string {
+  const labels: Record<string, string> = {
+    dialoguePractice: "對話",
+    scenePractice: "場景",
+    wordReview: "單字",
+    grammarPractice: "文法",
+    readingArticle: "每日文章",
+    gardenDailyBonus: "農場補給",
+    gardenPurchase: "農場商店",
+    customScene: "自訂場景",
+  };
+  return labels[type] || type;
+}
+
+function promoTrialStatusLabel(status: string, isActive: boolean): string {
+  if (isActive) return "有效中";
+  if (status === "expired") return "已到期";
+  if (status === "cancelled") return "已取消";
+  return status === "active" ? "已到期" : status;
 }
 
 export default function AdminPage() {
@@ -594,6 +641,14 @@ export default function AdminPage() {
                   <p className="text-xs font-bold text-inkSoft">商店/Profile</p>
                   <p className="text-lg font-extrabold text-ink">{subscriptionStats.subscribers.storeOrProfile}</p>
                 </div>
+                <div className="rounded-xl bg-lilacLight px-3 py-2">
+                  <p className="text-xs font-bold text-lilacDeep">30 天試用</p>
+                  <p className="text-lg font-extrabold text-ink">{subscriptionStats.promoTrials?.total ?? 0}</p>
+                </div>
+                <div className="rounded-xl bg-mintLight px-3 py-2">
+                  <p className="text-xs font-bold text-mintDeep">優惠有效中</p>
+                  <p className="text-lg font-extrabold text-ink">{subscriptionStats.promoTrials?.active ?? 0}</p>
+                </div>
               </div>
               <button
                 type="button"
@@ -634,6 +689,71 @@ export default function AdminPage() {
                       ))}
                     </div>
                   ) : null}
+                </div>
+              )}
+              {statsExpanded && subscriptionStats.promoTrials && (
+                <div className="mt-3 rounded-xl bg-cream px-3 py-3">
+                  <p className="mb-2 flex items-center gap-1.5 text-xs font-extrabold text-ink">
+                    <KeyRound size={14} className="text-lilacDeep" /> 30 天優惠碼兌換
+                  </p>
+                  {!subscriptionStats.promoTrials.available && (
+                    <p className="mb-2 rounded-xl bg-peachLight px-2 py-2 text-xs font-bold text-peachDeep">
+                      尚未建立優惠碼資料表：{subscriptionStats.promoTrials.error || "請執行 promo trial migration"}
+                    </p>
+                  )}
+                  {subscriptionStats.promoTrials.redemptions.length ? (
+                    <div className="space-y-2">
+                      {subscriptionStats.promoTrials.redemptions.map((redemption) => (
+                        <div key={redemption.id || redemption.userId} className="rounded-xl bg-white px-3 py-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-extrabold text-ink">
+                                {redemption.userEmail || redemption.userId || "未知帳號"}
+                              </p>
+                              <p className="text-[10px] font-bold text-inkSoft">
+                                兌換：{formatAdminDate(redemption.createdAt)} · 到期：{formatAdminDate(redemption.expiresAt)}
+                              </p>
+                            </div>
+                            <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-extrabold ${
+                              redemption.isActive ? "bg-mintLight text-mintDeep" : "bg-sand text-inkSoft"
+                            }`}>
+                              {promoTrialStatusLabel(redemption.status, redemption.isActive)}
+                            </span>
+                          </div>
+                          <div className="mt-2 grid grid-cols-3 gap-1.5">
+                            <div className="rounded-lg bg-cream px-2 py-1">
+                              <p className="text-[10px] font-bold text-inkSoft">名額</p>
+                              <p className="text-xs font-extrabold text-ink">#{redemption.redeemedSlot || "-"}</p>
+                            </div>
+                            <div className="rounded-lg bg-cream px-2 py-1">
+                              <p className="text-[10px] font-bold text-inkSoft">剩餘</p>
+                              <p className="text-xs font-extrabold text-ink">{redemption.daysLeft} 天</p>
+                            </div>
+                            <div className="rounded-lg bg-cream px-2 py-1">
+                              <p className="text-[10px] font-bold text-inkSoft">今日使用</p>
+                              <p className="text-xs font-extrabold text-ink">{redemption.todayUsage.total} 次</p>
+                            </div>
+                          </div>
+                          {redemption.todayUsage.features.length ? (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {redemption.todayUsage.features.map((feature) => (
+                                <span
+                                  key={`${redemption.id}:${feature.featureKey}`}
+                                  className="rounded-full bg-lilacLight px-2 py-1 text-[10px] font-extrabold text-lilacDeep"
+                                >
+                                  {promoTrialFeatureLabel(feature.featureKey)} {feature.usedCount}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="mt-2 text-[10px] font-bold text-inkSoft">今天尚未使用優惠試用額度。</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs font-bold text-inkSoft">目前沒有人兌換 30 天優惠碼。</p>
+                  )}
                 </div>
               )}
               {statsExpanded && subscriptionStats.googleActivity && (
