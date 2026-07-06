@@ -96,8 +96,34 @@ function shuffle<T>(items: T[]): T[] {
 }
 
 function distractorCountFor(tokenCount: number) {
-  if (tokenCount <= 6) return 2;
-  return 1;
+  return tokenCount > 0 ? 1 : 0;
+}
+
+function preferredTokenRange(level: EnglishLevel): { min: number; max: number; ideal: number } {
+  const ranges: Record<EnglishLevel, { min: number; max: number; ideal: number }> = {
+    Beginner: { min: 4, max: 7, ideal: 5 },
+    Elementary: { min: 5, max: 9, ideal: 7 },
+    Intermediate: { min: 6, max: 11, ideal: 8 },
+    "Upper-Intermediate": { min: 7, max: 13, ideal: 10 },
+    Advanced: { min: 8, max: 15, ideal: 11 },
+  };
+  return ranges[level];
+}
+
+function levelFitScore(exercise: GrammarExercise, level: EnglishLevel) {
+  const length = exercise.tokens.length;
+  const range = preferredTokenRange(level);
+  if (length < range.min) return (range.min - length) * 10 + 4;
+  if (length > range.max) return (length - range.max) * 8 + 3;
+  return Math.abs(length - range.ideal);
+}
+
+function sortByLevelFit(exercises: GrammarExercise[], level: EnglishLevel) {
+  return [...exercises].sort((a, b) => {
+    const score = levelFitScore(a, level) - levelFitScore(b, level);
+    if (score !== 0) return score;
+    return a.tokens.length - b.tokens.length;
+  });
 }
 
 function nowIso() {
@@ -165,10 +191,7 @@ export const grammarPracticeService = {
     memory.lastOptions = { language: options.language, count: options.count, reviewWrongPercent: options.reviewWrongPercent };
     saveMemory(memory);
 
-    const levelMatchedExercises =
-      options.level === "Beginner" || options.level === "Elementary"
-        ? [...exercises].sort((a, b) => a.tokens.length - b.tokens.length)
-        : exercises;
+    const levelMatchedExercises = sortByLevelFit(exercises, options.level);
 
     const withKeys = levelMatchedExercises.map((exercise) => ({
       exercise,
@@ -179,10 +202,7 @@ export const grammarPracticeService = {
       .filter((item) => (memory.byKey[item.key]?.wrongCount || 0) > 0)
       .sort((a, b) => (memory.byKey[b.key]?.wrongCount || 0) - (memory.byKey[a.key]?.wrongCount || 0));
     const freshCandidates = withKeys.filter((item) => !(memory.byKey[item.key]?.wrongCount > 0));
-    const freshPool =
-      options.level === "Beginner" || options.level === "Elementary"
-        ? freshCandidates
-        : shuffle(freshCandidates);
+    const freshPool = options.level === "Beginner" || options.level === "Elementary" ? freshCandidates : shuffle(freshCandidates);
 
     const wantWrong = Math.min(wrongPool.length, Math.round((options.count * options.reviewWrongPercent) / 100));
     const selected = wrongPool.slice(0, wantWrong);

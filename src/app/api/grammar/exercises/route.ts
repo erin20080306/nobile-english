@@ -152,14 +152,27 @@ function wordCount(text: string, language: LearningLanguageCode) {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
+function minSentenceUnits(language: LearningLanguageCode, level: EnglishLevel) {
+  const isCjk = language === "ja" || language === "ko" || language === "zh";
+  if (isCjk) return 4;
+  const latinMinimums: Record<EnglishLevel, number> = {
+    Beginner: 4,
+    Elementary: 4,
+    Intermediate: 5,
+    "Upper-Intermediate": 5,
+    Advanced: 6,
+  };
+  return latinMinimums[level];
+}
+
 function maxSentenceUnits(language: LearningLanguageCode, level: EnglishLevel) {
   const isCjk = language === "ja" || language === "ko" || language === "zh";
   const latinLimits: Record<EnglishLevel, number> = {
-    Beginner: 5,
-    Elementary: 7,
-    Intermediate: 9,
-    "Upper-Intermediate": 11,
-    Advanced: 13,
+    Beginner: 7,
+    Elementary: 9,
+    Intermediate: 11,
+    "Upper-Intermediate": 13,
+    Advanced: 15,
   };
   const cjkLimits: Record<EnglishLevel, number> = {
     Beginner: 14,
@@ -173,7 +186,7 @@ function maxSentenceUnits(language: LearningLanguageCode, level: EnglishLevel) {
 
 function isSentenceLevelFit(text: string, language: LearningLanguageCode, level: EnglishLevel) {
   const units = wordCount(text, language);
-  return units >= 3 && units <= maxSentenceUnits(language, level) && isReasonableSentence(text, language, level);
+  return units >= minSentenceUnits(language, level) && units <= maxSentenceUnits(language, level) && isReasonableSentence(text, language, level);
 }
 
 // Filters out dictionary quotations that are technically valid sentences but
