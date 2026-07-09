@@ -6,6 +6,12 @@ let currentUtterance: SpeechSynthesisUtterance | null = null;
 let currentAudio: HTMLAudioElement | null = null;
 let currentAudioContext: AudioContext | null = null;
 let currentPlaybackEnd: (() => void) | null = null;
+// A single, reused AudioContext for the volume-boost playback graph. Creating a
+// new AudioContext per sentence quickly exhausts the browser's concurrent-
+// context limit (notably on iOS/Safari), after which new contexts fail to
+// create and playback silently falls back to unboosted (much quieter) output.
+// Reusing one context keeps every tutor line at full, consistent volume.
+let sharedGainContext: AudioContext | null = null;
 const ttsBlobCache = new Map<string, Blob>();
 const TTS_CACHE_LIMIT = 24;
 const MAX_AUDIO_VOLUME_GAIN = 3;
@@ -110,12 +116,10 @@ function stopAudio() {
   currentUtterance = null;
   const endPlayback = currentPlaybackEnd;
   currentPlaybackEnd = null;
+  // Note: the shared gain AudioContext (sharedGainContext) is intentionally
+  // NOT closed here — it is reused across sentences to avoid exhausting the
+  // browser's concurrent-context limit (which caused quiet fallback playback).
   if (!currentAudio) {
-    try {
-      void currentAudioContext?.close();
-    } catch {
-      /* ignore */
-    }
     currentAudioContext = null;
     endPlayback?.();
     return;
@@ -123,7 +127,6 @@ function stopAudio() {
   try {
     currentAudio.pause();
     currentAudio.src = "";
-    void currentAudioContext?.close();
   } catch {
     /* ignore */
   }
@@ -298,15 +301,30 @@ function waitForContextWarm(context: AudioContext, timeoutMs = 180): Promise<voi
   });
 }
 
-async function playWithGain(audio: HTMLAudioElement, gainValue: number, cleanup: () => void) {
-  if (typeof window === "undefined") return false;
+function getSharedGainContext(): AudioContext | null {
+  if (typeof window === "undefined") return null;
   const AudioContextCtor =
     window.AudioContext ||
     (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!AudioContextCtor) return false;
+  if (!AudioContextCtor) return null;
+  if (!sharedGainContext) {
+    try {
+      sharedGainContext = new AudioContextCtor();
+    } catch {
+      return null;
+    }
+  }
+  return sharedGainContext;
+}
+
+async function playWithGain(audio: HTMLAudioElement, gainValue: number, cleanup: () => void) {
+  const context = getSharedGainContext();
+  if (!context) return false;
 
   try {
-    const context = new AudioContextCtor();
+    // One MediaElementSource per <audio> element on the shared context. The
+    // context is never closed so it isn't recreated per sentence (which would
+    // exhaust the browser limit and cause quiet, unboosted fallback playback).
     const source = context.createMediaElementSource(audio);
     const gain = context.createGain();
     gain.gain.value = Math.max(1, Math.min(MAX_AUDIO_VOLUME_GAIN, gainValue));
@@ -314,19 +332,16 @@ async function playWithGain(audio: HTMLAudioElement, gainValue: number, cleanup:
     gain.connect(context.destination);
     currentAudioContext = context;
     if (context.state === "suspended") await context.resume();
-    // A freshly created/resumed AudioContext needs a brief moment before its
-    // graph reliably passes audio through. Starting playback immediately can
-    // swallow the first frames, clipping the opening word (e.g. the "Can" in
-    // "Can I get ..."). Wait for the context clock to advance a little before
-    // starting so the graph is warm.
+    // A freshly resumed AudioContext needs a brief moment before its graph
+    // reliably passes audio through. Starting playback immediately can swallow
+    // the first frames, clipping the opening word (e.g. the "Can" in "Can I get
+    // ..."). Wait for the context clock to advance a little before starting.
     await waitForContextWarm(context);
     audio.onended = () => {
       cleanup();
-      void context.close();
     };
     audio.onerror = () => {
       cleanup();
-      void context.close();
     };
     try {
       audio.currentTime = 0;
