@@ -54,7 +54,7 @@ export async function peekTtsAsset(input: GetOrCreateInput): Promise<PeekResult>
     resolveVoiceProfile(input.languageCode, input.voiceGender);
   if (!voice) throw new Error(`no voice profile for language: ${input.languageCode}`);
 
-  const audioFormat = input.audioFormat || "mp3";
+  const audioFormat = provider.audioFormat || input.audioFormat || "mp3";
   const audioVersionString = input.audioVersionString ?? "v2_loud";
   const textHash = computeTextHash({
     provider: provider.name,
@@ -98,7 +98,7 @@ export async function getCachedTtsAsset(
     resolveVoiceProfile(input.languageCode, input.voiceGender);
   if (!voice) throw new Error(`no voice profile for language: ${input.languageCode}`);
 
-  const audioFormat = input.audioFormat || "mp3";
+  const audioFormat = provider.audioFormat || input.audioFormat || "mp3";
   const audioVersionString = input.audioVersionString ?? "v2_loud";
   const textHash = computeTextHash({
     provider: provider.name,
@@ -138,7 +138,7 @@ export async function getOrCreateTtsAsset(
   if (!voice) throw new Error(`no voice profile for language: ${input.languageCode}`);
   const voiceProfileId = voice.id;
 
-  const audioFormat = input.audioFormat || "mp3";
+  const audioFormat = provider.audioFormat || input.audioFormat || "mp3";
   const audioVersionString = input.audioVersionString ?? "v2_loud";
 
   const textHash = computeTextHash({
@@ -245,7 +245,7 @@ export async function getOrCreateTtsAsset(
           providerModel: provider.model,
           voiceProfileId,
           textHash,
-          audioFormat,
+          audioFormat: synth.audioFormat,
         });
         output = { audioPath, durationMs: synth.durationMs, audioFormat: synth.audioFormat };
       }

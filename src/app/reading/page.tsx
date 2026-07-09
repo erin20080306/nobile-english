@@ -76,7 +76,8 @@ function audioBase64ToObjectUrl(audioBase64: string, audioFormat = "mp3") {
   const binary = window.atob(audioBase64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-  return URL.createObjectURL(new Blob([bytes], { type: `audio/${audioFormat || "mp3"}` }));
+  const mime = audioFormat === "wav" ? "audio/wav" : audioFormat === "m4a" ? "audio/mp4" : "audio/mpeg";
+  return URL.createObjectURL(new Blob([bytes], { type: mime }));
 }
 
 export default function DailyReadingPage() {
@@ -267,6 +268,10 @@ export default function DailyReadingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           input: sentence.sentence_text,
+          languageCode: selectedLanguage,
+          assetType: "reading_sentence",
+          voiceGender: "female",
+          voiceProfileId: READING_VOICE_PROFILE_ID[selectedLanguage],
           voice: LANG_VOICE[selectedLanguage] ?? "nova",
         }),
       }, 12000);
@@ -407,7 +412,7 @@ export default function DailyReadingPage() {
     setAudioLoading(false);
     setPlaying(queued > 0);
     if (queued === 0 && !playArticleWithSpeechFallback(0, true)) {
-      setAudioError("目前沒有可播放的文章音檔，請確認 TTS_PROVIDER 與 Google/Polly key 已設定。");
+      setAudioError("目前沒有可播放的文章音檔，請確認 GEMINI_API_KEY 或 TTS_PROVIDER 已設定。");
     }
   }
 
@@ -431,7 +436,7 @@ export default function DailyReadingPage() {
     setAudioLoading(false);
     setPlaying(queued > 0);
     if (queued === 0 && !playArticleWithSpeechFallback(currentSentenceIndex, true)) {
-      setAudioError("目前沒有可播放的文章音檔，請確認 TTS_PROVIDER 與 Google/Polly key 已設定。");
+      setAudioError("目前沒有可播放的文章音檔，請確認 GEMINI_API_KEY 或 TTS_PROVIDER 已設定。");
     }
   }
 
@@ -458,7 +463,7 @@ export default function DailyReadingPage() {
     setAudioLoading(false);
     setPlaying(queued > 0);
     if (queued === 0 && !playArticleWithSpeechFallback(index, false)) {
-      setAudioError("目前沒有可播放的文章音檔，請確認 TTS_PROVIDER 與 Google/Polly key 已設定。");
+      setAudioError("目前沒有可播放的文章音檔，請確認 GEMINI_API_KEY 或 TTS_PROVIDER 已設定。");
     }
   }
 

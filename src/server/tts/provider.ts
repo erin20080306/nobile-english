@@ -1,14 +1,16 @@
 import crypto from "crypto";
+import { getGeminiApiKey } from "../gemini";
 import { getAppSetting } from "../settings";
 import { incrementApiUsage } from "../apiUsage";
 import type { AudioFormat, SynthesisOutput, SynthesisRequest, TtsAssetType } from "./types";
 
 type TtsQuality = "standard" | "neural";
-type ProviderKind = "google" | "polly" | "stub";
+type ProviderKind = "gemini" | "google" | "polly" | "stub";
 
 export interface TtsProvider {
   readonly name: string;
   readonly model: string;
+  readonly audioFormat: AudioFormat;
   synthesize(req: SynthesisRequest): Promise<SynthesisOutput>;
 }
 
@@ -69,6 +71,40 @@ const POLLY_NEURAL_VOICES: Record<string, string> = {
   "vp-es-sofia": "Lucia",
 };
 
+const GEMINI_TTS_VOICES: Record<string, string> = {
+  "vp-en-jake": "Puck",
+  "vp-en-william": "Charon",
+  "vp-en-emma": "Kore",
+  "vp-en-amy": "Leda",
+  "vp-en-sophie": "Aoede",
+  "vp-en-lily": "Autonoe",
+  "vp-ja-haruto": "Fenrir",
+  "vp-ja-yui": "Callirrhoe",
+  "vp-ko-minjun": "Orus",
+  "vp-ko-seoyeon": "Despina",
+  "vp-it-marco": "Algieba",
+  "vp-it-giulia": "Erinome",
+  "vp-es-carlos": "Enceladus",
+  "vp-es-sofia": "Laomedeia",
+};
+
+const GEMINI_TUTOR_STYLES: Record<string, string> = {
+  "vp-en-jake": "friendly American male English tutor from California",
+  "vp-en-william": "polished British male English tutor",
+  "vp-en-emma": "bright American female English tutor from New York",
+  "vp-en-amy": "gentle American female English tutor for beginners",
+  "vp-en-sophie": "soft British female pronunciation coach",
+  "vp-en-lily": "warm Asian female English tutor with Mandarin-influenced English rhythm",
+  "vp-ja-haruto": "native Japanese male tutor from Tokyo",
+  "vp-ja-yui": "native Japanese female tutor from Tokyo",
+  "vp-ko-minjun": "native Korean male tutor from Seoul",
+  "vp-ko-seoyeon": "native Korean female tutor from Seoul",
+  "vp-it-marco": "native Italian male tutor from Rome",
+  "vp-it-giulia": "native Italian female tutor from Milan",
+  "vp-es-carlos": "native Spanish male tutor from Madrid",
+  "vp-es-sofia": "native Spanish female tutor from Barcelona",
+};
+
 function qualityForAsset(assetType?: TtsAssetType): TtsQuality {
   return assetType && STANDARD_ASSET_TYPES.has(assetType) ? "standard" : "neural";
 }
@@ -81,15 +117,22 @@ export const TTS_PROVIDER_SETTING_KEY = "tts_primary_provider";
 
 async function providerPreference(): Promise<ProviderKind> {
   const override = (await getAppSetting(TTS_PROVIDER_SETTING_KEY))?.toLowerCase();
+  if (override === "gemini" && hasGeminiTtsConfig()) return "gemini";
   if (override === "google" && hasGoogleConfig()) return "google";
   if (override === "polly" && hasPollyConfig()) return "polly";
 
   const preferred = (process.env.TTS_PROVIDER || process.env.TTS_PRIMARY_PROVIDER || "").toLowerCase();
+  if (preferred === "gemini" && hasGeminiTtsConfig()) return "gemini";
   if (preferred === "google" && hasGoogleConfig()) return "google";
   if (preferred === "polly" && hasPollyConfig()) return "polly";
+  if (hasGeminiTtsConfig()) return "gemini";
   if (hasGoogleConfig()) return "google";
   if (hasPollyConfig()) return "polly";
   return "stub";
+}
+
+function hasGeminiTtsConfig() {
+  return Boolean(getGeminiApiKey());
 }
 
 function hasGoogleConfig() {
@@ -100,7 +143,7 @@ function hasPollyConfig() {
   return Boolean(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY);
 }
 
-function voiceOverride(provider: "google" | "polly", voiceProfileId: string, quality: TtsQuality) {
+function voiceOverride(provider: "gemini" | "google" | "polly", voiceProfileId: string, quality: TtsQuality) {
   const key = `${provider.toUpperCase()}_TTS_VOICE_${normalizeEnvKey(voiceProfileId)}_${quality.toUpperCase()}`;
   return process.env[key];
 }
@@ -116,6 +159,7 @@ function audioFormatForProvider(format: AudioFormat) {
 
 class StubTtsProvider implements TtsProvider {
   readonly name = "stub-tts";
+  readonly audioFormat: AudioFormat = "mp3";
 
   constructor(readonly model: string) {}
 
@@ -124,6 +168,149 @@ class StubTtsProvider implements TtsProvider {
       audioPath: `stub://tts/${req.voiceProfileId}/${req.textHash}.${req.audioFormat}`,
       durationMs: estimateDurationMs(req.text),
       audioFormat: req.audioFormat,
+    };
+  }
+}
+
+function geminiTtsModel(quality: TtsQuality) {
+  return (
+    (quality === "standard" ? process.env.GEMINI_TTS_STANDARD_MODEL : process.env.GEMINI_TTS_NEURAL_MODEL) ||
+    process.env.GEMINI_TTS_MODEL ||
+    "gemini-2.5-flash-preview-tts"
+  );
+}
+
+function languageLabel(languageCode: string) {
+  const lower = languageCode.toLowerCase();
+  if (lower.startsWith("ja")) return "Japanese";
+  if (lower.startsWith("ko")) return "Korean";
+  if (lower.startsWith("it")) return "Italian";
+  if (lower.startsWith("es")) return "Spanish";
+  if (lower.startsWith("en-gb")) return "British English";
+  if (lower.startsWith("cmn") || lower.startsWith("zh")) return "Mandarin-accented English";
+  return "American English";
+}
+
+function buildGeminiTtsPrompt(req: SynthesisRequest) {
+  const style = GEMINI_TUTOR_STYLES[req.voiceProfileId] || `${req.voiceGender} ${languageLabel(req.languageCode)} tutor`;
+  return [
+    `Say only the following ${languageLabel(req.languageCode)} text.`,
+    `Use the voice of a ${style}.`,
+    "Keep the pacing natural, clear, teacher-like, and easy for a learner to understand.",
+    "Do not add explanations, labels, translations, sound effects, or extra words.",
+    req.text,
+  ].join("\n");
+}
+
+function parseSampleRate(mimeType?: string) {
+  const match = mimeType?.match(/rate=(\d+)/i);
+  return match ? Number(match[1]) || 24000 : 24000;
+}
+
+function wrapPcmAsWav(pcm: Buffer, sampleRate = 24000, channels = 1, bitsPerSample = 16) {
+  const byteRate = (sampleRate * channels * bitsPerSample) / 8;
+  const blockAlign = (channels * bitsPerSample) / 8;
+  const header = Buffer.alloc(44);
+  header.write("RIFF", 0);
+  header.writeUInt32LE(36 + pcm.length, 4);
+  header.write("WAVE", 8);
+  header.write("fmt ", 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(channels, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(byteRate, 28);
+  header.writeUInt16LE(blockAlign, 32);
+  header.writeUInt16LE(bitsPerSample, 34);
+  header.write("data", 36);
+  header.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([header, pcm]);
+}
+
+function durationFromPcmMs(bytes: number, sampleRate = 24000, channels = 1, bitsPerSample = 16) {
+  const bytesPerSecond = (sampleRate * channels * bitsPerSample) / 8;
+  return bytesPerSecond > 0 ? Math.max(300, Math.round((bytes / bytesPerSecond) * 1000)) : null;
+}
+
+interface GeminiTtsResponse {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{
+        inlineData?: {
+          mimeType?: string;
+          data?: string;
+        };
+      }>;
+    };
+  }>;
+  error?: { message?: string; status?: string };
+}
+
+class GeminiTtsProvider implements TtsProvider {
+  readonly name = "gemini-tts";
+  readonly model: string;
+  readonly audioFormat: AudioFormat = "wav";
+
+  constructor(private readonly quality: TtsQuality) {
+    this.model = geminiTtsModel(quality);
+  }
+
+  private resolveVoice(req: SynthesisRequest) {
+    return (
+      voiceOverride("gemini", req.voiceProfileId, this.quality) ||
+      GEMINI_TTS_VOICES[req.voiceProfileId] ||
+      (req.voiceGender === "male" ? "Puck" : "Kore")
+    );
+  }
+
+  async synthesize(req: SynthesisRequest): Promise<SynthesisOutput> {
+    const apiKey = getGeminiApiKey();
+    if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
+
+    const url =
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(this.model)}:generateContent` +
+      `?key=${encodeURIComponent(apiKey)}`;
+
+    void incrementApiUsage(`tts:gemini-${this.model}`);
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: buildGeminiTtsPrompt(req) }] }],
+        generationConfig: {
+          responseModalities: ["AUDIO"],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: {
+                voiceName: this.resolveVoice(req),
+              },
+            },
+          },
+        },
+      }),
+    });
+
+    const data = (await response.json().catch(() => ({}))) as GeminiTtsResponse;
+    if (!response.ok) {
+      throw new Error(`Gemini TTS failed (${response.status}): ${data.error?.message || data.error?.status || "unknown error"}`);
+    }
+
+    const parts = data.candidates?.flatMap((candidate) => candidate.content?.parts || []) || [];
+    const inline = parts.find((part) => part.inlineData?.data)?.inlineData;
+    if (!inline?.data) throw new Error("Gemini TTS returned no inline audio");
+
+    const raw = Buffer.from(inline.data, "base64");
+    if (!raw.byteLength) throw new Error("Gemini TTS returned empty audio");
+
+    const sampleRate = parseSampleRate(inline.mimeType);
+    const wavBytes = inline.mimeType?.includes("audio/wav") ? raw : wrapPcmAsWav(raw, sampleRate);
+    const durationMs = durationFromPcmMs(raw.length, sampleRate) || estimateDurationMs(req.text);
+
+    return {
+      audioPath: "",
+      audioBytes: wavBytes,
+      durationMs,
+      audioFormat: "wav",
     };
   }
 }
@@ -196,6 +383,7 @@ async function getGoogleAccessToken() {
 class GoogleTtsProvider implements TtsProvider {
   readonly name = "google-tts";
   readonly model: string;
+  readonly audioFormat: AudioFormat = "mp3";
 
   constructor(private readonly quality: TtsQuality) {
     this.model = quality === "standard" ? "wavenet" : "neural2";
@@ -282,6 +470,7 @@ function pollyLanguageCode(languageCode: string) {
 class PollyTtsProvider implements TtsProvider {
   readonly name = "amazon-polly";
   readonly model: string;
+  readonly audioFormat: AudioFormat = "mp3";
 
   constructor(private readonly quality: TtsQuality) {
     this.model = quality;
@@ -384,7 +573,9 @@ export async function getTtsProvider(assetType?: TtsAssetType): Promise<TtsProvi
   if (cached) return cached;
 
   const provider =
-    kind === "google"
+    kind === "gemini"
+      ? new GeminiTtsProvider(quality)
+      : kind === "google"
       ? new GoogleTtsProvider(quality)
       : kind === "polly"
       ? new PollyTtsProvider(quality)
@@ -394,22 +585,24 @@ export async function getTtsProvider(assetType?: TtsAssetType): Promise<TtsProvi
 }
 
 export function isTtsProviderConfigured(): boolean {
-  return hasGoogleConfig() || hasPollyConfig();
+  return hasGeminiTtsConfig() || hasGoogleConfig() || hasPollyConfig();
 }
 
 export interface TtsProviderStatus {
   active: ProviderKind;
   override: ProviderKind | null;
+  geminiConfigured: boolean;
   googleConfigured: boolean;
   pollyConfigured: boolean;
 }
 
 export async function getTtsProviderStatus(): Promise<TtsProviderStatus> {
   const override = (await getAppSetting(TTS_PROVIDER_SETTING_KEY))?.toLowerCase();
-  const validOverride = override === "google" || override === "polly" ? override : null;
+  const validOverride = override === "gemini" || override === "google" || override === "polly" ? override : null;
   return {
     active: await providerPreference(),
     override: validOverride,
+    geminiConfigured: hasGeminiTtsConfig(),
     googleConfigured: hasGoogleConfig(),
     pollyConfigured: hasPollyConfig(),
   };

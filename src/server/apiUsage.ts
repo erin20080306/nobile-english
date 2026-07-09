@@ -36,19 +36,17 @@ const TRACKED_API_NAMES = [
   "gemini:gemini-3.5-flash",
   "gemini:gemini-2.5-flash-lite",
   "gemini:gemini-2.5-flash",
+  "tts:gemini-gemini-2.5-flash-preview-tts",
   "tts:google-standard",
-  "tts:google-premium",
+  "tts:google-neural",
   "tts:polly-standard",
   "tts:polly-neural",
-  "tts:openai-gpt-4o-mini-tts",
-  "tts:openai-tts-1",
   "stt:google",
   "gnews:search",
   "gnews:top-headlines",
   "dictionary:free-dictionary",
   "dictionary:wiktionary",
   "dictionary:urimal-saem",
-  "dictionary:openai",
 ];
 
 function isoDate(date: Date): string {

@@ -39,7 +39,7 @@ export default function PrivacyPage() {
               <p className="text-inkSoft leading-relaxed mb-2">本 App 使用以下第三方服務：</p>
               <ul className="list-disc list-inside space-y-1 text-inkSoft">
                 <li><strong>Supabase</strong>：資料庫與認證服務</li>
-                <li><strong>OpenAI</strong>：AI 導師對話與語音合成</li>
+                <li><strong>Google Gemini</strong>：AI 導師對話與語音合成</li>
                 <li><strong>Google Cloud</strong>：語音辨識（STT）</li>
                 <li><strong>RevenueCat</strong>：訂閱與付款管理</li>
               </ul>

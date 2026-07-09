@@ -236,7 +236,7 @@ export default function ScenePracticePage() {
     gardenService.addSceneWords(targetLanguage, practicedWords);
 
     // Automatically save practiced words to user's vocabulary. Uses
-    // lookupForSave (Gemini/OpenAI-backed) so unknown words get a real
+    // lookupForSave (Gemini-backed) so unknown words get a real
     // Chinese meaning instead of a generic "情境對話常見..." placeholder
     // that would be unusable later in word review questions.
     practicedWords.forEach((item) => {

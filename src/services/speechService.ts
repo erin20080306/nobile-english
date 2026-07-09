@@ -103,7 +103,7 @@ function missingCloudVoiceMessage(lang = "en-US") {
     : lang.startsWith("es")
     ? "西班牙文"
     : "此語言";
-  return `${label}語音需要 OpenAI TTS key；目前本機未讀到 key 或瀏覽器沒有${label}語音。`;
+  return `${label}語音需要 Gemini TTS key；目前尚未設定 GEMINI_API_KEY 或瀏覽器沒有${label}語音。`;
 }
 
 function stopAudio() {
@@ -163,7 +163,7 @@ function speakNow(text: string, opts?: SpeakOptions, voices = window.speechSynth
   }, 120);
 }
 
-async function speakWithOpenAi(text: string, opts?: SpeakOptions) {
+async function speakWithCloudTts(text: string, opts?: SpeakOptions) {
   if (!opts?.ttsVoice || typeof fetch === "undefined" || typeof Audio === "undefined") return false;
   try {
     const cacheKey = ttsCacheKey(text, opts);
@@ -179,6 +179,9 @@ async function speakWithOpenAi(text: string, opts?: SpeakOptions) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           input: text,
+          languageCode: opts.lang,
+          voiceGender: opts.voiceGender,
+          assetType: "practice_sentence",
           voice: opts.ttsVoice,
           instructions: opts.ttsInstructions,
           speed: opts.rate ?? 1,
@@ -355,7 +358,7 @@ export const speechService = {
         if (window.speechSynthesis.paused) window.speechSynthesis.resume();
       }
       if (opts?.ttsVoice) {
-        void speakWithOpenAi(clean, opts).then(async (played) => {
+        void speakWithCloudTts(clean, opts).then(async (played) => {
           if (played) return;
           if (!supported()) {
             opts.onError?.(missingCloudVoiceMessage(opts.lang));

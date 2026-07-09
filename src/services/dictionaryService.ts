@@ -619,7 +619,7 @@ export const dictionaryService = {
   // vocabularyService.addToReview). A plain `lookup()` can return a generic
   // learnerFallback entry (e.g. zh: "情境對話常見動詞或動詞變化，表示動作或
   // 狀態。") for words the local dictionary doesn't know, which is useless as
-  // a review answer. This asks the Gemini/OpenAI-backed /api/dictionary route
+  // a review answer. This asks the Gemini-backed /api/dictionary route
   // for a real, context-aware definition before the word is saved, falling
   // back to the local entry only if the AI call fails.
   async lookupForSave(word: string, language: LearningLanguageCode, sentence?: string): Promise<Word | null> {

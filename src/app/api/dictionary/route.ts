@@ -5,8 +5,6 @@ import { incrementApiUsage } from "@/server/apiUsage";
 
 export const runtime = "nodejs";
 
-const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
-const OPENAI_MODEL = process.env.OPENAI_DICTIONARY_MODEL || process.env.OPENAI_TUTOR_MODEL || "gpt-5.4-nano";
 const GEMINI_MODEL = process.env.GEMINI_DICTIONARY_MODEL || process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
 
 interface DictionaryAiRequest {
@@ -89,35 +87,6 @@ function buildPrompt(body: DictionaryAiRequest) {
   ].filter(Boolean).join("\n");
 }
 
-async function askOpenAi(body: DictionaryAiRequest): Promise<Word | null> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return null;
-  void incrementApiUsage("dictionary:openai");
-  const response = await fetch(OPENAI_RESPONSES_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: OPENAI_MODEL,
-      input: buildPrompt(body),
-      temperature: 0.2,
-      max_output_tokens: 520,
-    }),
-  });
-  if (!response.ok) return null;
-  const data = await response.json();
-  const outputText =
-    data.output_text ||
-    data.output?.flatMap((item: { content?: Array<{ text?: string }> }) => item.content || [])
-      .map((content: { text?: string }) => content.text || "")
-      .join("") ||
-    "";
-  if (!outputText) return null;
-  return sanitizeWord(safeJson(outputText), body);
-}
-
 async function askGemini(body: DictionaryAiRequest): Promise<Word | null> {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   if (!apiKey) return null;
@@ -157,9 +126,6 @@ export async function POST(req: Request) {
   try {
     const gemini = await askGemini(body);
     if (gemini) return NextResponse.json({ source: "gemini", model: GEMINI_MODEL, entry: gemini });
-
-    const openai = await askOpenAi(body);
-    if (openai) return NextResponse.json({ source: "openai", model: OPENAI_MODEL, entry: openai });
   } catch {
     // Keep the app usable with the local dictionary when provider calls fail.
   }

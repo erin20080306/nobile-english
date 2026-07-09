@@ -58,6 +58,12 @@ function isTutorRoleAsset(assetType: TutorAudioAssetType) {
   return assetType === "dynamic_tutor_reply" || assetType.startsWith("tutor_");
 }
 
+function mimeForAudioFormat(format?: string) {
+  if (format === "wav") return "audio/wav";
+  if (format === "m4a") return "audio/mp4";
+  return "audio/mpeg";
+}
+
 class TutorVoiceService {
   private isPlaying = false;
 
@@ -202,7 +208,7 @@ class TutorVoiceService {
       // Prefer inline audio (fresh synthesis) so we skip a second download; fall
       // back to the signed URL for cache hits.
       const url: string | null = data.audioBase64
-        ? `data:audio/mpeg;base64,${data.audioBase64}`
+        ? `data:${mimeForAudioFormat(data.audioFormat)};base64,${data.audioBase64}`
         : data.signedUrl || null;
       this.log(data.cached ? "[AI_TTS] cache hit" : "[AI_TTS] cache miss", {
         id: data.id,
@@ -233,7 +239,7 @@ class TutorVoiceService {
    */
   private async getQueuedFallbackAudioUrl(text: string, options: TutorVoiceOptions): Promise<string | null> {
     const language = toLearningLanguage(options.languageCode);
-    const { tutor } = this.resolveTutor(options);
+    const { tutor, chirpVoiceProfileId } = this.resolveTutor(options);
     const fallback = voiceForLanguage(language, audioQueueService.getPlaybackRate());
 
     try {
@@ -242,6 +248,10 @@ class TutorVoiceService {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           input: text,
+          languageCode: options.languageCode,
+          assetType: options.assetType || "dynamic_tutor_reply",
+          voiceProfileId: chirpVoiceProfileId || options.voiceProfileId,
+          voiceGender: tutor?.gender || options.voiceGender,
           voice: tutor?.ttsVoice || fallback.ttsVoice || "nova",
           instructions: tutor?.ttsInstructions || fallback.ttsInstructions,
           speed: audioQueueService.getPlaybackRate(),
@@ -337,7 +347,7 @@ class TutorVoiceService {
       ...defaults,
       lang: tutor?.lang || defaults.lang,
       voiceKeywords: tutor?.voiceKeywords || defaults.voiceKeywords,
-      // Do not call the separate OpenAI Audio implementation from speechService.
+      // Do not call a separate cloud audio path from speechService here.
       // It would create another unmanaged player and reintroduce autoplay issues.
       ttsVoice: undefined,
       ttsInstructions: undefined,
