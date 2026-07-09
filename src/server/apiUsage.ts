@@ -36,7 +36,7 @@ const TRACKED_API_NAMES = [
   "gemini:gemini-3.5-flash",
   "gemini:gemini-2.5-flash-lite",
   "gemini:gemini-2.5-flash",
-  "tts:gemini-gemini-2.5-flash-preview-tts",
+  "tts:gemini-gemini-3.1-flash-tts-preview",
   "tts:google-standard",
   "tts:google-neural",
   "tts:polly-standard",

@@ -176,7 +176,7 @@ function geminiTtsModel(quality: TtsQuality) {
   return (
     (quality === "standard" ? process.env.GEMINI_TTS_STANDARD_MODEL : process.env.GEMINI_TTS_NEURAL_MODEL) ||
     process.env.GEMINI_TTS_MODEL ||
-    "gemini-2.5-flash-preview-tts"
+    "gemini-3.1-flash-tts-preview"
   );
 }
 
@@ -233,6 +233,16 @@ function durationFromPcmMs(bytes: number, sampleRate = 24000, channels = 1, bits
 }
 
 interface GeminiTtsResponse {
+  output_audio?: {
+    data?: string;
+    mime_type?: string;
+    mimeType?: string;
+  };
+  outputAudio?: {
+    data?: string;
+    mime_type?: string;
+    mimeType?: string;
+  };
   candidates?: Array<{
     content?: {
       parts?: Array<{
@@ -245,6 +255,12 @@ interface GeminiTtsResponse {
   }>;
   error?: { message?: string; status?: string };
 }
+
+type GeminiAudioPayload = {
+  data?: string;
+  mime_type?: string;
+  mimeType?: string;
+};
 
 class GeminiTtsProvider implements TtsProvider {
   readonly name = "gemini-tts";
@@ -267,25 +283,22 @@ class GeminiTtsProvider implements TtsProvider {
     const apiKey = getGeminiApiKey();
     if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
 
-    const url =
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(this.model)}:generateContent` +
-      `?key=${encodeURIComponent(apiKey)}`;
+    const url = "https://generativelanguage.googleapis.com/v1beta/interactions";
+    const voiceName = this.resolveVoice(req);
 
     void incrementApiUsage(`tts:gemini-${this.model}`);
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
       body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: buildGeminiTtsPrompt(req) }] }],
-        generationConfig: {
-          responseModalities: ["AUDIO"],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: {
-                voiceName: this.resolveVoice(req),
-              },
-            },
-          },
+        model: this.model,
+        input: buildGeminiTtsPrompt(req),
+        response_format: { type: "audio" },
+        generation_config: {
+          speech_config: [{ voice: voiceName }],
         },
       }),
     });
@@ -296,14 +309,18 @@ class GeminiTtsProvider implements TtsProvider {
     }
 
     const parts = data.candidates?.flatMap((candidate) => candidate.content?.parts || []) || [];
-    const inline = parts.find((part) => part.inlineData?.data)?.inlineData;
+    const inline: GeminiAudioPayload | undefined =
+      data.output_audio ||
+      data.outputAudio ||
+      parts.find((part) => part.inlineData?.data)?.inlineData;
     if (!inline?.data) throw new Error("Gemini TTS returned no inline audio");
 
     const raw = Buffer.from(inline.data, "base64");
     if (!raw.byteLength) throw new Error("Gemini TTS returned empty audio");
 
-    const sampleRate = parseSampleRate(inline.mimeType);
-    const wavBytes = inline.mimeType?.includes("audio/wav") ? raw : wrapPcmAsWav(raw, sampleRate);
+    const mimeType = inline.mime_type || inline.mimeType;
+    const sampleRate = parseSampleRate(mimeType);
+    const wavBytes = mimeType?.includes("audio/wav") ? raw : wrapPcmAsWav(raw, sampleRate);
     const durationMs = durationFromPcmMs(raw.length, sampleRate) || estimateDurationMs(req.text);
 
     return {
