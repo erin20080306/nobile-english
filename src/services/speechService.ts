@@ -193,7 +193,9 @@ async function speakWithCloudTts(text: string, opts?: SpeakOptions) {
     }
     if (!blob.size) return false;
     const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
+    const audio = new Audio();
+    audio.preload = "auto";
+    audio.src = url;
     currentAudio = audio;
     currentPlaybackEnd = opts?.onEnd ?? null;
     const cleanup = () => {
@@ -207,6 +209,12 @@ async function speakWithCloudTts(text: string, opts?: SpeakOptions) {
     audio.onplay = () => opts?.onStart?.();
     audio.onended = cleanup;
     audio.onerror = cleanup;
+    // Wait until enough audio is buffered before starting. Calling play() while
+    // the element is still loading can drop the first audio frames, clipping
+    // the opening word (e.g. the "Can" in "Can I get ..."). Bounded by a short
+    // timeout as a safety net for browsers that don't reliably fire readiness
+    // events for blob URLs.
+    await waitForAudioReady(audio);
     const playedWithBoost = await playWithGain(audio, opts?.volumeGain ?? 1.35, cleanup);
     if (!playedWithBoost) {
       audio.volume = 1;
@@ -236,6 +244,40 @@ function rememberTtsBlob(key: string, blob: Blob) {
     if (!firstKey) break;
     ttsBlobCache.delete(firstKey);
   }
+}
+
+// Resolve once the audio element has buffered enough to start playing without
+// dropping the first frames. Bounded by a timeout so a browser that never
+// fires the readiness events (some blob-URL cases on iOS Safari) still starts.
+function waitForAudioReady(audio: HTMLAudioElement, timeoutMs = 1500): Promise<void> {
+  return new Promise((resolve) => {
+    // HAVE_ENOUGH_DATA: already safe to play through.
+    if (audio.readyState >= 4) {
+      resolve();
+      return;
+    }
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      audio.removeEventListener("canplaythrough", finish);
+      audio.removeEventListener("canplay", onCanPlay);
+      window.clearTimeout(timer);
+      resolve();
+    };
+    // HAVE_FUTURE_DATA is usually enough for in-memory blob audio.
+    const onCanPlay = () => {
+      if (audio.readyState >= 3) finish();
+    };
+    audio.addEventListener("canplaythrough", finish);
+    audio.addEventListener("canplay", onCanPlay);
+    const timer = window.setTimeout(finish, timeoutMs);
+    try {
+      audio.load();
+    } catch {
+      /* ignore */
+    }
+  });
 }
 
 async function playWithGain(audio: HTMLAudioElement, gainValue: number, cleanup: () => void) {
