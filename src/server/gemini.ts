@@ -1,8 +1,8 @@
 /**
  * Shared Google Gemini (Generative Language API) helper.
  *
- * Used for AI tutor dynamic replies and daily reading article generation,
- * replacing the previous OpenAI dependency. Reads the API key from several
+ * Used for AI tutor dynamic replies and daily reading article generation.
+ * Reads the API key from several
  * common env var names so it works regardless of how the key was named in the
  * deployment dashboard. Gemini keys and TTS keys are intentionally kept
  * separate so a Google TTS key is never treated as permission to call Gemini.

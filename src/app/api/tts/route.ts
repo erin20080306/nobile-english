@@ -1,81 +1,65 @@
 import { NextResponse } from "next/server";
-import { incrementApiUsage } from "@/server/apiUsage";
+import { getOrCreateTtsAsset } from "@/server/tts/service";
+import type { AudioFormat, TtsAssetType, VoiceGender } from "@/server/tts/types";
 
 export const runtime = "nodejs";
 
-const OPENAI_SPEECH_URL = "https://api.openai.com/v1/audio/speech";
-const MODEL = process.env.OPENAI_TTS_MODEL || "gpt-4o-mini-tts";
-const VOICES = new Set([
-  "alloy",
-  "ash",
-  "ballad",
-  "coral",
-  "echo",
-  "fable",
-  "nova",
-  "onyx",
-  "sage",
-  "shimmer",
-  "verse",
-  "marin",
-  "cedar",
-]);
-
 interface TtsRequest {
   input?: string;
+  text?: string;
+  languageCode?: string;
+  lang?: string;
   voice?: string;
-  instructions?: string;
+  voiceGender?: VoiceGender;
+  voiceProfileId?: string;
+  assetType?: TtsAssetType;
+  audioFormat?: AudioFormat;
   speed?: number;
 }
 
-function clampSpeed(speed?: number) {
-  if (!Number.isFinite(speed)) return 1;
-  return Math.max(0.75, Math.min(1.25, Number(speed)));
+const ASSET_TYPES = new Set<TtsAssetType>([
+  "practice_sentence",
+  "tutor_reply",
+  "tutor_pass",
+  "tutor_minor_correction",
+  "tutor_retry",
+  "tutor_hint",
+  "tutor_complete",
+  "word_pronunciation",
+  "dynamic_tutor_reply",
+  "reading_sentence",
+]);
+
+function inferGender(voice?: string): VoiceGender {
+  const lower = (voice || "").toLowerCase();
+  if (["echo", "onyx", "ash", "cedar"].includes(lower)) return "male";
+  return "female";
 }
 
-async function requestSpeech({
-  apiKey,
-  model,
-  voice,
-  input,
-  instructions,
-  speed,
-}: {
-  apiKey: string;
-  model: string;
-  voice: string;
-  input: string;
-  instructions?: string;
-  speed?: number;
-}) {
-  const body: Record<string, unknown> = {
-    model,
-    voice,
-    input: input.slice(0, 3600),
-    response_format: "mp3",
-    speed: clampSpeed(speed),
-  };
-  if (instructions && model.includes("gpt-4o")) body.instructions = instructions.slice(0, 600);
-  void incrementApiUsage(`tts:openai-${model}`);
-  return fetch(OPENAI_SPEECH_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+function normalizeLanguageCode(value?: string) {
+  const lower = (value || "").toLowerCase();
+  if (lower === "ja" || lower.startsWith("ja-")) return "ja-JP";
+  if (lower === "ko" || lower.startsWith("ko-")) return "ko-KR";
+  if (lower === "it" || lower.startsWith("it-")) return "it-IT";
+  if (lower === "es" || lower.startsWith("es-")) return "es-ES";
+  if (lower.startsWith("en-gb")) return "en-GB";
+  if (lower.startsWith("cmn") || lower.startsWith("zh")) return "cmn-CN";
+  return "en-US";
 }
 
-async function readProviderMessage(response: Response) {
-  const text = await response.text().catch(() => "");
-  if (!text) return "";
-  try {
-    const json = JSON.parse(text) as { error?: { message?: string }; message?: string };
-    return json.error?.message || json.message || text.slice(0, 500);
-  } catch {
-    return text.slice(0, 500);
-  }
+function mimeForAudioFormat(format?: AudioFormat) {
+  if (format === "wav") return "audio/wav";
+  if (format === "m4a") return "audio/mp4";
+  return "audio/mpeg";
+}
+
+function statusForError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  const statusMatch = message.match(/\((\d{3})\)/);
+  const providerStatus = statusMatch ? Number(statusMatch[1]) : null;
+  if (providerStatus === 429) return 429;
+  if (message.includes("Missing GEMINI_API_KEY")) return 503;
+  return 503;
 }
 
 export async function POST(req: Request) {
@@ -86,73 +70,57 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const input = body.input?.trim();
+  const input = (body.input || body.text || "").trim();
   if (!input) return NextResponse.json({ error: "Missing input" }, { status: 400 });
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: "Missing OPENAI_API_KEY" }, { status: 503 });
-
-  const requestedVoice = body.voice || "nova";
-  const voice = VOICES.has(requestedVoice) ? requestedVoice : "nova";
+  const assetType = body.assetType && ASSET_TYPES.has(body.assetType) ? body.assetType : "practice_sentence";
 
   try {
-    let response = await requestSpeech({
-      apiKey,
-      model: MODEL,
-      voice,
-      input,
-      instructions: body.instructions,
-      speed: body.speed,
+    const result = await getOrCreateTtsAsset({
+      text: input.slice(0, 3600),
+      languageCode: normalizeLanguageCode(body.languageCode || body.lang),
+      assetType,
+      voiceGender: body.voiceGender || inferGender(body.voice),
+      voiceProfileId: body.voiceProfileId,
+      audioFormat: body.audioFormat,
     });
-    let providerStatus = response.status;
-    let providerMessage = response.ok ? "" : await readProviderMessage(response);
-    const firstAttempt = {
-      model: MODEL,
-      status: providerStatus,
-      message: providerMessage,
-    };
 
-    if (!response.ok && MODEL !== "tts-1") {
-      response = await requestSpeech({
-        apiKey,
-        model: "tts-1",
-        voice,
-        input,
-        speed: body.speed,
+    const contentType = mimeForAudioFormat(result.asset.audioFormat);
+    if (result.audioBase64) {
+      const audio = Buffer.from(result.audioBase64, "base64");
+      if (!audio.byteLength) return NextResponse.json({ error: "Gemini TTS returned empty audio blob" }, { status: 502 });
+      return new Response(audio, {
+        headers: {
+          "Content-Type": contentType,
+          "Cache-Control": "no-store",
+        },
       });
-      providerStatus = response.status;
-      providerMessage = response.ok ? "" : await readProviderMessage(response);
     }
 
-    if (!response.ok) {
+    if (!result.signedUrl || result.signedUrl.startsWith("stub://")) {
+      return NextResponse.json({ error: "Gemini TTS audio URL unavailable" }, { status: 503 });
+    }
+
+    const audioResponse = await fetch(result.signedUrl);
+    if (!audioResponse.ok) {
       return NextResponse.json(
-        {
-          error: "OpenAI TTS request failed",
-          model: MODEL,
-          fallbackModel: MODEL !== "tts-1" ? "tts-1" : null,
-          voice,
-          providerStatus,
-          providerMessage,
-          firstAttempt,
-        },
-        { status: 502 }
+        { error: "Gemini TTS cached audio fetch failed", providerStatus: audioResponse.status },
+        { status: audioResponse.status === 429 ? 429 : 503 }
       );
     }
-
-    const audio = await response.arrayBuffer();
-    if (!audio.byteLength) {
-      return NextResponse.json({ error: "OpenAI TTS returned empty audio blob" }, { status: 502 });
-    }
+    const audio = await audioResponse.arrayBuffer();
+    if (!audio.byteLength) return NextResponse.json({ error: "Gemini TTS returned empty audio blob" }, { status: 502 });
     return new Response(audio, {
       headers: {
-        "Content-Type": "audio/mpeg",
+        "Content-Type": audioResponse.headers.get("Content-Type") || contentType,
         "Cache-Control": "no-store",
       },
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { error: "TTS service unavailable", message: error instanceof Error ? error.message : String(error) },
-      { status: 502 }
+      { error: "Gemini TTS unavailable", message },
+      { status: statusForError(error) }
     );
   }
 }

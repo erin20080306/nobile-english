@@ -28,7 +28,7 @@ export type TtsAssetStatus = "generating" | "ready" | "failed";
 
 export type TtsProcessingStatus = "none" | "pending" | "processing" | "ready" | "failed";
 
-export type AudioFormat = "m4a" | "mp3";
+export type AudioFormat = "m4a" | "mp3" | "wav";
 
 export type AudioVersionString = "v1" | "v2_loud";
 

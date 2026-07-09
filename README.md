@@ -1,7 +1,7 @@
 # 📱 Mobile English — 時尚 Q 版手機英文學習 App
 
 手機優先（375–430px）的英文學習 PWA，使用 **Next.js App Router + TypeScript + Tailwind CSS + Framer Motion + Lucide Icons**。
-**無需任何 API Key 即可預覽與使用**，所有資料以 `localStorage` 儲存，並保留未來串接 Supabase / Firebase / OpenAI / 語音 API 的 service 層。
+**無需任何 API Key 即可預覽與使用**，所有資料以 `localStorage` 儲存，並保留未來串接 Supabase / Firebase / Gemini / 語音 API 的 service 層。
 
 ---
 
@@ -98,7 +98,7 @@ src/
 │  ├─ vocabularyService.ts   # 單字 / 同尾字搜尋 / 收藏 / 複習
 │  ├─ dictionaryService.ts   # 英英字典查詢（含 fallback）/ 收藏句子
 │  ├─ examService.ts         # 測驗評分 / 成績 / 錯題
-│  ├─ aiTutorService.ts      # AI 導師 facade（預留 OpenAI）
+│  ├─ aiTutorService.ts      # AI 導師 facade（Gemini）
 │  ├─ mockAiTutorService.ts  # 本地 mock AI 導師（免 API Key）
 │  └─ speechService.ts       # 瀏覽器 SpeechSynthesis（美式優先）
 ├─ data/               # mock data：scenes / vocabulary(300+) / dictionary / examQuestions / levelTest
@@ -129,7 +129,7 @@ src/
 
 ## 🔌 未來串接位置（不可將 Key 放前端）
 
-- **OpenAI（真實 AI 導師）**：已串接 `app/api/tutor/route.ts`。在 `.env.local` 加入 `OPENAI_API_KEY` 後，對話會走 OpenAI；沒有 key 會自動 fallback 到本機智能。
+- **Gemini（真實 AI 導師）**：已串接 `app/api/tutor/route.ts`。在 `.env.local` 加入 `GEMINI_API_KEY` 後，對話會走 Gemini；沒有 key 會自動 fallback 到本機智能。
 - **Supabase / Firebase（雲端帳號與同步）**：替換 `src/services/storageService.ts` 的讀寫實作；env 見 `.env.example`。
 - **免費字典 API**：`src/services/dictionaryService.ts` 的 `lookupRemote()`，base URL 見 `.env.example` 的 `DICTIONARY_API_BASE_URL`，本地資料作為離線 fallback。
 - **語音 API**：`src/services/speechService.ts` 目前用瀏覽器 SpeechSynthesis，可替換為雲端 TTS。
