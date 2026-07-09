@@ -176,7 +176,7 @@ function geminiTtsModel(quality: TtsQuality) {
   return (
     (quality === "standard" ? process.env.GEMINI_TTS_STANDARD_MODEL : process.env.GEMINI_TTS_NEURAL_MODEL) ||
     process.env.GEMINI_TTS_MODEL ||
-    "gemini-3.1-flash-tts-preview"
+    "gemini-2.5-flash-preview-tts"
   );
 }
 
@@ -192,14 +192,11 @@ function languageLabel(languageCode: string) {
 }
 
 function buildGeminiTtsPrompt(req: SynthesisRequest) {
+  // Gemini TTS speaks the content after a leading "<instruction>:" directive
+  // without reading the directive itself. Keep it to a single line so the
+  // model never accidentally narrates the style guidance.
   const style = GEMINI_TUTOR_STYLES[req.voiceProfileId] || `${req.voiceGender} ${languageLabel(req.languageCode)} tutor`;
-  return [
-    `Say only the following ${languageLabel(req.languageCode)} text.`,
-    `Use the voice of a ${style}.`,
-    "Keep the pacing natural, clear, teacher-like, and easy for a learner to understand.",
-    "Do not add explanations, labels, translations, sound effects, or extra words.",
-    req.text,
-  ].join("\n");
+  return `Read this aloud clearly and naturally in the voice of a ${style}, at an easy-to-understand teacher pace:\n${req.text}`;
 }
 
 function parseSampleRate(mimeType?: string) {
@@ -283,7 +280,9 @@ class GeminiTtsProvider implements TtsProvider {
     const apiKey = getGeminiApiKey();
     if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
 
-    const url = "https://generativelanguage.googleapis.com/v1beta/interactions";
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+      this.model
+    )}:generateContent?key=${encodeURIComponent(apiKey)}`;
     const voiceName = this.resolveVoice(req);
 
     void incrementApiUsage(`tts:gemini-${this.model}`);
@@ -291,14 +290,16 @@ class GeminiTtsProvider implements TtsProvider {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
       },
       body: JSON.stringify({
-        model: this.model,
-        input: buildGeminiTtsPrompt(req),
-        response_format: { type: "audio" },
-        generation_config: {
-          speech_config: [{ voice: voiceName }],
+        contents: [{ role: "user", parts: [{ text: buildGeminiTtsPrompt(req) }] }],
+        generationConfig: {
+          responseModalities: ["AUDIO"],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName },
+            },
+          },
         },
       }),
     });

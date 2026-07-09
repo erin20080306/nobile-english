@@ -165,6 +165,25 @@ class AudioQueueService {
       URL.revokeObjectURL(silentUrl);
       this.audio.src = "";
 
+      // 同步解鎖不經過 Web Audio 圖表的 plain element。WAV（Gemini TTS）
+      // 與非 1 倍語速都會用到它；iOS/Safari 的自動播放限制是「per-element」，
+      // 若這個 element 沒在使用者手勢中被 play 過，之後自動播放會被擋，
+      // 導致場景/對話導師語音不會自動播放。
+      try {
+        const plain = this.ensurePlainAudio();
+        const plainSilentUrl = this.createSilentAudio();
+        plain.src = plainSilentUrl;
+        plain.volume = 0;
+        await plain.play();
+        plain.pause();
+        URL.revokeObjectURL(plainSilentUrl);
+        plain.src = "";
+      } catch (plainError) {
+        this.log("[AI_TTS] plain audio unlock skipped", {
+          error: plainError instanceof Error ? plainError.message : String(plainError),
+        });
+      }
+
       this.setState({
         state: "ready",
         audioUnlocked: true,
@@ -348,7 +367,10 @@ class AudioQueueService {
       // 圖表的獨立 element，避免 MediaElementSource + 非 1 倍語速在部分
       // 瀏覽器上產生雜聲/爆音（一旦 element 被 createMediaElementSource
       // 接管，就無法再回到原生播放路徑，因此必須用另一個乾淨的 element）。
-      const useBoosted = this.state.playbackRate === 1;
+      // WAV（例如 Gemini TTS 回傳的 24kHz PCM 包裝）經過 Web Audio 圖表
+      // 時也容易產生雜聲，因此 WAV 一律走乾淨的 plain element。
+      const isWav = item.url.toLowerCase().includes(".wav") || item.url.startsWith("data:audio/wav");
+      const useBoosted = !isWav && this.state.playbackRate === 1;
       const audio = useBoosted ? this.ensureBoostedAudio() : this.ensurePlainAudio();
       this.activeAudio = audio;
       // 確保另一個未使用的 element 是停止狀態，避免雙重播放
