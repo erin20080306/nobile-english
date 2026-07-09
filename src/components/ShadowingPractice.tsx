@@ -11,6 +11,8 @@ import { getSelectedTutor } from "@/components/TutorSelector";
 import type { LearningLanguageCode } from "@/types";
 
 const TUTOR_FALLBACK_PHOTO = "/assets/tutors/tutor-fallback.svg";
+const PROMPT_MIN_DURATION_MS = 1500;
+const PROMPT_TO_SENTENCE_GAP_MS = 600;
 
 interface ShadowingPracticeProps {
   sentence: string;
@@ -34,6 +36,8 @@ export default function ShadowingPractice({
   const [useManualInput, setUseManualInput] = useState(false);
 
   const stopListenRef = useRef<(() => void) | null>(null);
+  const promptHandoffTimerRef = useRef<number | null>(null);
+  const playRunIdRef = useRef(0);
   const languageInfo = getLearningLanguage(targetLanguage as any);
   const speechSupported = voiceRecorderService.isSupported();
   const [tutor] = useState(() => getSelectedTutor(targetLanguage as LearningLanguageCode));
@@ -45,6 +49,12 @@ export default function ShadowingPractice({
   // from an effect rather than the click itself.
   useEffect(() => {
     playSentence(true);
+    return () => {
+      if (promptHandoffTimerRef.current !== null) {
+        window.clearTimeout(promptHandoffTimerRef.current);
+        promptHandoffTimerRef.current = null;
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -127,6 +137,12 @@ export default function ShadowingPractice({
   }
 
   async function playSentence(autoRecordAfter = false) {
+    const playRunId = playRunIdRef.current + 1;
+    playRunIdRef.current = playRunId;
+    if (promptHandoffTimerRef.current !== null) {
+      window.clearTimeout(promptHandoffTimerRef.current);
+      promptHandoffTimerRef.current = null;
+    }
     setPhase("playing");
     // Read the shadowing sentence slowly and clearly so the opening word is easy
     // to imitate (0.75x). Faster rates can make the first word (e.g. "Can" in
@@ -145,11 +161,18 @@ export default function ShadowingPractice({
     // Safety timeout to prevent getting stuck on "AI 示範中…" forever if
     // some TTS callback never fires (e.g. cloud TTS request hangs).
     const safetyTimeout = setTimeout(() => {
+      if (playRunIdRef.current !== playRunId) return;
+      playRunIdRef.current += 1;
+      if (promptHandoffTimerRef.current !== null) {
+        window.clearTimeout(promptHandoffTimerRef.current);
+        promptHandoffTimerRef.current = null;
+      }
       console.warn("ShadowingPractice playSentence safety timeout triggered");
       setPhase("idle");
     }, 20000);
 
     const finishAndMaybeRecord = () => {
+      if (playRunIdRef.current !== playRunId) return;
       clearTimeout(safetyTimeout);
       if (autoRecordAfter && speechSupported && !useManualInput) {
         setTimeout(() => startRecording(), 800);
@@ -167,39 +190,47 @@ export default function ShadowingPractice({
       // get cut off before it finished. The stable system voice for the fixed
       // "請跟我讀" prompt, plus cloud TTS only for the target sentence, is the
       // reliable combination.
+      const promptStartedAt = Date.now();
       const r1 = speechService.speak("請跟我讀", {
         lang: "zh-TW",
         voiceKeywords: ["google 繁體中文", "microsoft huihui", "microsoft yating", "mei-jia"],
         rate: 0.9,
         onEnd: () => {
-          // Gap before the target sentence. Long enough for the device audio
-          // output to settle after the browser speech-synthesis prompt, so the
-          // first word of the cloud-TTS sentence isn't clipped on the handoff.
-          setTimeout(() => {
-            // Then speak the target sentence with cloud TTS
+          const elapsed = Date.now() - promptStartedAt;
+          const waitMs = PROMPT_TO_SENTENCE_GAP_MS + Math.max(0, PROMPT_MIN_DURATION_MS - elapsed);
+          if (promptHandoffTimerRef.current !== null) {
+            window.clearTimeout(promptHandoffTimerRef.current);
+          }
+          promptHandoffTimerRef.current = window.setTimeout(() => {
+            promptHandoffTimerRef.current = null;
+            if (playRunIdRef.current !== playRunId) return;
             const r2 = speechService.speak(sentence, {
               ...opts,
               onEnd: finishAndMaybeRecord,
               onError: (msg) => {
+                if (playRunIdRef.current !== playRunId) return;
                 console.error("Target sentence TTS error:", msg);
                 clearTimeout(safetyTimeout);
                 setPhase("idle");
               },
             });
             if (!r2.ok) {
+              if (playRunIdRef.current !== playRunId) return;
               console.error("Target sentence TTS failed:", r2.message);
               clearTimeout(safetyTimeout);
               setPhase("idle");
             }
-          }, 700);
+          }, waitMs);
         },
         onError: (msg) => {
+          if (playRunIdRef.current !== playRunId) return;
           console.error("Chinese prompt TTS error:", msg);
           clearTimeout(safetyTimeout);
           setPhase("idle");
         },
       });
       if (!r1.ok) {
+        if (playRunIdRef.current !== playRunId) return;
         console.error("Chinese prompt TTS failed:", r1.message);
         clearTimeout(safetyTimeout);
         setPhase("idle");
