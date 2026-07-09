@@ -29,8 +29,9 @@ interface SystemStatus {
 }
 
 interface TtsProviderStatus {
-  active: "google" | "polly" | "stub";
-  override: "google" | "polly" | null;
+  active: "gemini" | "google" | "polly" | "stub";
+  override: "gemini" | "google" | "polly" | null;
+  geminiConfigured: boolean;
   googleConfigured: boolean;
   pollyConfigured: boolean;
 }
@@ -276,7 +277,7 @@ export default function AdminPage() {
     }
   }
 
-  async function switchTtsProvider(provider: "google" | "polly" | "auto") {
+  async function switchTtsProvider(provider: "gemini" | "google" | "polly" | "auto") {
     setSwitchingProvider(true);
     try {
       const res = await fetchApi("/api/admin/tts-provider", {
@@ -588,7 +589,7 @@ export default function AdminPage() {
               {statusIcon[systemStatus.supabase]} Supabase
             </span>
             <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${statusColor[envVars?.GEMINI_API_KEY ? "ok" : "error"]}`}>
-              {statusIcon[envVars?.GEMINI_API_KEY ? "ok" : "error"]} Gemini AI（文章／導師）
+              {statusIcon[envVars?.GEMINI_API_KEY ? "ok" : "error"]} Gemini AI／TTS
             </span>
             <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${statusColor[envVars?.GNEWS_API_KEY ? "ok" : "error"]}`}>
               {statusIcon[envVars?.GNEWS_API_KEY ? "ok" : "error"]} GNews（時事新聞來源）
@@ -598,7 +599,7 @@ export default function AdminPage() {
             </span>
           </div>
           <p className="text-xs text-inkSoft mt-2">
-            AI 文字生成（每日文章、導師回覆）已全面改用 Gemini。GNews 用於抓取真實時事新聞當作文章素材，未設定時會改用一般主題。Urimal Saem 用於韓文字典查詢。
+            AI 文字生成（每日文章、導師回覆）與預設 TTS 已全面改用 Gemini。GNews 用於抓取真實時事新聞當作文章素材，未設定時會改用一般主題。Urimal Saem 用於韓文字典查詢。
           </p>
         </div>
 
@@ -822,11 +823,11 @@ export default function AdminPage() {
             <>
               <p className="text-sm text-inkSoft mb-3">
                 目前使用：<span className="font-bold text-ink">
-                  {ttsProviderStatus.active === "google" ? "Google TTS（便宜）" : ttsProviderStatus.active === "polly" ? "Amazon Polly（便宜）" : "尚未設定，暫用系統語音"}
+                  {ttsProviderStatus.active === "gemini" ? "Gemini TTS" : ttsProviderStatus.active === "google" ? "Google TTS（便宜）" : ttsProviderStatus.active === "polly" ? "Amazon Polly（便宜）" : "尚未設定，暫用系統語音"}
                 </span>
                 {ttsProviderStatus.override && <span className="ml-1 text-xs text-lilacDeep">（手動指定）</span>}
               </p>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-4 gap-2">
                 <button
                   onClick={() => switchTtsProvider("auto")}
                   disabled={switchingProvider}
@@ -835,6 +836,16 @@ export default function AdminPage() {
                   }`}
                 >
                   自動（推薦）
+                </button>
+                <button
+                  onClick={() => switchTtsProvider("gemini")}
+                  disabled={switchingProvider || !ttsProviderStatus.geminiConfigured}
+                  className={`py-2.5 rounded-xl font-bold text-xs disabled:opacity-40 active:scale-95 transition ${
+                    ttsProviderStatus.override === "gemini" ? "bg-lilacDeep text-white" : "bg-sand text-inkSoft"
+                  }`}
+                  title={ttsProviderStatus.geminiConfigured ? "" : "尚未設定 GEMINI_API_KEY"}
+                >
+                  Gemini
                 </button>
                 <button
                   onClick={() => switchTtsProvider("google")}

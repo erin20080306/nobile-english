@@ -24,11 +24,12 @@ export async function GET() {
     PAYPAL_WEBHOOK_ID: !!process.env.PAYPAL_WEBHOOK_ID,
   };
   const supabaseOk = vars.NEXT_PUBLIC_SUPABASE_URL && vars.NEXT_PUBLIC_SUPABASE_ANON_KEY && vars.SUPABASE_SERVICE_ROLE_KEY;
+  const geminiTtsOk = vars.GEMINI_API_KEY;
   const googleTtsOk = vars.GOOGLE_TTS_API_KEY || vars.GOOGLE_CLOUD_SERVICE_ACCOUNT_JSON;
   const pollyTtsOk = vars.AWS_ACCESS_KEY_ID && vars.AWS_SECRET_ACCESS_KEY;
   return NextResponse.json({
-    ok: Boolean(supabaseOk && (googleTtsOk || pollyTtsOk)),
+    ok: Boolean(supabaseOk && (geminiTtsOk || googleTtsOk || pollyTtsOk)),
     vars,
-    ttsProvider: googleTtsOk ? "google" : pollyTtsOk ? "polly" : "not_configured",
+    ttsProvider: geminiTtsOk ? "gemini" : googleTtsOk ? "google" : pollyTtsOk ? "polly" : "not_configured",
   });
 }

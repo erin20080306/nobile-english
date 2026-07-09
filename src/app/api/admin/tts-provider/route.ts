@@ -6,8 +6,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // Admin-only toggle for which TTS provider powers the AI tutor voice + reading
-// article audio. Google/Polly are considerably cheaper than OpenAI's TTS API,
-// which this app only ever uses as a last-resort fallback. Follows the same
+// article audio. Gemini is the default when GEMINI_API_KEY is configured.
+// Google/Polly remain available as alternate providers. Follows the same
 // "protected by the admin page's client-side email gate" pattern as the other
 // /api/articles/* admin action routes in this codebase.
 
@@ -32,8 +32,8 @@ export async function POST(request: NextRequest) {
   }
 
   const provider = (body.provider || "").toLowerCase();
-  if (!["google", "polly", "auto"].includes(provider)) {
-    return NextResponse.json({ error: "provider must be google, polly, or auto" }, { status: 400 });
+  if (!["gemini", "google", "polly", "auto"].includes(provider)) {
+    return NextResponse.json({ error: "provider must be gemini, google, polly, or auto" }, { status: 400 });
   }
 
   try {
