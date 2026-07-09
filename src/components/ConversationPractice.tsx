@@ -25,7 +25,12 @@ interface Msg {
 }
 
 const MIN_PRACTICE_TURNS = 5;
-const TUTOR_PLAYBACK_READY_DELAY_MS = 300;
+// Short protective delay applied AFTER the microphone has already been released,
+// just long enough for the OS audio session to switch out of record mode so the
+// tutor reply isn't ducked (played quieter). This is not a blind wait: the mic
+// tracks and speech recognition are stopped first, so the tutor's next line
+// starts as soon as the device is ready.
+const TUTOR_PLAYBACK_READY_DELAY_MS = 150;
 const TUTOR_FALLBACK_PHOTO = "/assets/tutors/tutor-fallback.svg";
 
 const SCENE_PERSONAS: Record<string, string[]> = {
@@ -373,13 +378,19 @@ export default function ConversationPractice({
   }
 
   async function waitForTutorPlaybackReady(): Promise<void> {
+    // 1) Release the microphone as fast as possible (adaptive, not a blind wait):
+    //    stop recognition + stop the mic tracks + clear the recording flag.
     stopListenRef.current?.();
     stopListenRef.current = null;
     setListening(false);
     await waitForSpeechRecognitionEnd();
     stopKnownMicrophoneTracks();
     tutorVoiceService.setRecording(false);
+    // 2) Short protective delay only — enough for the OS audio session to leave
+    //    record mode so playback isn't ducked (quieter), but far shorter than
+    //    the previous blind 300ms so the tutor's next line comes sooner.
     await delay(TUTOR_PLAYBACK_READY_DELAY_MS);
+    // 3) Safety net: if recording somehow re-armed, release again briefly.
     if (audioQueueService.getState().recording) {
       tutorVoiceService.setRecording(false);
       await delay(50);

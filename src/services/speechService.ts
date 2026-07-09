@@ -280,6 +280,24 @@ function waitForAudioReady(audio: HTMLAudioElement, timeoutMs = 1500): Promise<v
   });
 }
 
+// Wait until the AudioContext clock has actually started advancing (graph is
+// producing output) before starting playback, bounded by a short timeout so we
+// never stall. Prevents the first audio frames from being swallowed.
+function waitForContextWarm(context: AudioContext, timeoutMs = 180): Promise<void> {
+  return new Promise((resolve) => {
+    const start = context.currentTime;
+    const startedAt = Date.now();
+    const check = () => {
+      if (context.currentTime > start || Date.now() - startedAt >= timeoutMs) {
+        resolve();
+        return;
+      }
+      window.setTimeout(check, 20);
+    };
+    check();
+  });
+}
+
 async function playWithGain(audio: HTMLAudioElement, gainValue: number, cleanup: () => void) {
   if (typeof window === "undefined") return false;
   const AudioContextCtor =
@@ -296,6 +314,12 @@ async function playWithGain(audio: HTMLAudioElement, gainValue: number, cleanup:
     gain.connect(context.destination);
     currentAudioContext = context;
     if (context.state === "suspended") await context.resume();
+    // A freshly created/resumed AudioContext needs a brief moment before its
+    // graph reliably passes audio through. Starting playback immediately can
+    // swallow the first frames, clipping the opening word (e.g. the "Can" in
+    // "Can I get ..."). Wait for the context clock to advance a little before
+    // starting so the graph is warm.
+    await waitForContextWarm(context);
     audio.onended = () => {
       cleanup();
       void context.close();
@@ -304,6 +328,11 @@ async function playWithGain(audio: HTMLAudioElement, gainValue: number, cleanup:
       cleanup();
       void context.close();
     };
+    try {
+      audio.currentTime = 0;
+    } catch {
+      /* ignore */
+    }
     await audio.play();
     return true;
   } catch {

@@ -128,7 +128,10 @@ export default function ShadowingPractice({
 
   async function playSentence(autoRecordAfter = false) {
     setPhase("playing");
-    const opts = voiceForLanguage(targetLanguage as any, 1, tutor.gender);
+    // Read the shadowing sentence slightly slower so the opening word is clear
+    // and easier to imitate (0.9x). Faster rates can make the first word (e.g.
+    // "Can" in "Can I get ...") sound clipped or rushed.
+    const opts = voiceForLanguage(targetLanguage as any, 0.9, tutor.gender);
     // Use the selected tutor's own cloud voice/instructions instead of the
     // generic per-language default, so the gender the learner picked is
     // actually respected (e.g. male tutor => male-sounding cloud voice).
@@ -163,7 +166,9 @@ export default function ShadowingPractice({
         voiceKeywords: ["google 繁體中文", "microsoft huihui", "microsoft yating", "mei-jia"],
         rate: 0.9,
         onEnd: () => {
-          // Small delay before target sentence
+          // Gap before the target sentence. Long enough for the device audio
+          // output to settle after the browser speech-synthesis prompt, so the
+          // first word of the cloud-TTS sentence isn't clipped on the handoff.
           setTimeout(() => {
             // Then speak the target sentence with cloud TTS
             const r2 = speechService.speak(sentence, {
@@ -180,7 +185,7 @@ export default function ShadowingPractice({
               clearTimeout(safetyTimeout);
               setPhase("idle");
             }
-          }, 500);
+          }, 700);
         },
         onError: (msg) => {
           console.error("Chinese prompt TTS error:", msg);
