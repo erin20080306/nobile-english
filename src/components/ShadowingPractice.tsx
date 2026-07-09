@@ -160,9 +160,18 @@ export default function ShadowingPractice({
     // When cloud voice is available, have the tutor say "請跟我讀" in Chinese first,
     // then the target sentence in the target language
     if (opts.ttsVoice) {
-      // Speak Chinese prompt first using browser TTS with voice keywords
+      // Speak the Chinese prompt via the SAME cloud-audio path (Chinese voice)
+      // rather than the browser speech-synthesis engine. Playing both the
+      // prompt and the target sentence through cloud audio avoids switching
+      // audio engines mid-flow, which was clipping the first word of the
+      // English sentence on the handoff. ttsVoice being truthy routes this
+      // through cloud TTS; the server resolves a Chinese (cmn-CN) voice from
+      // the zh-TW language code. If cloud TTS fails, speechService falls back
+      // to browser speech-synthesis using the voiceKeywords below.
       const r1 = speechService.speak("請跟我讀", {
         lang: "zh-TW",
+        ttsVoice: "cloud",
+        voiceGender: "female",
         voiceKeywords: ["google 繁體中文", "microsoft huihui", "microsoft yating", "mei-jia"],
         rate: 0.9,
         onEnd: () => {
