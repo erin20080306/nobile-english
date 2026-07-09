@@ -125,8 +125,13 @@ async function providerPreference(): Promise<ProviderKind> {
   if (preferred === "gemini" && hasGeminiTtsConfig()) return "gemini";
   if (preferred === "google" && hasGoogleConfig()) return "google";
   if (preferred === "polly" && hasPollyConfig()) return "polly";
-  if (hasGeminiTtsConfig()) return "gemini";
+  // Auto-detect default: prefer Google Cloud TTS (fast <1s, MP3, distinct
+  // per-tutor voices, Neural2 for tutor speech / WaveNet for practice lines)
+  // over Gemini TTS, which is slower and returns WAV. Gemini remains a
+  // fallback when no Google key is configured, and can still be forced via
+  // the admin override or TTS_PROVIDER env var above.
   if (hasGoogleConfig()) return "google";
+  if (hasGeminiTtsConfig()) return "gemini";
   if (hasPollyConfig()) return "polly";
   return "stub";
 }
