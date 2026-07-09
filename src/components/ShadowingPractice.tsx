@@ -128,10 +128,10 @@ export default function ShadowingPractice({
 
   async function playSentence(autoRecordAfter = false) {
     setPhase("playing");
-    // Read the shadowing sentence slightly slower so the opening word is clear
-    // and easier to imitate (0.9x). Faster rates can make the first word (e.g.
-    // "Can" in "Can I get ...") sound clipped or rushed.
-    const opts = voiceForLanguage(targetLanguage as any, 0.9, tutor.gender);
+    // Read the shadowing sentence slower so the opening word is clear and easy
+    // to imitate (0.8x). Faster rates can make the first word (e.g. "Can" in
+    // "Can I get ...") sound clipped or rushed.
+    const opts = voiceForLanguage(targetLanguage as any, 0.8, tutor.gender);
     // Use the selected tutor's own cloud voice/instructions instead of the
     // generic per-language default, so the gender the learner picked is
     // actually respected (e.g. male tutor => male-sounding cloud voice).

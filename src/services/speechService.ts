@@ -6,6 +6,11 @@ let currentUtterance: SpeechSynthesisUtterance | null = null;
 let currentAudio: HTMLAudioElement | null = null;
 let currentAudioContext: AudioContext | null = null;
 let currentPlaybackEnd: (() => void) | null = null;
+// Sample-accurate playback path (decoded AudioBuffer -> scheduled BufferSource).
+// Reused across calls so we don't leak AudioContexts (which would make later
+// playback fall back to unboosted/quieter output).
+let sharedDecodeContext: AudioContext | null = null;
+let currentBufferSource: AudioBufferSourceNode | null = null;
 const ttsBlobCache = new Map<string, Blob>();
 const TTS_CACHE_LIMIT = 24;
 const MAX_AUDIO_VOLUME_GAIN = 3;
@@ -110,6 +115,15 @@ function stopAudio() {
   currentUtterance = null;
   const endPlayback = currentPlaybackEnd;
   currentPlaybackEnd = null;
+  if (currentBufferSource) {
+    try {
+      currentBufferSource.onended = null;
+      currentBufferSource.stop();
+    } catch {
+      /* ignore */
+    }
+    currentBufferSource = null;
+  }
   if (!currentAudio) {
     try {
       void currentAudioContext?.close();
@@ -163,6 +177,81 @@ function speakNow(text: string, opts?: SpeakOptions, voices = window.speechSynth
   }, 120);
 }
 
+function getSharedDecodeContext(): AudioContext | null {
+  if (typeof window === "undefined") return null;
+  const AudioContextCtor =
+    window.AudioContext ||
+    (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioContextCtor) return null;
+  if (!sharedDecodeContext) {
+    try {
+      sharedDecodeContext = new AudioContextCtor();
+    } catch {
+      return null;
+    }
+  }
+  return sharedDecodeContext;
+}
+
+// Decode the audio and play it via a scheduled AudioBufferSourceNode. Unlike an
+// HTMLAudioElement, buffer playback is sample-accurate and never drops the
+// opening frames, so the first word (e.g. the "Can" in "Can I get ...") is
+// always fully audible. A short leading silence is prepended so any audio
+// output-route/session transition (e.g. right after the browser speech-synthesis
+// prompt) lands in the silence instead of clipping speech. Returns false so the
+// caller can fall back to element playback if decoding is unsupported.
+async function playDecodedBuffer(blob: Blob, opts?: SpeakOptions): Promise<boolean> {
+  const ctx = getSharedDecodeContext();
+  if (!ctx) return false;
+  try {
+    if (ctx.state === "suspended") await ctx.resume();
+    const arrayBuffer = await blob.arrayBuffer();
+    const decoded = await ctx.decodeAudioData(arrayBuffer.slice(0));
+    // Prepend ~150ms of silence.
+    const leadSamples = Math.round(decoded.sampleRate * 0.15);
+    const out = ctx.createBuffer(
+      decoded.numberOfChannels,
+      decoded.length + leadSamples,
+      decoded.sampleRate
+    );
+    for (let ch = 0; ch < decoded.numberOfChannels; ch++) {
+      out.getChannelData(ch).set(decoded.getChannelData(ch), leadSamples);
+    }
+
+    // Stop any in-flight buffer playback without firing its end callback.
+    if (currentBufferSource) {
+      try {
+        currentBufferSource.onended = null;
+        currentBufferSource.stop();
+      } catch {
+        /* ignore */
+      }
+      currentBufferSource = null;
+    }
+
+    const source = ctx.createBufferSource();
+    source.buffer = out;
+    const gain = ctx.createGain();
+    gain.gain.value = Math.max(1, Math.min(MAX_AUDIO_VOLUME_GAIN, opts?.volumeGain ?? 1.35));
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    currentBufferSource = source;
+    currentPlaybackEnd = opts?.onEnd ?? null;
+    source.onended = () => {
+      if (currentBufferSource !== source) return;
+      currentBufferSource = null;
+      const endPlayback = currentPlaybackEnd;
+      currentPlaybackEnd = null;
+      endPlayback?.();
+    };
+    opts?.onStart?.();
+    source.start();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function speakWithCloudTts(text: string, opts?: SpeakOptions) {
   if (!opts?.ttsVoice || typeof fetch === "undefined" || typeof Audio === "undefined") return false;
   try {
@@ -192,6 +281,10 @@ async function speakWithCloudTts(text: string, opts?: SpeakOptions) {
       rememberTtsBlob(cacheKey, blob);
     }
     if (!blob.size) return false;
+    // Preferred path: decode + scheduled buffer playback so the opening word is
+    // never clipped. Falls back to element playback if decoding is unsupported.
+    const playedViaBuffer = await playDecodedBuffer(blob, opts);
+    if (playedViaBuffer) return true;
     const url = URL.createObjectURL(blob);
     const audio = new Audio();
     audio.preload = "auto";
