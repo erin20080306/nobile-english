@@ -8,7 +8,9 @@ function bucketName() {
 }
 
 function contentType(format: AudioFormat) {
-  return format === "mp3" ? "audio/mpeg" : "audio/mp4";
+  if (format === "mp3") return "audio/mpeg";
+  if (format === "wav") return "audio/wav";
+  return "audio/mp4";
 }
 
 export function isSupabaseStoragePath(path: string) {
