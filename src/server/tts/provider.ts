@@ -15,7 +15,6 @@ export interface TtsProvider {
 }
 
 const STANDARD_ASSET_TYPES = new Set<TtsAssetType>([
-  "practice_sentence",
   "reading_sentence",
   "word_pronunciation",
 ]);
