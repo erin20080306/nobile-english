@@ -373,6 +373,54 @@ class TutorVoiceService {
     }
   }
 
+  /**
+   * Pre-generate (and cache) audio for known fixed texts ahead of time so that
+   * when they are actually played the request is a fast cache hit instead of a
+   * ~5s cold Gemini synthesis. Used for scene opening-line candidates while the
+   * learner is still on the scene preview screen. Fire-and-forget; failures are
+   * ignored because playback will simply fall back to on-demand synthesis.
+   *
+   * IMPORTANT: uses the same voice-profile resolution as playback so the cache
+   * key (which includes voiceProfileId) matches what playback later requests.
+   */
+  async prewarmTexts(texts: string[], options: TutorVoiceOptions): Promise<void> {
+    const { chirpVoiceProfileId } = this.resolveTutor(options);
+    const voiceProfileId = chirpVoiceProfileId || options.voiceProfileId;
+    const assetType = options.assetType || "tutor_reply";
+    const seen = new Set<string>();
+
+    await Promise.all(
+      texts.map(async (raw) => {
+        const text = String(raw || "").trim();
+        if (!text || seen.has(text)) return;
+        seen.add(text);
+        try {
+          await fetch("/api/tts/get-or-create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text,
+              languageCode: options.languageCode,
+              assetType,
+              voiceGender: options.voiceGender,
+              voiceProfileId,
+              audioFormat: options.audioFormat,
+              audioVersionString: options.audioVersionString,
+              sceneId: options.sceneId,
+              sceneVersion: options.sceneVersion,
+              cacheOnly: false,
+            }),
+          });
+        } catch (error) {
+          this.log("[AI_TTS] prewarm failed", {
+            error: error instanceof Error ? error.message : String(error),
+            tutorId: options.voiceProfileId,
+          });
+        }
+      })
+    );
+  }
+
   async playManual(text: string, options: TutorVoiceOptions): Promise<void> {
     const clean = text.trim();
     if (!clean) return;

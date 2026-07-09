@@ -49,8 +49,11 @@ function pickPersona(scene: Scene): string {
   return list[Math.floor(Math.random() * list.length)];
 }
 
-function localizedOpening(scene: Scene, targetLanguage: ReturnType<typeof getLearningLanguage>, fallback: { en: string; zh: string }) {
-  const choose = (items: { en: string; zh: string }[]) => items[Math.floor(Math.random() * items.length)] || fallback;
+export function openingCandidates(
+  scene: Scene,
+  targetLanguage: ReturnType<typeof getLearningLanguage>,
+  fallback: { en: string; zh: string }
+): { en: string; zh: string }[] {
   const title = `${scene.name} ${scene.enName} ${scene.themeId}`.toLowerCase();
   const map = {
     en: {
@@ -216,13 +219,22 @@ function localizedOpening(scene: Scene, targetLanguage: ReturnType<typeof getLea
       ],
     },
   }[targetLanguage.code];
-  if (!map) return fallback;
-  if (scene.themeId === "free") return choose(map.free);
-  if (title.includes("餐廳") || title.includes("restaurant") || scene.themeId === "restaurant") return choose(map.restaurant);
-  if (title.includes("咖啡") || title.includes("cafe")) return choose(map.cafe);
-  if (title.includes("問路") || title.includes("direction") || scene.themeId === "travel") return choose(map.travel);
-  if (scene.themeId === "daily") return choose(map.daily);
-  return choose(map.default);
+  if (!map) return [fallback];
+  if (scene.themeId === "free") return map.free;
+  if (title.includes("餐廳") || title.includes("restaurant") || scene.themeId === "restaurant") return map.restaurant;
+  if (title.includes("咖啡") || title.includes("cafe")) return map.cafe;
+  if (title.includes("問路") || title.includes("direction") || scene.themeId === "travel") return map.travel;
+  if (scene.themeId === "daily") return map.daily;
+  return map.default;
+}
+
+function localizedOpening(
+  scene: Scene,
+  targetLanguage: ReturnType<typeof getLearningLanguage>,
+  fallback: { en: string; zh: string }
+) {
+  const items = openingCandidates(scene, targetLanguage, fallback);
+  return items[Math.floor(Math.random() * items.length)] || fallback;
 }
 
 export default function ConversationPractice({

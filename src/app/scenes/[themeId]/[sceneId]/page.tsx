@@ -21,7 +21,9 @@ import { getLearningLanguage, voiceForLanguage } from "@/data/learningLanguages"
 import AppHeader from "@/components/AppHeader";
 import ClickableText from "@/components/ClickableText";
 import WordSheet from "@/components/WordSheet";
-import ConversationPractice from "@/components/ConversationPractice";
+import ConversationPractice, { openingCandidates } from "@/components/ConversationPractice";
+import { getSelectedTutor } from "@/components/TutorSelector";
+import { tutorVoiceService } from "@/services/tutorVoiceService";
 import ShadowingPractice from "@/components/ShadowingPractice";
 import SubscriptionLaunchPrompt from "@/components/SubscriptionLaunchPrompt";
 import { LevelBadge } from "@/components/ui";
@@ -135,6 +137,25 @@ export default function ScenePracticePage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene?.id]);
+
+  // Pre-generate (and cache) the fixed opening-line candidates for this scene
+  // while the learner is still reading the preview screen, so the tutor's
+  // opening line plays from cache (~1s) instead of a cold ~5s Gemini synthesis.
+  // Only the opening line is fixed/rotating; later replies stay dynamic.
+  useEffect(() => {
+    if (!scene) return;
+    const selectedTutor = getSelectedTutor(targetLanguage);
+    const baseFirstTutor =
+      scene.dialogue.find((d) => d.speaker === "tutor") || { en: "Hi! Let's practice together.", zh: "嗨！我們一起練習吧。" };
+    const candidates = openingCandidates(scene, languageInfo, baseFirstTutor).map((c) => c.en);
+    void tutorVoiceService.prewarmTexts(candidates, {
+      languageCode: targetLanguage,
+      voiceGender: selectedTutor.gender,
+      voiceProfileId: selectedTutor.id,
+      assetType: "tutor_reply",
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scene?.id, targetLanguage]);
 
   const patternSessionSeed = useMemo(() => `${sceneId}:${Date.now()}`, [sceneId]);
   // Prefer the AI-generated set once it arrives; otherwise fall back to the
