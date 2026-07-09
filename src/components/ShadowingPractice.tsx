@@ -128,18 +128,19 @@ export default function ShadowingPractice({
 
   async function playSentence(autoRecordAfter = false) {
     setPhase("playing");
-    // Read the shadowing sentence slower so the opening word is clear and easy
-    // to imitate (0.8x). Faster rates can make the first word (e.g. "Can" in
+    // Read the shadowing sentence slowly and clearly so the opening word is easy
+    // to imitate (0.75x). Faster rates can make the first word (e.g. "Can" in
     // "Can I get ...") sound clipped or rushed.
-    const opts = voiceForLanguage(targetLanguage as any, 0.8, tutor.gender);
+    const opts = voiceForLanguage(targetLanguage as any, 0.75, tutor.gender);
     // Use the selected tutor's own cloud voice/instructions instead of the
     // generic per-language default, so the gender the learner picked is
     // actually respected (e.g. male tutor => male-sounding cloud voice).
     opts.ttsVoice = tutor.ttsVoice;
     opts.ttsInstructions = tutor.ttsInstructions;
     opts.voiceKeywords = tutor.voiceKeywords;
-    // Increase volume for shadowing practice on mobile/PWA speakers.
-    opts.volumeGain = 2.8;
+    // Increase volume for shadowing practice on mobile/PWA speakers, but avoid
+    // over-boosting because phone speakers can distort and make speech unclear.
+    opts.volumeGain = 2.4;
 
     // Safety timeout to prevent getting stuck on "AI 示範中…" forever if
     // some TTS callback never fires (e.g. cloud TTS request hangs).
