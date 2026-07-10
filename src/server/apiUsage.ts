@@ -49,6 +49,10 @@ const TRACKED_API_NAMES = [
   "dictionary:urimal-saem",
 ];
 
+function shouldHideApiUsage(apiName: string): boolean {
+  return apiName.toLowerCase().includes("openai");
+}
+
 function isoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
@@ -78,6 +82,7 @@ export async function getApiUsageSummary(): Promise<ApiUsageSummary[]> {
     );
     for (const row of (data || []) as Array<{ api_name: string; usage_date: string; count: number }>) {
       const name = row.api_name;
+      if (shouldHideApiUsage(name)) continue;
       if (!map.has(name)) map.set(name, { apiName: name, today: 0, last7Days: 0, last30Days: 0 });
       const entry = map.get(name)!;
       entry.last30Days += row.count;
