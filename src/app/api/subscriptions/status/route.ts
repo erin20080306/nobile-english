@@ -94,15 +94,33 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Missing userId" }, { status: 400 });
     }
 
-    const { data: profile } = await supabase
+    const profileColumns =
+      "subscription_platform, subscription_status, subscription_product_id, subscription_expires_at, subscription_entitlement";
+
+    const { data: profileById } = await supabase
       .from("profiles")
-      .select(
-        "subscription_platform, subscription_status, subscription_product_id, subscription_expires_at, subscription_entitlement"
-      )
+      .select(profileColumns)
       .eq("id", userId)
       .maybeSingle();
 
-    // Check if subscription is active
+    let profile = profileById;
+
+    // Older cloud profiles can retain a local app ID instead of the Supabase Auth UUID.
+    // Fall back to the normalized email so a valid paid subscription always wins over trial status.
+    if ((!profile || !isActive(profile.subscription_status, profile.subscription_expires_at)) && email) {
+      const { data: profileByEmail } = await supabase
+        .from("profiles")
+        .select(profileColumns)
+        .ilike("email", email)
+        .eq("subscription_status", "active")
+        .gt("subscription_expires_at", new Date().toISOString())
+        .order("subscription_expires_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (profileByEmail) profile = profileByEmail;
+    }
+
     const profileIsActive = isActive(profile?.subscription_status, profile?.subscription_expires_at);
     if (profile && profileIsActive) {
       return NextResponse.json({
