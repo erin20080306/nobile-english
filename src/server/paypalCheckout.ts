@@ -120,11 +120,12 @@ export async function getPayPalAccessToken() {
     cache: "no-store",
   });
 
+  const data = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(`PayPal token request failed: ${response.status}`);
+    const issue = getString(data?.error, data?.name);
+    throw new Error(`PayPal token request failed: ${response.status}${issue ? ` ${issue}` : ""}`);
   }
 
-  const data = await response.json();
   if (!data.access_token) throw new Error("PayPal token response missing access_token");
   return String(data.access_token);
 }
