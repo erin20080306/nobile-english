@@ -50,5 +50,13 @@ create index if not exists manual_subscription_records_expires_idx
 alter table public.manual_payment_requests enable row level security;
 alter table public.manual_subscription_records enable row level security;
 
+-- Legacy manual activations may have a null platform. The existing admin statistics
+-- count active non-PayPal profiles, so normalize those records to the existing web enum.
+update public.profiles
+set subscription_platform = 'web'
+where subscription_platform is null
+  and subscription_status = 'active'
+  and subscription_expires_at > now();
+
 comment on table public.manual_payment_requests is 'Bank transfer notifications submitted by users for administrator review.';
 comment on table public.manual_subscription_records is 'Audit log for subscriptions manually activated or approved by an administrator.';
