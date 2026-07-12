@@ -15,17 +15,12 @@ const THIRTY_DAY_PROMO_CODE = "qwe931016@";
 const PRELAUNCH_PAYMENT_LINKS = {
   monthly: {
     price: 399,
-    url: "https://www.paypal.com/ncp/payment/A3ECG8WXHHAE6",
     promoPrice: 299,
-    promoUrl: "https://www.paypal.com/ncp/payment/AXKW9C87A8GZ6",
   },
   yearly: {
     price: 1290,
-    url: "https://www.paypal.com/ncp/payment/TZAPMTMDB9PAW",
     renewalPrice: 2199,
-    renewalUrl: "https://www.paypal.com/ncp/payment/PETZYPM7UPBBJ",
     promoPrice: 1090,
-    promoUrl: "https://www.paypal.com/ncp/payment/ZMW4ZN2KDZJ6U",
   },
 };
 
@@ -39,8 +34,12 @@ export default function SubscriptionPage() {
   const [access, setAccess] = useState<AccessState | null>(null);
   const [promoCode, setPromoCode] = useState("");
   const [promoMessage, setPromoMessage] = useState("");
+  const [purchaseMessage, setPurchaseMessage] = useState("");
 
   useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("paypal") === "cancelled") {
+      setPurchaseMessage("已取消 PayPal 付款，尚未產生扣款。");
+    }
     void load();
   }, []);
 
@@ -72,15 +71,40 @@ export default function SubscriptionPage() {
     const promoApplied = isPromoApplied();
     return {
       price: promoApplied ? payment.promoPrice : payment.price,
-      url: promoApplied ? payment.promoUrl : payment.url,
       promoApplied,
     };
   }
 
-  function handlePurchase(offering: SubscriptionOffering) {
-    const target = getPaymentTarget(offering);
+  async function handlePurchase(offering: SubscriptionOffering) {
+    const user = authService.getCurrentUser();
+    if (!user?.id) {
+      setPurchaseMessage("請先登入 Google 帳號，再開始付款。");
+      return;
+    }
+
     setPurchasing(offering.productId);
-    window.location.assign(target.url);
+    setPurchaseMessage("");
+    try {
+      const response = await fetch("/api/subscriptions/paypal/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          period: offering.period,
+          promoCode: isPromoApplied() ? promoCode : "",
+          userId: user.id,
+        }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.ok || !data?.approvalUrl) {
+        setPurchaseMessage(String(data?.message || "目前無法開啟 PayPal 付款，請稍後再試。"));
+        return;
+      }
+      window.location.assign(String(data.approvalUrl));
+    } catch {
+      setPurchaseMessage("網路連線中斷，請稍後重新選擇方案。");
+    } finally {
+      setPurchasing(null);
+    }
   }
 
   async function handleRedeemTrialPromo() {
@@ -228,7 +252,7 @@ export default function SubscriptionPage() {
             <motion.button
               key={offering.id}
               whileTap={{ scale: 0.98 }}
-              onClick={() => handlePurchase(offering)}
+              onClick={() => { void handlePurchase(offering); }}
               disabled={purchasing === offering.productId || isSubscribed}
               className={`w-full rounded-[28px] p-4 text-left shadow-softer transition disabled:opacity-60 ${
                 offering.isFirstYearOffer
@@ -279,6 +303,12 @@ export default function SubscriptionPage() {
           ))}
         </div>
 
+        {purchaseMessage && (
+          <p className="rounded-2xl bg-cream px-4 py-3 text-sm font-bold text-peachDeep">
+            {purchaseMessage}
+          </p>
+        )}
+
         <div className="card">
           <p className="mb-3 flex items-center gap-2 font-extrabold text-ink">
             <Sparkles size={18} className="text-lilacDeep" />
@@ -309,7 +339,7 @@ export default function SubscriptionPage() {
         </div>
 
         <p className="text-center text-xs font-semibold leading-relaxed text-inkSoft">
-          上架前測試付款暫時導向 PayPal；正式上架後會移除這些付款連結並恢復商店訂閱流程。
+          上架前測試付款暫時使用 PayPal；付款完成後會自動返回 App 並確認解鎖。
         </p>
       </div>
     </div>

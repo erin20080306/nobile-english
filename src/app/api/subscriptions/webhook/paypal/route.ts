@@ -4,6 +4,14 @@ import { notifySubscriptionSupport } from "@/server/subscriptionNotification";
 
 export const dynamic = "force-dynamic";
 
+export async function GET() {
+  return NextResponse.json({
+    ok: true,
+    service: "paypal-webhook",
+    message: "PayPal webhook endpoint is ready for POST events.",
+  });
+}
+
 type PaypalWebhookEvent = {
   id?: string;
   event_type?: string;
